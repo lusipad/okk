@@ -12,7 +12,8 @@
     "test": "npm run test -ws --if-present",
     "lint": "npm run lint -ws --if-present",
     "release:prepare": "node scripts/prepare-release.mjs",
-    "ui:pixel:audit": "node scripts/pixel-audit.mjs"
+    "ui:pixel:audit": "node scripts/pixel-audit.mjs",
+    "ui:pixel:report": "node scripts/pixel-report.mjs"
   },
   "devDependencies": {
     "@types/node": "^22.13.9",
