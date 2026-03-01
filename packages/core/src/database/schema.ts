@@ -1,0 +1,160 @@
+export const CURRENT_SCHEMA_VERSION = 2;
+
+export const createBaseSchemaSql = `
+CREATE TABLE IF NOT EXISTS schema_migrations (
+  version INTEGER PRIMARY KEY,
+  applied_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS users (
+  id TEXT PRIMARY KEY,
+  username TEXT NOT NULL UNIQUE,
+  password_hash TEXT NOT NULL,
+  display_name TEXT NOT NULL,
+  role TEXT NOT NULL DEFAULT 'user',
+  created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS repositories (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  path TEXT NOT NULL UNIQUE,
+  description TEXT,
+  default_backend TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'active',
+  created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS sessions (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  repo_id TEXT NOT NULL,
+  title TEXT NOT NULL,
+  backend TEXT NOT NULL,
+  backend_session_id TEXT,
+  mode TEXT NOT NULL DEFAULT 'ask',
+  status TEXT NOT NULL DEFAULT 'active',
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  FOREIGN KEY (user_id) REFERENCES users(id),
+  FOREIGN KEY (repo_id) REFERENCES repositories(id)
+);
+
+CREATE TABLE IF NOT EXISTS messages (
+  id TEXT PRIMARY KEY,
+  session_id TEXT NOT NULL,
+  role TEXT NOT NULL,
+  content TEXT NOT NULL,
+  metadata TEXT NOT NULL DEFAULT '{}',
+  client_message_id TEXT,
+  created_at TEXT NOT NULL,
+  FOREIGN KEY (session_id) REFERENCES sessions(id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_messages_session_created
+ON messages(session_id, created_at, id);
+
+CREATE TABLE IF NOT EXISTS knowledge_entries (
+  id TEXT PRIMARY KEY,
+  title TEXT NOT NULL,
+  content TEXT NOT NULL,
+  summary TEXT NOT NULL,
+  repo_id TEXT NOT NULL,
+  category TEXT NOT NULL DEFAULT 'general',
+  source_session_id TEXT,
+  quality_score REAL NOT NULL DEFAULT 0,
+  view_count INTEGER NOT NULL DEFAULT 0,
+  upvote_count INTEGER NOT NULL DEFAULT 0,
+  version INTEGER NOT NULL DEFAULT 1,
+  status TEXT NOT NULL DEFAULT 'draft',
+  metadata TEXT NOT NULL DEFAULT '{}',
+  created_by TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  FOREIGN KEY (repo_id) REFERENCES repositories(id),
+  FOREIGN KEY (source_session_id) REFERENCES sessions(id),
+  FOREIGN KEY (created_by) REFERENCES users(id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_knowledge_repo_status
+ON knowledge_entries(repo_id, status);
+
+CREATE TABLE IF NOT EXISTS knowledge_versions (
+  id TEXT PRIMARY KEY,
+  entry_id TEXT NOT NULL,
+  version INTEGER NOT NULL,
+  title TEXT NOT NULL,
+  content TEXT NOT NULL,
+  summary TEXT NOT NULL,
+  category TEXT NOT NULL DEFAULT 'general',
+  metadata TEXT NOT NULL DEFAULT '{}',
+  change_summary TEXT,
+  edited_by TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  FOREIGN KEY (entry_id) REFERENCES knowledge_entries(id),
+  FOREIGN KEY (edited_by) REFERENCES users(id)
+);
+
+CREATE TABLE IF NOT EXISTS knowledge_tags (
+  entry_id TEXT NOT NULL,
+  tag TEXT NOT NULL,
+  PRIMARY KEY(entry_id, tag),
+  FOREIGN KEY (entry_id) REFERENCES knowledge_entries(id)
+);
+
+CREATE VIRTUAL TABLE IF NOT EXISTS knowledge_fts
+USING fts5(entry_id UNINDEXED, title, content, summary);
+
+CREATE TRIGGER IF NOT EXISTS knowledge_entries_ai
+AFTER INSERT ON knowledge_entries BEGIN
+  INSERT INTO knowledge_fts(entry_id, title, content, summary)
+  VALUES (new.id, new.title, new.content, new.summary);
+END;
+
+CREATE TRIGGER IF NOT EXISTS knowledge_entries_au
+AFTER UPDATE ON knowledge_entries BEGIN
+  DELETE FROM knowledge_fts WHERE entry_id = old.id;
+  INSERT INTO knowledge_fts(entry_id, title, content, summary)
+  VALUES (new.id, new.title, new.content, new.summary);
+END;
+
+CREATE TRIGGER IF NOT EXISTS knowledge_entries_ad
+AFTER DELETE ON knowledge_entries BEGIN
+  DELETE FROM knowledge_fts WHERE entry_id = old.id;
+END;
+
+CREATE TABLE IF NOT EXISTS agent_runs (
+  id TEXT PRIMARY KEY,
+  session_id TEXT NOT NULL,
+  agent_name TEXT NOT NULL,
+  input TEXT NOT NULL,
+  output TEXT NOT NULL,
+  status TEXT NOT NULL,
+  tool_call_count INTEGER NOT NULL DEFAULT 0,
+  iterations INTEGER NOT NULL DEFAULT 0,
+  usage_tokens INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  FOREIGN KEY (session_id) REFERENCES sessions(id)
+);
+
+CREATE TABLE IF NOT EXISTS team_runs (
+  id TEXT PRIMARY KEY,
+  session_id TEXT NOT NULL,
+  team_name TEXT NOT NULL,
+  status TEXT NOT NULL,
+  member_count INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  FOREIGN KEY (session_id) REFERENCES sessions(id)
+);
+
+CREATE TABLE IF NOT EXISTS installed_skills (
+  name TEXT PRIMARY KEY,
+  description TEXT NOT NULL,
+  source TEXT NOT NULL,
+  version TEXT NOT NULL,
+  installed_at TEXT NOT NULL
+);
+`;
+

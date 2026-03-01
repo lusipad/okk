@@ -1,0 +1,46 @@
+{
+  "name": "@okclaw/desktop",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "dist/main/index.js",
+  "scripts": {
+    "clean": "rimraf dist",
+    "build:ts": "tsc -p tsconfig.json",
+    "copy:renderer": "node ./scripts/copy-assets.mjs renderer",
+    "copy:web": "node ./scripts/copy-assets.mjs web",
+    "build:desktop": "npm run clean && npm run build:ts && npm run copy:renderer",
+    "build:web": "cross-env OKCLAW_VITE_BASE=./ npm run build -w @okclaw/web-frontend",
+    "build": "npm run build:web && npm run build:desktop && npm run copy:web",
+    "dev": "concurrently -k \"npm run dev -w @okclaw/web-frontend\" \"npm run dev:electron\"",
+    "dev:electron": "npm run build:desktop && wait-on tcp:5173 && cross-env OKCLAW_DESKTOP_DEV_URL=http://localhost:5173 electron dist/main/index.js",
+    "package": "npm run build && electron-builder",
+    "test": "vitest run"
+  },
+  "build": {
+    "appId": "com.okclaw.desktop",
+    "electronVersion": "30.0.0",
+    "productName": "OKClaw",
+    "win": {
+      "target": "dir",
+      "signAndEditExecutable": false
+    },
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "package.json"
+    ]
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.9",
+    "concurrently": "^9.1.2",
+    "cross-env": "^7.0.3",
+    "electron": "30.0.0",
+    "electron-builder": "^24.13.3",
+    "rimraf": "^6.0.1",
+    "vitest": "^3.2.4",
+    "wait-on": "^8.0.1"
+  }
+}

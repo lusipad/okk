@@ -1,0 +1,26 @@
+{
+  "name": "okclaw",
+  "version": "0.1.0",
+  "private": true,
+  "description": "okclaw - intranet code knowledge platform",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "npm run build -ws --if-present",
+    "dev": "concurrently -k \"npm run dev -w @okclaw/web-backend\" \"npm run dev -w @okclaw/web-frontend\"",
+    "test": "npm run test -ws --if-present",
+    "lint": "npm run lint -ws --if-present",
+    "release:prepare": "node scripts/prepare-release.mjs",
+    "ui:pixel:audit": "node scripts/pixel-audit.mjs"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.9",
+    "concurrently": "^9.1.2",
+    "playwright": "^1.58.2",
+    "typescript": "^5.8.2"
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  }
+}
