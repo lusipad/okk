@@ -108,7 +108,7 @@ await page.evaluate(() => {
 for (const viewport of VIEWPORTS) {
   await page.setViewportSize({ width: viewport.width, height: viewport.height });
   await page.waitForTimeout(300);
-  await page.screenshot({ path: path.join(CURRENT_DIR, viewport.name), fullPage: true });
+  await page.screenshot({ path: path.join(CURRENT_DIR, viewport.name) });
 }
 
 await page.setViewportSize({ width: 1600, height: 900 });

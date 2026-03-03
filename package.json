@@ -16,9 +16,10 @@
     "ui:pixel:audit": "node scripts/pixel-audit.mjs",
     "ui:pixel:report": "node scripts/pixel-report.mjs",
     "ui:pixel:diff": "node scripts/pixel-diff.mjs",
+    "ui:pixel:reference:prepare": "node scripts/pixel-reference-prepare.mjs",
     "ui:pixel:reference-diff": "node scripts/pixel-reference-diff.mjs",
     "ui:pixel:gate": "bash scripts/pixel-gate.sh",
-    "ui:pixel:gate:strict": "OKCLAW_PIXEL_REFERENCE_REQUIRED=1 bash scripts/pixel-gate.sh",
+    "ui:pixel:gate:strict": "bash scripts/pixel-gate.sh --strict",
     "ui:pixel:reference-diff:strict": "node scripts/pixel-reference-diff.mjs --required"
   },
   "devDependencies": {

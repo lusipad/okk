@@ -1,6 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+STRICT_MODE="${1:-}"
+if [[ "${STRICT_MODE}" == "--strict" ]]; then
+  export OKCLAW_PIXEL_REFERENCE_REQUIRED=1
+  export OKCLAW_PIXEL_REFERENCE_EXACT_DIMENSIONS=1
+  echo "[pixel-gate] strict reference mode enabled"
+fi
+
 echo "[pixel-gate] frontend test/build"
 npm run test -w @okclaw/web-frontend
 npm run build -w @okclaw/web-frontend

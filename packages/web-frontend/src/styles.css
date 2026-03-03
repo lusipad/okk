@@ -4452,3 +4452,113 @@ body {
 .command-palette-item:hover {
   background: #3a3d4b;
 }
+
+/* Pixel clone v9 refinement */
+.app-topbar {
+  border-color: #2c2d34;
+  background: #222225;
+}
+
+.topbar-brand-icon {
+  border-color: #4a4b55;
+  background: #34353d;
+  color: #e6e7ef;
+}
+
+.topbar-model {
+  border-color: #313238;
+  background: #27272c;
+  color: #b7b8c3;
+}
+
+.topbar-actions .ghost-button {
+  border-color: #3a3b42;
+  background: #2d2e35;
+  color: #d2d3de;
+}
+
+.topbar-actions .ghost-button:hover {
+  border-color: #52545f;
+  background: #393a43;
+}
+
+.topbar-focus-toggle {
+  width: 28px;
+  min-width: 28px;
+  padding: 0;
+}
+
+.topbar-focus-toggle.is-active {
+  border-color: #6a6d78;
+  background: #454852;
+}
+
+.left-column .left-sidebar-panel {
+  border-color: #2a2b31;
+}
+
+.sidebar-new-chat {
+  border-color: #3d3e46;
+  background: #2d2e35;
+  color: #eff0f7;
+}
+
+.sidebar-new-chat:hover:not(:disabled) {
+  border-color: #4d4f5c;
+  background: #373844;
+}
+
+.session-search input {
+  border-color: #32333a;
+  background: #1f2024;
+}
+
+.sidebar-link {
+  color: #b8b9c8;
+}
+
+.sidebar-link:hover {
+  background: #25262d;
+}
+
+.sidebar-link.active {
+  background: #2d2e37;
+}
+
+.session-item:hover {
+  background: #24252c;
+}
+
+.session-item.active {
+  background: #2c2e36;
+}
+
+.chat-panel {
+  background: #212121;
+}
+
+.composer-input-shell {
+  max-width: min(820px, 100%);
+  border-color: #454755;
+  background: #2d2f37;
+}
+
+.composer-actions .primary-button {
+  border-color: #5c67d8;
+  background: #5c67d8;
+}
+
+.composer-actions .primary-button:hover:not(:disabled) {
+  border-color: #6873ea;
+  background: #6873ea;
+}
+
+.command-palette {
+  border-color: #32343d;
+  background: #25262d;
+}
+
+.command-palette-item {
+  border-color: #393b47;
+  background: #2f313a;
+}

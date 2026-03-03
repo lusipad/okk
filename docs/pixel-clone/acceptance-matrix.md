@@ -27,6 +27,7 @@
 - `npm run ui:pixel:baseline`
 - `npm run ui:pixel:audit`
 - `npm run ui:pixel:diff`
+- `npm run ui:pixel:reference:prepare`
 - `npm run ui:pixel:reference-diff`
 - `npm run ui:pixel:reference-diff:strict`
 - `npm run ui:pixel:report`

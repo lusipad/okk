@@ -9,6 +9,8 @@ const DIFF_DIR = path.resolve("output/pixel/reference-diff");
 const REPORT_PATH = path.resolve("output/pixel/reference-diff-report.json");
 const args = new Set(process.argv.slice(2));
 const referenceRequired = process.env.OKCLAW_PIXEL_REFERENCE_REQUIRED === "1" || args.has("--required");
+const exactDimensionsRequired =
+  process.env.OKCLAW_PIXEL_REFERENCE_EXACT_DIMENSIONS === "1" || args.has("--exact-dimensions") || referenceRequired;
 
 const FULL_THRESHOLD_PERCENT = Number(process.env.OKCLAW_PIXEL_REFERENCE_FULL_THRESHOLD ?? "8");
 const KEY_THRESHOLD_PERCENT = Number(process.env.OKCLAW_PIXEL_REFERENCE_KEY_THRESHOLD ?? "5");
@@ -91,6 +93,18 @@ for (const name of referenceImages) {
 
   const referenceRaw = readPng(referencePath);
   const currentRaw = readPng(currentPath);
+  const sameDimensions = referenceRaw.width === currentRaw.width && referenceRaw.height === currentRaw.height;
+  if (exactDimensionsRequired && !sameDimensions) {
+    results.push({
+      name,
+      pass: false,
+      reason: "dimension_mismatch",
+      referenceSize: `${referenceRaw.width}x${referenceRaw.height}`,
+      currentSize: `${currentRaw.width}x${currentRaw.height}`
+    });
+    continue;
+  }
+
   const width = Math.min(referenceRaw.width, currentRaw.width);
   const height = Math.min(referenceRaw.height, currentRaw.height);
 
@@ -179,7 +193,11 @@ console.log(`pixel_reference_diff_report=${REPORT_PATH}`);
 
 for (const item of results) {
   if (!item.fullDiffPercent && item.fullDiffPercent !== 0) {
-    console.log(`FAIL ${item.name} reason=${item.reason}`);
+    const sizeInfo =
+      item.reason === "dimension_mismatch"
+        ? ` reference=${item.referenceSize ?? "unknown"} current=${item.currentSize ?? "unknown"}`
+        : "";
+    console.log(`FAIL ${item.name} reason=${item.reason}${sizeInfo}`);
     continue;
   }
   const status = item.pass ? "PASS" : "FAIL";

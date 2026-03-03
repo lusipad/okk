@@ -91,6 +91,11 @@ TBD - created by archiving change okclaw-architecture. Update Purpose after arch
 - **THEN** 系统 SHALL 要求存在官方参考图并执行参考差异比对
 - **AND** 若参考图缺失或差异超阈值 SHALL 直接失败并输出原因
 
+#### Scenario: 参考图预处理与尺寸一致性
+- **WHEN** 研发导入官方参考图后执行 `npm run ui:pixel:reference:prepare`
+- **THEN** 系统 SHALL 输出与验收分辨率一致的参考图（1600x900、1920x1080、1280x800）
+- **AND** 在 strict 校验下 SHALL 对尺寸不一致直接判定失败（dimension_mismatch）
+
 ### Requirement: 全局信息架构与空态
 系统 SHALL 定义仓库、会话、知识三个主视图层级，并提供一致的空态引导。
 
