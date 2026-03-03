@@ -28,4 +28,21 @@ describe('ShellLayout', () => {
     expect(screen.getByText('right-panel')).toBeInTheDocument();
     expect(collabButton).toHaveAttribute('aria-expanded', 'true');
   });
+
+  it('支持 Ctrl/Cmd + K 打开命令面板', async () => {
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter initialEntries={['/']}>
+        <ShellLayout
+          left={<div>left-panel</div>}
+          center={<div>center-panel</div>}
+          right={<div>right-panel</div>}
+        />
+      </MemoryRouter>
+    );
+
+    expect(screen.queryByRole('dialog', { name: '命令面板' })).not.toBeInTheDocument();
+    await user.keyboard('{Control>}k{/Control}');
+    expect(screen.getByRole('dialog', { name: '命令面板' })).toBeInTheDocument();
+  });
 });

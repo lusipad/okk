@@ -15,13 +15,13 @@
   - 已完成暗色层级、圆角、边框密度统一
   - 已完成顶栏品牌比例与侧栏噪音收敛
 
-- M4 交互对齐：进行中
+- M4 交互对齐：已完成
   - 已完成输入区主交互（发送/重试/停止）
   - 已补充 Enter / Shift+Enter / Esc 行为测试
   - 已补充侧栏/协作抽屉开启动画与状态可达性标记
-  - 待继续：焦点态细节与键盘路径一致性
+  - 已补充 Ctrl/Cmd + K 命令面板快捷路径测试
 
-- M5 封板发布：未开始
+- M5 封板发布：进行中
   - 已具备基线/对比脚本（`ui:pixel:baseline` + `ui:pixel:diff`）
   - 待完成官方基线图导入与最终验收报告
 
@@ -33,5 +33,6 @@
 - Core 测试/构建：通过
 - Smoke E2E：通过
 - Pixel Audit：通过（见 `output/pixel/audit-report.json`）
+- Pixel Diff：通过（见 `output/pixel/diff-report.json`）
 - 截图基线：`output/pixel/current/chat-empty-1600x900.png`
-- 对比截图：`output/playwright/chat-page-v12.png`
+- 对比截图：`output/playwright/chat-page-v13.png`
