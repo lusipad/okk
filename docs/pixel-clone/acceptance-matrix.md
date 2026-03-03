@@ -22,7 +22,10 @@
 ## 4. 自动化检查命令
 - `npm run test -w @okclaw/web-frontend`
 - `npm run build -w @okclaw/web-frontend`
+- `npm run ui:pixel:baseline`
 - `npm run ui:pixel:audit`
+- `npm run ui:pixel:diff`
+- `npm run ui:pixel:report`
 - `bash scripts/run-smoke-local.sh`
 
 ## 5. 像素对比（最终封板）

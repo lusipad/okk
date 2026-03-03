@@ -36,6 +36,7 @@
 ### M5 - 最终封板（Release Pass）
 - 全量自动化通过：frontend/backend/core + smoke。
 - 像素审计报告全绿。
+- 基线对比通过（`ui:pixel:diff` 全绿）。
 - 输出最终截图包 + 验收报告。
 
 ## 约束与原则
