@@ -27,6 +27,7 @@
 - `npm run ui:pixel:diff`
 - `npm run ui:pixel:reference-diff`
 - `npm run ui:pixel:report`
+- `npm run ui:pixel:gate`
 - `bash scripts/run-smoke-local.sh`
 
 ## 5. 像素对比（最终封板）

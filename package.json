@@ -16,7 +16,8 @@
     "ui:pixel:audit": "node scripts/pixel-audit.mjs",
     "ui:pixel:report": "node scripts/pixel-report.mjs",
     "ui:pixel:diff": "node scripts/pixel-diff.mjs",
-    "ui:pixel:reference-diff": "node scripts/pixel-reference-diff.mjs"
+    "ui:pixel:reference-diff": "node scripts/pixel-reference-diff.mjs",
+    "ui:pixel:gate": "bash scripts/pixel-gate.sh"
   },
   "devDependencies": {
     "@types/node": "^22.13.9",

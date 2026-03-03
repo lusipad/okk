@@ -24,10 +24,12 @@
 - M5 封板发布：进行中
   - 已具备基线/对比脚本（`ui:pixel:baseline` + `ui:pixel:diff`）
   - 已新增官方参考对比脚本（`ui:pixel:reference-diff`）
+  - 已新增一键验收闸门（`ui:pixel:gate`）
   - 待完成官方基线图导入与最终验收报告
 
 ## 最近一次自检
 
+- 一键闸门：通过（`npm run ui:pixel:gate`）
 - 前端测试：通过
 - 前端构建：通过
 - 后端测试/构建：通过
@@ -37,4 +39,4 @@
 - Pixel Diff：通过（见 `output/pixel/diff-report.json`）
 - Pixel Reference Diff：已接入，当前缺少官方参考图（`pixel_reference_diff_skipped=true`）
 - 截图基线：`output/pixel/current/chat-empty-1600x900.png`
-- 对比截图：`output/playwright/chat-page-v14.png`
+- 对比截图：`output/playwright/chat-page-v15.png`
