@@ -14,12 +14,14 @@
 - M3 视觉对齐：已完成
   - 已完成暗色层级、圆角、边框密度统一
   - 已完成顶栏品牌比例与侧栏噪音收敛
+  - 已完成 v8 收敛（顶栏动作弱化、左栏强调色降噪、输入 Dock 居中约束）
 
 - M4 交互对齐：已完成
   - 已完成输入区主交互（发送/重试/停止）
   - 已补充 Enter / Shift+Enter / Esc 行为测试
   - 已补充侧栏/协作抽屉开启动画与状态可达性标记
   - 已补充 Ctrl/Cmd + K 命令面板快捷路径测试
+  - 已补充 Ctrl/Cmd + Shift + L 专注模式快捷路径测试
 
 - M5 封板发布：进行中
   - 已具备基线/对比脚本（`ui:pixel:baseline` + `ui:pixel:diff`）
@@ -32,8 +34,8 @@
 ## 最近一次自检
 
 - 一键闸门：通过（`npm run ui:pixel:gate`）
+- 前端测试：通过（6 files / 20 tests）
 - 严格参考校验：命令已可用（`npm run ui:pixel:reference-diff:strict`，当前因无参考图会失败）
-- 前端测试：通过
 - 前端构建：通过
 - 后端测试/构建：通过
 - Core 测试/构建：通过
@@ -42,4 +44,4 @@
 - Pixel Diff：通过（见 `output/pixel/diff-report.json`）
 - Pixel Reference Diff：已接入，当前缺少官方参考图（`pixel_reference_diff_skipped=true`）
 - 截图基线：`output/pixel/current/chat-empty-1600x900.png`
-- 对比截图：`output/playwright/chat-page-v16.png`
+- E2E 截图：`output/playwright/e2e-success.png`

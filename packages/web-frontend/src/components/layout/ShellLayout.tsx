@@ -183,7 +183,13 @@ export function ShellLayout({ left, center, right }: ShellLayoutProps) {
           </span>
         </div>
         <div className='topbar-actions'>
-          <button type='button' className='ghost-button' onClick={() => setCommandOpen(true)}>
+          <button
+            type='button'
+            className='ghost-button'
+            aria-label='打开命令面板'
+            title='Command palette (Ctrl/Cmd + K)'
+            onClick={() => setCommandOpen(true)}
+          >
             ⌘K
           </button>
           {!focusMode && (
@@ -191,9 +197,10 @@ export function ShellLayout({ left, center, right }: ShellLayoutProps) {
               type='button'
               className={`ghost-button topbar-focus-toggle ${rightOpen ? 'is-active' : ''}`}
               aria-expanded={rightOpen}
+              aria-label='协作面板'
               onClick={toggleRightPanel}
             >
-              协作面板
+              {rightOpen ? '●' : '○'}
             </button>
           )}
           <button type='button' className='ghost-button app-topbar-drawer-button' onClick={() => setLeftOpen(true)}>

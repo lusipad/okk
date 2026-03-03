@@ -78,6 +78,19 @@ TBD - created by archiving change okclaw-architecture. Update Purpose after arch
 - **THEN** 系统 SHALL 隐藏左右侧栏并聚焦中栏会话区域
 - **AND** 专注模式偏好 SHALL 持久化并在刷新后恢复
 
+### Requirement: 像素对齐验收闸门
+系统 SHALL 提供自动化像素验收闸门，确保官网风格对齐在迭代中可回归、可量化。
+
+#### Scenario: 标准像素闸门
+- **WHEN** 研发执行 `npm run ui:pixel:gate`
+- **THEN** 系统 SHALL 串行执行 frontend/backend/core 的 test + build、pixel audit/diff/report、smoke e2e
+- **AND** 所有阶段通过后才允许标记本轮 UI 变更为验收通过
+
+#### Scenario: 官方参考严格校验
+- **WHEN** 研发执行 `npm run ui:pixel:gate:strict` 或 `npm run ui:pixel:reference-diff:strict`
+- **THEN** 系统 SHALL 要求存在官方参考图并执行参考差异比对
+- **AND** 若参考图缺失或差异超阈值 SHALL 直接失败并输出原因
+
 ### Requirement: 全局信息架构与空态
 系统 SHALL 定义仓库、会话、知识三个主视图层级，并提供一致的空态引导。
 

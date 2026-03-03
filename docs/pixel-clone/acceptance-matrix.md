@@ -15,6 +15,8 @@
 
 ## 3. 状态与交互（必须）
 - Enter 发送、Shift+Enter 换行、Esc 停止（流式中）
+- Ctrl/Cmd + K 打开命令面板
+- Ctrl/Cmd + Shift + L 切换专注模式
 - 顶栏按钮 hover / active 可见
 - 新消息按钮在非底部时出现，回到底部后消失
 - 协作面板可通过顶栏按钮与 Esc 关闭
