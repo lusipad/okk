@@ -7,11 +7,16 @@ const REFERENCE_DIR = path.resolve("docs/pixel-clone/reference");
 const CURRENT_DIR = path.resolve("output/pixel/current");
 const DIFF_DIR = path.resolve("output/pixel/reference-diff");
 const REPORT_PATH = path.resolve("output/pixel/reference-diff-report.json");
+const referenceRequired = process.env.OKCLAW_PIXEL_REFERENCE_REQUIRED === "1";
 
 const FULL_THRESHOLD_PERCENT = Number(process.env.OKCLAW_PIXEL_REFERENCE_FULL_THRESHOLD ?? "8");
 const KEY_THRESHOLD_PERCENT = Number(process.env.OKCLAW_PIXEL_REFERENCE_KEY_THRESHOLD ?? "5");
 
 if (!fs.existsSync(REFERENCE_DIR)) {
+  if (referenceRequired) {
+    console.error(`missing_reference_dir=${REFERENCE_DIR}`);
+    process.exit(1);
+  }
   console.warn(`missing_reference_dir=${REFERENCE_DIR}`);
   console.log("pixel_reference_diff_skipped=true");
   process.exit(0);
@@ -28,6 +33,10 @@ const referenceImages = fs
   .sort();
 
 if (referenceImages.length === 0) {
+  if (referenceRequired) {
+    console.error("missing_reference_images=0");
+    process.exit(1);
+  }
   console.warn("missing_reference_images=0");
   console.log("pixel_reference_diff_skipped=true");
   process.exit(0);

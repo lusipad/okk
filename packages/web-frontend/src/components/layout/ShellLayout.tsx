@@ -196,16 +196,6 @@ export function ShellLayout({ left, center, right }: ShellLayoutProps) {
               协作面板
             </button>
           )}
-          <button
-            type='button'
-            className={`ghost-button topbar-focus-toggle ${focusMode ? 'is-active' : ''}`}
-            onClick={toggleFocusMode}
-          >
-            专注模式
-          </button>
-          <button type='button' className='ghost-button' onClick={switchTheme}>
-            {themeMode === 'dark' ? '浅色' : '深色'}
-          </button>
           <button type='button' className='ghost-button app-topbar-drawer-button' onClick={() => setLeftOpen(true)}>
             导航
           </button>

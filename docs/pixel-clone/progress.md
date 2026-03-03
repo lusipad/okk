@@ -39,4 +39,4 @@
 - Pixel Diff：通过（见 `output/pixel/diff-report.json`）
 - Pixel Reference Diff：已接入，当前缺少官方参考图（`pixel_reference_diff_skipped=true`）
 - 截图基线：`output/pixel/current/chat-empty-1600x900.png`
-- 对比截图：`output/playwright/chat-page-v15.png`
+- 对比截图：`output/playwright/chat-page-v16.png`

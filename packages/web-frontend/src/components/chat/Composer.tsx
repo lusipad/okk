@@ -275,7 +275,7 @@ export function Composer({
                 onChange={(event) => onChangeAgent(event.target.value || null)}
               >
                 {agents.length === 0 ? (
-                  <option value=''>暂无可用 Agent</option>
+                  <option value=''>Model</option>
                 ) : (
                   agents.map((agent) => (
                     <option key={agent.id} value={agent.id}>
