@@ -25,6 +25,7 @@
 - `npm run ui:pixel:baseline`
 - `npm run ui:pixel:audit`
 - `npm run ui:pixel:diff`
+- `npm run ui:pixel:reference-diff`
 - `npm run ui:pixel:report`
 - `bash scripts/run-smoke-local.sh`
 

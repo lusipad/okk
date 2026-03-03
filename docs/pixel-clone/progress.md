@@ -23,6 +23,7 @@
 
 - M5 封板发布：进行中
   - 已具备基线/对比脚本（`ui:pixel:baseline` + `ui:pixel:diff`）
+  - 已新增官方参考对比脚本（`ui:pixel:reference-diff`）
   - 待完成官方基线图导入与最终验收报告
 
 ## 最近一次自检
@@ -34,5 +35,6 @@
 - Smoke E2E：通过
 - Pixel Audit：通过（见 `output/pixel/audit-report.json`）
 - Pixel Diff：通过（见 `output/pixel/diff-report.json`）
+- Pixel Reference Diff：已接入，当前缺少官方参考图（`pixel_reference_diff_skipped=true`）
 - 截图基线：`output/pixel/current/chat-empty-1600x900.png`
-- 对比截图：`output/playwright/chat-page-v13.png`
+- 对比截图：`output/playwright/chat-page-v14.png`
