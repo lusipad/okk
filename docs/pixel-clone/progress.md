@@ -18,7 +18,8 @@
 - M4 交互对齐：进行中
   - 已完成输入区主交互（发送/重试/停止）
   - 已补充 Enter / Shift+Enter / Esc 行为测试
-  - 待继续：侧栏与抽屉动效同步、焦点态细节
+  - 已补充侧栏/协作抽屉开启动画与状态可达性标记
+  - 待继续：焦点态细节与键盘路径一致性
 
 - M5 封板发布：未开始
   - 待完成基线图比对与最终验收报告
@@ -32,4 +33,4 @@
 - Smoke E2E：通过
 - Pixel Audit：通过（见 `output/pixel/audit-report.json`）
 - 截图基线：`output/pixel/current/chat-empty-1600x900.png`
-- 对比截图：`output/playwright/chat-page-v11.png`
+- 对比截图：`output/playwright/chat-page-v12.png`

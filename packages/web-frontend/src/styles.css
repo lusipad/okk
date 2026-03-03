@@ -4193,3 +4193,49 @@ body {
 .composer-actions .primary-button {
   min-width: 54px;
 }
+
+.drawer-mask {
+  animation: overlay-fade-in 140ms ease-out;
+}
+
+.context-sidepanel {
+  animation: sidepanel-slide-in 180ms ease-out;
+}
+
+.drawer-left {
+  animation: drawer-left-in 180ms ease-out;
+}
+
+@keyframes overlay-fade-in {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes sidepanel-slide-in {
+  from {
+    opacity: 0.3;
+    transform: translateX(18px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes drawer-left-in {
+  from {
+    opacity: 0.3;
+    transform: translateX(-18px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}

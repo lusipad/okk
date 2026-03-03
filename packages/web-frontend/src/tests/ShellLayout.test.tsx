@@ -21,7 +21,11 @@ describe('ShellLayout', () => {
     expect(screen.getByText('center-panel')).toBeInTheDocument();
     expect(screen.queryByText('right-panel')).not.toBeInTheDocument();
 
-    await user.click(screen.getByRole('button', { name: '协作面板' }));
+    const collabButton = screen.getByRole('button', { name: '协作面板' });
+    expect(collabButton).toHaveAttribute('aria-expanded', 'false');
+
+    await user.click(collabButton);
     expect(screen.getByText('right-panel')).toBeInTheDocument();
+    expect(collabButton).toHaveAttribute('aria-expanded', 'true');
   });
 });

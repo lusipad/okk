@@ -190,6 +190,7 @@ export function ShellLayout({ left, center, right }: ShellLayoutProps) {
             <button
               type='button'
               className={`ghost-button topbar-focus-toggle ${rightOpen ? 'is-active' : ''}`}
+              aria-expanded={rightOpen}
               onClick={toggleRightPanel}
             >
               协作面板
@@ -208,7 +209,12 @@ export function ShellLayout({ left, center, right }: ShellLayoutProps) {
           <button type='button' className='ghost-button app-topbar-drawer-button' onClick={() => setLeftOpen(true)}>
             导航
           </button>
-          <button type='button' className='ghost-button app-topbar-drawer-button' onClick={() => setRightOpen(true)}>
+          <button
+            type='button'
+            className='ghost-button app-topbar-drawer-button'
+            aria-expanded={rightOpen}
+            onClick={() => setRightOpen(true)}
+          >
             协作
           </button>
         </div>
