@@ -24,12 +24,15 @@
 - M5 封板发布：进行中
   - 已具备基线/对比脚本（`ui:pixel:baseline` + `ui:pixel:diff`）
   - 已新增官方参考对比脚本（`ui:pixel:reference-diff`）
+  - 已新增官方参考严格校验（`ui:pixel:reference-diff:strict`）
   - 已新增一键验收闸门（`ui:pixel:gate`）
+  - 已新增严格闸门（`ui:pixel:gate:strict`，无官方参考图会失败）
   - 待完成官方基线图导入与最终验收报告
 
 ## 最近一次自检
 
 - 一键闸门：通过（`npm run ui:pixel:gate`）
+- 严格参考校验：命令已可用（`npm run ui:pixel:reference-diff:strict`，当前因无参考图会失败）
 - 前端测试：通过
 - 前端构建：通过
 - 后端测试/构建：通过
