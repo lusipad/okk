@@ -51,4 +51,37 @@ describe('Composer', () => {
       expect(onSend).toHaveBeenCalledWith('请帮我分析这个 PR');
     });
   });
+
+  it('按 Enter 发送，Shift+Enter 仅换行', async () => {
+    const user = userEvent.setup();
+    const onSend = vi.fn().mockResolvedValue(undefined);
+    render(<Composer {...createProps({ onSend })} />);
+
+    const textarea = screen.getByTestId('composer-input');
+    await user.type(textarea, '第一行');
+    await user.keyboard('{Shift>}{Enter}{/Shift}');
+    await user.type(textarea, '第二行');
+
+    expect(onSend).toHaveBeenCalledTimes(0);
+    await user.keyboard('{Enter}');
+
+    await waitFor(() => {
+      expect(onSend).toHaveBeenCalledTimes(1);
+      expect(onSend).toHaveBeenCalledWith('第一行\n第二行');
+    });
+  });
+
+  it('流式中按 Esc 会触发停止', async () => {
+    const user = userEvent.setup();
+    const onStop = vi.fn().mockResolvedValue(undefined);
+    render(<Composer {...createProps({ streaming: true, onStop })} />);
+
+    const textarea = screen.getByTestId('composer-input');
+    await user.click(textarea);
+    await user.keyboard('{Escape}');
+
+    await waitFor(() => {
+      expect(onStop).toHaveBeenCalledTimes(1);
+    });
+  });
 });

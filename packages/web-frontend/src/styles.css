@@ -4091,9 +4091,9 @@ body {
 }
 
 .topbar-brand h1 {
-  font-size: 30px;
+  font-size: 18px;
   font-weight: 650;
-  letter-spacing: -0.03em;
+  letter-spacing: -0.01em;
 }
 
 .topbar-actions .ghost-button {
@@ -4113,6 +4113,12 @@ body {
   border-radius: 12px;
   border-color: #30313a;
   padding: 8px;
+}
+
+.topbar-brand-icon {
+  width: 24px;
+  height: 24px;
+  border-radius: 8px;
 }
 
 .chat-panel {
@@ -4139,6 +4145,12 @@ body {
   line-height: 1.2;
   letter-spacing: -0.02em;
   color: #d6d7e4;
+}
+
+.left-sidebar-panel .empty-hint {
+  font-size: 13px;
+  color: #9d9eac;
+  margin-top: 2px;
 }
 
 .composer {

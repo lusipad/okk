@@ -126,7 +126,6 @@ export function Composer({
     try {
       await onSend(content);
       setValue('');
-      setFeedback('消息已发送，等待模型回复。');
     } catch (incoming) {
       setFeedback(toMessage(incoming, '发送失败，请稍后重试。'));
       setFeedbackIsError(true);
@@ -145,7 +144,6 @@ export function Composer({
     setFeedbackIsError(false);
     try {
       await onRetry();
-      setFeedback('已重新发送上一条提问。');
     } catch (incoming) {
       setFeedback(toMessage(incoming, '重试失败，请检查连接。'));
       setFeedbackIsError(true);
@@ -164,7 +162,6 @@ export function Composer({
     setFeedbackIsError(false);
     try {
       await onStop();
-      setFeedback('已发送停止指令，等待服务端确认。');
     } catch (incoming) {
       setFeedback(toMessage(incoming, '停止失败，请稍后重试。'));
       setFeedbackIsError(true);
@@ -295,10 +292,17 @@ export function Composer({
             >
               工具
             </button>
-            <button type='button' className='ghost-button small-button' disabled={!canRetry || busy || streaming} onClick={() => void retry()}>
-              {retrying ? '重试中...' : '重试'}
-            </button>
-            <span className='small-text'>{counterText}</span>
+            {canRetry && (
+              <button
+                type='button'
+                className='ghost-button small-button'
+                disabled={!canRetry || busy || streaming}
+                onClick={() => void retry()}
+              >
+                {retrying ? '重试中...' : '重试'}
+              </button>
+            )}
+            {value.length > 0 && <span className='small-text'>{counterText}</span>}
           </div>
           <div className='row-actions composer-actions'>
             {streaming ? (

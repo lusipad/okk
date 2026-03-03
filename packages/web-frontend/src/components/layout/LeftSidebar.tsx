@@ -154,10 +154,9 @@ export function LeftSidebar({
       </nav>
       <div className='panel-header panel-header-tight sidebar-chat-title'>
         <h2>Chats</h2>
-        <span className='small-text'>{filteredSessions.length}</span>
       </div>
       {sessions.length === 0 ? (
-        <p className='empty-hint'>暂无会话，点击“New Chat”开始提问。</p>
+        <p className='empty-hint'>No chats yet.</p>
       ) : filteredSessions.length === 0 ? (
         <p className='empty-hint'>没有匹配“{sessionQuery.trim()}”的会话。</p>
       ) : (
@@ -181,7 +180,6 @@ export function LeftSidebar({
                       >
                         <span className='session-title-row'>
                           <span className='session-title'>{session.title || '未命名会话'}</span>
-                          {isActive ? <span className='session-current-badge'>当前</span> : null}
                         </span>
                         <time
                           className='timestamp'
