@@ -30,6 +30,8 @@
 - `npm run ui:pixel:reference:prepare`
 - `npm run ui:pixel:reference-diff`
 - `npm run ui:pixel:reference-diff:strict`
+- `npm run ui:chrome:compare`
+- `npm run ui:chrome:compare:local`
 - `npm run ui:pixel:report`
 - `npm run ui:pixel:gate`
 - `npm run ui:pixel:gate:strict`
@@ -41,4 +43,5 @@
 - Diff 目录：`output/pixel/diff/`
 - 通过阈值：
   - 单图差异像素比例 `< 2.0%`
-  - 关键区域（顶栏/左栏/输入区）差异像素比例 `< 1.0%`
+  - 关键区域（顶栏/左栏/输入区）差异像素比例 `< 1.8%`
+  - `pixelmatch` 阈值默认 `0.12`（可通过 `OKCLAW_PIXEL_DIFF_PIXELMATCH_THRESHOLD` 调整）

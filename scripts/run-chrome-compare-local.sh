@@ -1,18 +1,18 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-FRONTEND_LOG="output/pixel/frontend.log"
-UI_PORT="${OKCLAW_UI_PORT:-5200}"
+FRONTEND_LOG="output/playwright/chrome-compare/frontend.log"
+UI_PORT="${OKCLAW_UI_PORT:-5201}"
 UI_URL="http://127.0.0.1:${UI_PORT}"
 
-mkdir -p "output/pixel"
+mkdir -p "output/playwright/chrome-compare"
 
 npm run dev -w @okclaw/web-frontend -- --port "$UI_PORT" --strictPort > "$FRONTEND_LOG" 2>&1 &
 FRONTEND_PID=$!
 
 sleep 1
 if ! kill -0 "$FRONTEND_PID" >/dev/null 2>&1; then
-  echo "pixel audit frontend failed to start"
+  echo "chrome compare frontend failed to start"
   tail -n 80 "$FRONTEND_LOG" || true
   exit 1
 fi
@@ -25,7 +25,7 @@ trap cleanup EXIT
 READY=0
 for ((i=0; i<240; i+=1)); do
   if ! kill -0 "$FRONTEND_PID" >/dev/null 2>&1; then
-    echo "pixel audit frontend exited before ready"
+    echo "chrome compare frontend exited before ready"
     tail -n 80 "$FRONTEND_LOG" || true
     exit 1
   fi
@@ -37,9 +37,9 @@ for ((i=0; i<240; i+=1)); do
 done
 
 if [[ "$READY" -ne 1 ]]; then
-  echo "pixel audit servers not ready"
+  echo "chrome compare frontend not ready"
   tail -n 80 "$FRONTEND_LOG" || true
   exit 1
 fi
 
-npm run ui:pixel:audit -- "$UI_URL"
+OKCLAW_UI_URL="$UI_URL" npm run ui:chrome:compare

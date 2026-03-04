@@ -250,7 +250,7 @@ export function Composer({
           id='composer-input'
           value={value}
           placeholder='Ask anything'
-          rows={4}
+          rows={1}
           onChange={(event) => setValue(event.target.value)}
           onKeyDown={(event) => {
             if (event.key === 'Escape' && streaming) {

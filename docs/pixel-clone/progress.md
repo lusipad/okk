@@ -16,6 +16,7 @@
   - 已完成顶栏品牌比例与侧栏噪音收敛
   - 已完成 v8 收敛（顶栏动作弱化、左栏强调色降噪、输入 Dock 居中约束）
   - 已完成 v9 收敛（顶部/侧栏强调色中性化，输入 Dock 商业化克制风格）
+  - 已完成 v10 收敛（壳层扁平化、左栏贴边、输入区单行自适应）
 
 - M4 交互对齐：已完成
   - 已完成输入区主交互（发送/重试/停止）
@@ -29,9 +30,11 @@
   - 已新增参考图预处理脚本（`ui:pixel:reference:prepare`）
   - 已新增官方参考对比脚本（`ui:pixel:reference-diff`）
   - 已新增官方参考严格校验（`ui:pixel:reference-diff:strict`）
+  - 已新增 Chrome 对比抓图脚本（`ui:chrome:compare` + `ui:chrome:compare:local`）
   - 已新增一键验收闸门（`ui:pixel:gate`）
   - 已新增严格闸门（`ui:pixel:gate:strict`，当前已验证可通过）
   - 官方参考图可替换当前 seed 参考后再次 strict 验证
+  - 已降低 pixel diff 随机抖动（关键区域阈值与 pixelmatch 阈值可配置）
 
 ## 最近一次自检
 

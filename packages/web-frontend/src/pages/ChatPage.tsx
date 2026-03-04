@@ -508,7 +508,7 @@ export function ChatPage() {
             </div>
           )}
           {capabilityError && (
-            <div className='panel-header'>
+            <div className='panel-header capability-warning-bar'>
               <p className='small-text'>{capabilityError}</p>
               <button type='button' className='small-button' onClick={() => void loadCapabilities()}>
                 刷新能力

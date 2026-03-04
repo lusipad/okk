@@ -38,6 +38,7 @@
 - 像素审计报告全绿。
 - 基线对比通过（`ui:pixel:diff` 全绿）。
 - 官方参考对比通过（`ui:pixel:reference:prepare` + `ui:pixel:reference-diff` 全绿）。
+- Chrome 对比抓图可回放（`ui:chrome:compare` / `ui:chrome:compare:local` 产出官方/本地对比截图）。
 - 输出最终截图包 + 验收报告。
 
 ## 约束与原则

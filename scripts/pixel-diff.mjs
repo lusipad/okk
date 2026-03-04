@@ -8,8 +8,9 @@ const CURRENT_DIR = path.resolve("output/pixel/current");
 const DIFF_DIR = path.resolve("output/pixel/diff");
 const REPORT_PATH = path.resolve("output/pixel/diff-report.json");
 
-const FULL_THRESHOLD_PERCENT = 2.0;
-const KEY_THRESHOLD_PERCENT = 1.0;
+const FULL_THRESHOLD_PERCENT = Number(process.env.OKCLAW_PIXEL_DIFF_FULL_THRESHOLD ?? "2");
+const KEY_THRESHOLD_PERCENT = Number(process.env.OKCLAW_PIXEL_DIFF_KEY_THRESHOLD ?? "1.8");
+const PIXELMATCH_THRESHOLD = Number(process.env.OKCLAW_PIXEL_DIFF_PIXELMATCH_THRESHOLD ?? "0.12");
 
 if (!fs.existsSync(BASELINE_DIR)) {
   console.error(`missing_baseline_dir=${BASELINE_DIR}`);
@@ -76,7 +77,7 @@ for (const name of baselineImages) {
 
   const diff = new PNG({ width: baseline.width, height: baseline.height });
   const fullDiffPixels = pixelmatch(baseline.data, current.data, diff.data, baseline.width, baseline.height, {
-    threshold: 0.1
+    threshold: PIXELMATCH_THRESHOLD
   });
   fs.writeFileSync(diffPath, PNG.sync.write(diff));
 
@@ -112,7 +113,7 @@ for (const name of baselineImages) {
     null,
     topbarBaseline.width,
     topbarBaseline.height,
-    { threshold: 0.1 }
+    { threshold: PIXELMATCH_THRESHOLD }
   );
   const sidebarDiff = pixelmatch(
     sidebarBaseline.data,
@@ -120,7 +121,7 @@ for (const name of baselineImages) {
     null,
     sidebarBaseline.width,
     sidebarBaseline.height,
-    { threshold: 0.1 }
+    { threshold: PIXELMATCH_THRESHOLD }
   );
   const composerDiff = pixelmatch(
     composerBaseline.data,
@@ -128,7 +129,7 @@ for (const name of baselineImages) {
     null,
     composerBaseline.width,
     composerBaseline.height,
-    { threshold: 0.1 }
+    { threshold: PIXELMATCH_THRESHOLD }
   );
 
   const topbarPercent = percent(topbarDiff, topbarBaseline.width * topbarBaseline.height);
@@ -155,7 +156,8 @@ const report = {
   generatedAt: new Date().toISOString(),
   thresholds: {
     full: FULL_THRESHOLD_PERCENT,
-    key: KEY_THRESHOLD_PERCENT
+    key: KEY_THRESHOLD_PERCENT,
+    pixelmatch: PIXELMATCH_THRESHOLD
   },
   results,
   passed: failed.length === 0

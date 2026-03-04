@@ -96,6 +96,16 @@ TBD - created by archiving change okclaw-architecture. Update Purpose after arch
 - **THEN** 系统 SHALL 输出与验收分辨率一致的参考图（1600x900、1920x1080、1280x800）
 - **AND** 在 strict 校验下 SHALL 对尺寸不一致直接判定失败（dimension_mismatch）
 
+#### Scenario: Chrome 对比抓图
+- **WHEN** 研发执行 `npm run ui:chrome:compare`
+- **THEN** 系统 SHALL 通过 Chrome 通道抓取官方页面与本地页面截图
+- **AND** SHALL 输出结构化报告供人工对照视觉差异
+
+#### Scenario: 像素差异阈值可配置
+- **WHEN** 研发在不同平台执行 `ui:pixel:diff`
+- **THEN** 系统 SHALL 支持通过环境变量配置 full/key/pixelmatch 阈值
+- **AND** SHALL 在报告中输出实际使用阈值，便于回溯验收标准
+
 ### Requirement: 全局信息架构与空态
 系统 SHALL 定义仓库、会话、知识三个主视图层级，并提供一致的空态引导。
 

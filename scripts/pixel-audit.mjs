@@ -86,24 +86,31 @@ try {
 const page = await browser.newPage({ viewport: { width: 1600, height: 900 } });
 await page.addInitScript(() => {
   localStorage.setItem("okclaw.jwt", "pixel-audit-token");
-  if (!localStorage.getItem("okclaw.theme")) {
-    localStorage.setItem("okclaw.theme", "dark");
-  }
+  localStorage.setItem("okclaw.theme", "dark");
+  localStorage.setItem("okclaw.focus-mode", "0");
 });
 await page.goto(uiUrl, { waitUntil: "domcontentloaded", timeout: 30000 });
 await waitForVisible(page.getByTestId("composer-input"), 20000);
+await waitForVisible(page.locator(".app-topbar"), 20000);
+await waitForVisible(page.locator(".left-column .left-sidebar-panel"), 20000);
+await waitForVisible(page.locator(".message-list"), 20000);
 await page.waitForTimeout(800);
 
-const newChatButton = page.getByRole("button", { name: /New chat|新建/i }).first();
-if (await newChatButton.count()) {
-  await newChatButton.click().catch(() => {});
-  await page.waitForTimeout(400);
-}
-
 await page.evaluate(() => {
+  const style = document.createElement("style");
+  style.setAttribute("data-test-id", "pixel-audit-freeze");
+  style.textContent = `*,*::before,*::after{animation:none!important;transition:none!important;}`;
+  document.head.append(style);
   document.querySelectorAll(".connection-banner, .chat-alert").forEach((node) => node.remove());
   document.querySelectorAll(".chat-panel > .panel-header").forEach((node) => node.remove());
+  document.querySelectorAll(".chat-skeleton").forEach((node) => node.remove());
 });
+await page.evaluate(async () => {
+  if (document.fonts?.ready) {
+    await document.fonts.ready;
+  }
+});
+await page.waitForTimeout(250);
 
 for (const viewport of VIEWPORTS) {
   await page.setViewportSize({ width: viewport.width, height: viewport.height });
@@ -114,56 +121,98 @@ for (const viewport of VIEWPORTS) {
 await page.setViewportSize({ width: 1600, height: 900 });
 await page.waitForTimeout(300);
 
-const rawMetrics = await page.evaluate(() => {
-  const px = (v) => {
-    const parsed = Number.parseFloat(String(v ?? "").replace("px", ""));
-    return Number.isFinite(parsed) ? parsed : -1;
-  };
-  const topbar = document.querySelector(".app-topbar");
-  const sidebar = document.querySelector(".left-column .left-sidebar-panel");
-  const chatPanel = document.querySelector(".chat-panel");
-  const composerShell = document.querySelector(".composer-input-shell");
-  const empty = document.querySelector(".message-empty-state");
-  const composerInput = document.querySelector(".composer textarea");
-  const sidebarLink = document.querySelector(".sidebar-link");
-  const messageList = document.querySelector(".message-list");
+async function collectRawMetrics() {
+  return page.evaluate(() => {
+    const px = (v) => {
+      const parsed = Number.parseFloat(String(v ?? "").replace("px", ""));
+      return Number.isFinite(parsed) ? parsed : -1;
+    };
+    const topbar = document.querySelector(".app-topbar");
+    const sidebar = document.querySelector(".left-column .left-sidebar-panel");
+    const chatPanel = document.querySelector(".chat-panel");
+    const composerShell = document.querySelector(".composer-input-shell");
+    const empty = document.querySelector(".message-empty-state");
+    const composerInput = document.querySelector(".composer textarea");
+    const sidebarLink = document.querySelector(".sidebar-link");
+    const messageList = document.querySelector(".message-list");
 
-  const syntheticUser = document.createElement("article");
-  syntheticUser.className = "message-item role-user";
-  (messageList ?? document.body).appendChild(syntheticUser);
-  const syntheticAssistant = document.createElement("article");
-  syntheticAssistant.className = "message-item role-assistant";
-  (messageList ?? document.body).appendChild(syntheticAssistant);
+    const syntheticUser = document.createElement("article");
+    syntheticUser.className = "message-item role-user";
+    (messageList ?? document.body).appendChild(syntheticUser);
+    const syntheticAssistant = document.createElement("article");
+    syntheticAssistant.className = "message-item role-assistant";
+    (messageList ?? document.body).appendChild(syntheticAssistant);
 
-  const topbarRect = topbar?.getBoundingClientRect();
-  const sidebarRect = sidebar?.getBoundingClientRect();
-  const chatRect = chatPanel?.getBoundingClientRect();
-  const composerStyle = composerShell ? getComputedStyle(composerShell) : null;
-  const emptyStyle = empty ? getComputedStyle(empty) : null;
-  const composerInputStyle = composerInput ? getComputedStyle(composerInput) : null;
-  const sidebarStyle = sidebarLink ? getComputedStyle(sidebarLink) : null;
-  const userStyle = getComputedStyle(syntheticUser);
-  const assistantStyle = getComputedStyle(syntheticAssistant);
+    const topbarRect = topbar?.getBoundingClientRect();
+    const sidebarRect = sidebar?.getBoundingClientRect();
+    const chatRect = chatPanel?.getBoundingClientRect();
+    const composerStyle = composerShell ? getComputedStyle(composerShell) : null;
+    const emptyStyle = empty ? getComputedStyle(empty) : null;
+    const composerInputStyle = composerInput ? getComputedStyle(composerInput) : null;
+    const sidebarStyle = sidebarLink ? getComputedStyle(sidebarLink) : null;
+    const userStyle = getComputedStyle(syntheticUser);
+    const assistantStyle = getComputedStyle(syntheticAssistant);
 
-  const containerWidth = (messageList?.getBoundingClientRect().width ?? 1);
-  const userMarginPercent = (px(userStyle.marginLeft) / containerWidth) * 100;
-  const assistantMarginPercent = (px(assistantStyle.marginRight) / containerWidth) * 100;
+    const containerWidth = messageList?.getBoundingClientRect().width ?? 1;
+    const userMarginPercent = (px(userStyle.marginLeft) / containerWidth) * 100;
+    const assistantMarginPercent = (px(assistantStyle.marginRight) / containerWidth) * 100;
 
-  syntheticUser.remove();
-  syntheticAssistant.remove();
+    syntheticUser.remove();
+    syntheticAssistant.remove();
 
-  return {
-    topbarHeight: topbarRect?.height ?? 0,
-    sidebarWidth: sidebarRect?.width ?? 0,
-    chatPanelMaxWidth: chatRect?.width ?? 0,
-    composerRadius: px(composerStyle?.borderTopLeftRadius),
-    emptyFontSize: px(emptyStyle?.fontSize),
-    composerPlaceholderFontSize: px(composerInputStyle?.fontSize),
-    sidebarLinkFontSize: px(sidebarStyle?.fontSize),
-    userMarginPercent,
-    assistantMarginPercent
-  };
-});
+    return {
+      topbarHeight: topbarRect?.height ?? 0,
+      sidebarWidth: sidebarRect?.width ?? 0,
+      chatPanelMaxWidth: chatRect?.width ?? 0,
+      composerRadius: px(composerStyle?.borderTopLeftRadius),
+      emptyFontSize: px(emptyStyle?.fontSize),
+      composerPlaceholderFontSize: px(composerInputStyle?.fontSize),
+      sidebarLinkFontSize: px(sidebarStyle?.fontSize),
+      userMarginPercent,
+      assistantMarginPercent,
+      hasTopbar: Boolean(topbar),
+      hasSidebar: Boolean(sidebar),
+      hasChatPanel: Boolean(chatPanel),
+      hasComposerShell: Boolean(composerShell),
+      hasMessageList: Boolean(messageList)
+    };
+  });
+}
+
+let rawMetrics = await collectRawMetrics();
+for (let attempt = 0; attempt < 4; attempt += 1) {
+  const domReady =
+    rawMetrics.hasTopbar &&
+    rawMetrics.hasSidebar &&
+    rawMetrics.hasChatPanel &&
+    rawMetrics.hasComposerShell &&
+    rawMetrics.hasMessageList;
+  if (domReady) {
+    break;
+  }
+  if (attempt === 1) {
+    await page.reload({ waitUntil: "domcontentloaded", timeout: 30000 });
+    await waitForVisible(page.getByTestId("composer-input"), 20000);
+    await waitForVisible(page.locator(".app-topbar"), 20000);
+    await waitForVisible(page.locator(".left-column .left-sidebar-panel"), 20000);
+    await waitForVisible(page.locator(".message-list"), 20000);
+  } else {
+    await page.waitForTimeout(400);
+  }
+  rawMetrics = await collectRawMetrics();
+}
+
+rawMetrics = {
+  topbarHeight: rawMetrics.topbarHeight,
+  sidebarWidth: rawMetrics.sidebarWidth,
+  chatPanelMaxWidth: rawMetrics.chatPanelMaxWidth,
+  composerRadius: rawMetrics.composerRadius,
+  emptyFontSize: rawMetrics.emptyFontSize,
+  composerPlaceholderFontSize: rawMetrics.composerPlaceholderFontSize,
+  sidebarLinkFontSize: rawMetrics.sidebarLinkFontSize,
+  userMarginPercent: rawMetrics.userMarginPercent,
+  assistantMarginPercent: rawMetrics.assistantMarginPercent
+};
 
 const rows = TARGETS.map((target) => {
   const value = rawMetrics[target.key];

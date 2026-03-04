@@ -20,7 +20,9 @@
     "ui:pixel:reference-diff": "node scripts/pixel-reference-diff.mjs",
     "ui:pixel:gate": "bash scripts/pixel-gate.sh",
     "ui:pixel:gate:strict": "bash scripts/pixel-gate.sh --strict",
-    "ui:pixel:reference-diff:strict": "node scripts/pixel-reference-diff.mjs --required"
+    "ui:pixel:reference-diff:strict": "node scripts/pixel-reference-diff.mjs --required",
+    "ui:chrome:compare": "node scripts/chrome-compare.mjs",
+    "ui:chrome:compare:local": "bash scripts/run-chrome-compare-local.sh"
   },
   "devDependencies": {
     "@types/node": "^22.13.9",
