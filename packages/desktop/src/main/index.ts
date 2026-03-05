@@ -30,6 +30,60 @@ let mainWindow: BrowserWindow | null = null;
 let searchWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
 let isQuitting = false;
+type EmbeddedBackend = {
+  listen: (input: { host: string; port: number }) => Promise<unknown>;
+  close: () => Promise<unknown>;
+};
+
+let embeddedBackend: EmbeddedBackend | null = null;
+
+async function startEmbeddedBackend(): Promise<void> {
+  const backendPortRaw = process.env.OKCLAW_DESKTOP_BACKEND_PORT?.trim();
+  const backendPort = Number(backendPortRaw ?? "3000");
+  const backendHost = process.env.OKCLAW_DESKTOP_BACKEND_HOST?.trim() || "127.0.0.1";
+
+  if (!Number.isFinite(backendPort) || backendPort <= 0) {
+    console.warn("[okclaw-desktop] Skip embedded backend: invalid backend port", backendPortRaw);
+    return;
+  }
+
+  try {
+    const dynamicImport = new Function("specifier", "return import(specifier)") as (
+      specifier: string
+    ) => Promise<{ createApp?: unknown }>;
+    const backendModule = await dynamicImport("@okclaw/web-backend");
+    const createApp = backendModule.createApp;
+    if (typeof createApp !== "function") {
+      console.warn("[okclaw-desktop] Skip embedded backend: createApp export missing");
+      return;
+    }
+
+    const backend = (await createApp({ logger: false, coreMode: "auto" } as {
+      logger?: boolean;
+      coreMode?: "real" | "auto" | "memory";
+    })) as EmbeddedBackend;
+    await backend.listen({ host: backendHost, port: backendPort });
+    embeddedBackend = backend;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (message.includes("EADDRINUSE")) {
+      console.info(`[okclaw-desktop] Backend port ${backendPort} already in use, use existing backend.`);
+      embeddedBackend = null;
+      return;
+    }
+
+    console.error("[okclaw-desktop] Failed to start embedded backend", error);
+  }
+}
+
+async function stopEmbeddedBackend(): Promise<void> {
+  if (!embeddedBackend) {
+    return;
+  }
+
+  await embeddedBackend.close();
+  embeddedBackend = null;
+}
 
 function getPreloadPath(): string {
   return path.join(__dirname, "..", "preload", "index.js");
@@ -226,10 +280,16 @@ app.on("before-quit", () => {
 });
 
 app.on("will-quit", () => {
+  void stopEmbeddedBackend();
+});
+
+app.on("will-quit", () => {
   globalShortcut.unregisterAll();
 });
 
 app.whenReady().then(async () => {
+  await startEmbeddedBackend();
+
   registerIOProviderHandlers(ipcMain);
   registerFileDropBridge();
   registerSearchBridge();
