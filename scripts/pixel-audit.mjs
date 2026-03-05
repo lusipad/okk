@@ -12,12 +12,12 @@ const uiPortCandidates = [5173, 5174, 5175, 5176, 5177];
 fs.mkdirSync(CURRENT_DIR, { recursive: true });
 
 const TARGETS = [
-  { key: "topbarHeight", expected: 42, tolerance: 2, unit: "px" },
-  { key: "sidebarWidth", expected: 266, tolerance: 4, unit: "px" },
+  { key: "topbarHeight", expected: 44, tolerance: 2, unit: "px" },
+  { key: "sidebarWidth", expected: 264, tolerance: 4, unit: "px" },
   { key: "chatPanelMaxWidth", expected: 960, tolerance: 8, unit: "px" },
-  { key: "composerRadius", expected: 28, tolerance: 2, unit: "px" },
-  { key: "emptyFontSize", expected: 36, tolerance: 2, unit: "px" },
-  { key: "composerPlaceholderFontSize", expected: 34, tolerance: 2, unit: "px" },
+  { key: "composerRadius", expected: 26, tolerance: 2, unit: "px" },
+  { key: "emptyFontSize", expected: 48, tolerance: 3, unit: "px" },
+  { key: "composerPlaceholderFontSize", expected: 16, tolerance: 1, unit: "px" },
   { key: "sidebarLinkFontSize", expected: 13, tolerance: 1, unit: "px" },
   { key: "userMarginPercent", expected: 26, tolerance: 2, unit: "%" },
   { key: "assistantMarginPercent", expected: 19, tolerance: 2, unit: "%" }

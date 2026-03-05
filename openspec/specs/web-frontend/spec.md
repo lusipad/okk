@@ -53,6 +53,11 @@ TBD - created by archiving change okclaw-architecture. Update Purpose after arch
 - **THEN** 顶栏 SHALL 保持极简信息密度（品牌、当前页签、少量高频动作）
 - **AND** 非核心控制项 SHALL 收敛到命令面板或抽屉，减少视觉干扰
 
+#### Scenario: 顶栏与输入控件样式隔离
+- **WHEN** 用户在输入区切换“工具”开关或编辑模型选择器
+- **THEN** 输入区控件 SHALL 使用独立样式类，不受顶栏按钮状态样式影响
+- **AND** 输入区按钮宽度和内边距 SHALL 在激活态保持稳定
+
 #### Scenario: 左栏官网式分层
 - **WHEN** 用户浏览左侧导航
 - **THEN** 系统 SHALL 采用“New chat / Search / Primary links / Chats”分层结构
@@ -72,6 +77,11 @@ TBD - created by archiving change okclaw-architecture. Update Purpose after arch
 - **WHEN** 用户在底部输入区发起提问
 - **THEN** 输入区 SHALL 采用单一圆角 Dock（文本输入 + 模型选择 + 工具入口 + 发送）
 - **AND** 非核心提示（冗长快捷键说明/营销文案）SHALL 默认隐藏，降低视觉噪音
+
+#### Scenario: 空态与输入区同屏可见
+- **WHEN** 用户在桌面分辨率（1600x900）打开空会话
+- **THEN** 空态主文案 SHALL 在主舞台居中展示
+- **AND** 输入 Dock SHALL 在同一视窗内完整可见，不得被裁切
 
 #### Scenario: 专注模式切换
 - **WHEN** 用户通过顶栏按钮、命令面板或 `Ctrl/Cmd + Shift + L` 快捷键切换专注模式
@@ -100,6 +110,11 @@ TBD - created by archiving change okclaw-architecture. Update Purpose after arch
 - **WHEN** 研发执行 `npm run ui:chrome:compare`
 - **THEN** 系统 SHALL 通过 Chrome 通道抓取官方页面与本地页面截图
 - **AND** SHALL 输出结构化报告供人工对照视觉差异
+
+#### Scenario: 本地 Chrome 对比失败快返
+- **WHEN** 研发执行 `npm run ui:chrome:compare:local` 且本地页面抓图失败
+- **THEN** 系统 SHALL 返回非 0 退出码并在报告中标记失败目标
+- **AND** 报告 SHALL 包含 `localUrl` 与 `okclaw-local` 关键几何指标
 
 #### Scenario: 像素差异阈值可配置
 - **WHEN** 研发在不同平台执行 `ui:pixel:diff`

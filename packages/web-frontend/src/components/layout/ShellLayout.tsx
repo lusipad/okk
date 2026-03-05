@@ -173,7 +173,7 @@ export function ShellLayout({ left, center, right }: ShellLayoutProps) {
       <header className='app-topbar' aria-label='全局顶栏'>
         <div className='topbar-brand'>
           <span className='topbar-brand-icon' aria-hidden='true'>
-            OK
+            ◎
           </span>
           <h1>okclaw</h1>
         </div>
@@ -185,7 +185,7 @@ export function ShellLayout({ left, center, right }: ShellLayoutProps) {
         <div className='topbar-actions'>
           <button
             type='button'
-            className='ghost-button'
+            className='ghost-button topbar-command-button'
             aria-label='打开命令面板'
             title='Command palette (Ctrl/Cmd + K)'
             onClick={() => setCommandOpen(true)}
@@ -195,12 +195,12 @@ export function ShellLayout({ left, center, right }: ShellLayoutProps) {
           {!focusMode && (
             <button
               type='button'
-              className={`ghost-button topbar-focus-toggle ${rightOpen ? 'is-active' : ''}`}
+              className={`ghost-button topbar-collab-toggle ${rightOpen ? 'is-active' : ''}`}
               aria-expanded={rightOpen}
               aria-label='协作面板'
               onClick={toggleRightPanel}
             >
-              {rightOpen ? '●' : '○'}
+              {rightOpen ? '协作开' : '协作'}
             </button>
           )}
           <button type='button' className='ghost-button app-topbar-drawer-button' onClick={() => setLeftOpen(true)}>

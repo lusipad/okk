@@ -1,0 +1,93 @@
+name: desktop-windows-package
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  package-windows:
+    runs-on: windows-latest
+    permissions:
+      contents: read
+    env:
+      CSC_IDENTITY_AUTO_DISCOVERY: "false"
+      ELECTRON_BUILDER_ALLOW_UNRESOLVED_DEPENDENCIES: "true"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify desktop tests
+        run: npm run test -w @okclaw/desktop
+
+      - name: Build and package Windows desktop app (with retry)
+        shell: pwsh
+        run: |
+          $attempts = 3
+          for ($i = 1; $i -le $attempts; $i++) {
+            Write-Host "Package attempt $i/$attempts"
+            npm run package:win -w @okclaw/desktop
+            if ($LASTEXITCODE -eq 0) {
+              break
+            }
+            if ($i -eq $attempts) {
+              exit $LASTEXITCODE
+            }
+            Start-Sleep -Seconds (10 * $i)
+          }
+
+      - name: Create distributable zip from win-unpacked
+        shell: pwsh
+        run: |
+          $releaseDir = "packages/desktop/release"
+          $unpackedDir = Join-Path $releaseDir "win-unpacked"
+          if (-not (Test-Path $unpackedDir)) {
+            throw "win-unpacked directory not found: $unpackedDir"
+          }
+          $zipName = "OKClaw-windows-x64-${{ github.ref_name }}.zip"
+          $zipPath = Join-Path $releaseDir $zipName
+          if (Test-Path $zipPath) {
+            Remove-Item $zipPath -Force
+          }
+          Compress-Archive -Path "$unpackedDir/*" -DestinationPath $zipPath
+
+      - name: Generate checksums
+        shell: pwsh
+        run: |
+          $releaseDir = "packages/desktop/release"
+          if (-not (Test-Path $releaseDir)) {
+            throw "Release directory not found: $releaseDir"
+          }
+          $files = Get-ChildItem $releaseDir -Recurse -File | Where-Object { $_.Extension -in ".exe", ".yml", ".zip" }
+          if ($files.Count -eq 0) {
+            throw "No release files found under $releaseDir"
+          }
+          $hashLines = @()
+          foreach ($file in $files) {
+            $hash = (Get-FileHash $file.FullName -Algorithm SHA256).Hash.ToLower()
+            $relativePath = Resolve-Path -Relative $file.FullName
+            $hashLines += "$hash  $relativePath"
+          }
+          $hashLines | Set-Content -Path "$releaseDir/SHA256SUMS.txt" -Encoding ascii
+
+      - name: Upload Windows artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: okclaw-desktop-windows-${{ github.ref_name }}
+          path: |
+            packages/desktop/release/*.zip
+            packages/desktop/release/*.yml
+            packages/desktop/release/win-unpacked/*.exe
+            packages/desktop/release/SHA256SUMS.txt
+          if-no-files-found: error
+          retention-days: 14

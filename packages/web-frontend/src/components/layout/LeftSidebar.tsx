@@ -133,7 +133,10 @@ export function LeftSidebar({
       </label>
       <nav className='sidebar-primary-nav' aria-label='主导航'>
         <Link data-testid='nav-chat' className={`sidebar-link ${inChat ? 'active' : ''}`} to='/' aria-current={inChat ? 'page' : undefined}>
-          Chats
+          <span className='sidebar-link-icon' aria-hidden='true'>
+            ◦
+          </span>
+          <span className='sidebar-link-label'>Chats</span>
         </Link>
         <Link
           data-testid='nav-mcp'
@@ -141,7 +144,10 @@ export function LeftSidebar({
           to='/settings/mcp'
           aria-current={location.pathname === '/settings/mcp' ? 'page' : undefined}
         >
-          MCP
+          <span className='sidebar-link-icon' aria-hidden='true'>
+            ◦
+          </span>
+          <span className='sidebar-link-label'>MCP</span>
         </Link>
         <Link
           data-testid='nav-skills'
@@ -149,7 +155,10 @@ export function LeftSidebar({
           to='/skills'
           aria-current={location.pathname === '/skills' ? 'page' : undefined}
         >
-          Skills
+          <span className='sidebar-link-icon' aria-hidden='true'>
+            ◦
+          </span>
+          <span className='sidebar-link-label'>Skills</span>
         </Link>
       </nav>
       <div className='panel-header panel-header-tight sidebar-chat-title'>

@@ -21,6 +21,7 @@ export interface CliBackendOptions {
   env?: NodeJS.ProcessEnv;
   onLog?: (entry: CliBackendLogEntry) => void;
   stderrTailSize?: number;
+  executionTimeoutMs?: number;
 }
 
 const defaultCapabilities: BackendCapabilities = {
@@ -30,6 +31,7 @@ const defaultCapabilities: BackendCapabilities = {
 };
 
 const DEFAULT_STDERR_TAIL_SIZE = 30;
+const DEFAULT_EXECUTION_TIMEOUT_MS = 120000;
 
 const isObject = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null;
@@ -258,6 +260,7 @@ export class CliBackend implements IBackend {
   private readonly env: NodeJS.ProcessEnv;
   private readonly onLog?: (entry: CliBackendLogEntry) => void;
   private readonly stderrTailSize: number;
+  private readonly executionTimeoutMs: number;
   private readonly running = new Map<string, ChildProcessWithoutNullStreams>();
 
   constructor(options: CliBackendOptions) {
@@ -268,6 +271,7 @@ export class CliBackend implements IBackend {
     this.env = { ...process.env, ...options.env };
     this.onLog = options.onLog;
     this.stderrTailSize = options.stderrTailSize ?? DEFAULT_STDERR_TAIL_SIZE;
+    this.executionTimeoutMs = options.executionTimeoutMs ?? DEFAULT_EXECUTION_TIMEOUT_MS;
   }
 
   async *execute(request: BackendRequest): AsyncGenerator<BackendEventInput> {
@@ -306,7 +310,31 @@ export class CliBackend implements IBackend {
 
     const queue = new AsyncEventQueue<BackendEventInput>();
     let doneEmitted = false;
+    let timedOut = false;
     const stderrTail: string[] = [];
+    const timeoutTimer = setTimeout(() => {
+      timedOut = true;
+      this.emitLog("error", sessionId, "backend_execution_timeout", {
+        command: this.command,
+        args,
+        timeoutMs: this.executionTimeoutMs
+      });
+      pushEvent({
+        type: "error",
+        payload: {
+          code: "backend_execution_timeout",
+          message: `${this.name} execution timeout after ${this.executionTimeoutMs}ms`,
+          details: {
+            command: this.command,
+            args,
+            timeoutMs: this.executionTimeoutMs,
+            sessionId
+          }
+        }
+      });
+      this.abort(sessionId);
+    }, this.executionTimeoutMs);
+    timeoutTimer.unref?.();
 
     const rememberStderr = (line: string): void => {
       stderrTail.push(line);
@@ -420,11 +448,12 @@ export class CliBackend implements IBackend {
         pushEvent({
           type: "done",
           payload: {
-            reason: success ? "completed" : "backend_exit_nonzero"
+            reason: success ? "completed" : timedOut ? "backend_timeout" : "backend_exit_nonzero"
           }
         });
       }
 
+      clearTimeout(timeoutTimer);
       stdoutReader.close();
       stderrReader.close();
       queue.end();

@@ -3,7 +3,7 @@ import path from "node:path";
 import { chromium } from "playwright";
 
 const OUTPUT_DIR = path.resolve("output/playwright/chrome-compare");
-const LOCAL_URL = process.env.OKCLAW_UI_URL || "http://127.0.0.1:5199";
+const LOCAL_URL = process.env.OKCLAW_UI_URL || "http://127.0.0.1:5201";
 const VIEWPORT = { width: 1600, height: 900 };
 
 fs.mkdirSync(OUTPUT_DIR, { recursive: true });
@@ -89,4 +89,15 @@ fs.writeFileSync(
 );
 
 console.log(`compare_report=${reportPath}`);
+const failedTargets = results.filter((item) => !item.pass);
+const localResult = results.find((item) => item.key === "okclaw-local");
+const failOnAny = process.env.OKCLAW_COMPARE_FAIL_ON_ANY === "1";
+
+if (!localResult?.pass || (failOnAny && failedTargets.length > 0)) {
+  const failedKeys = failedTargets.map((item) => item.key).join(",");
+  console.error(`compare_failed_targets=${failedKeys || "unknown"}`);
+  await browser.close();
+  process.exit(1);
+}
+
 await browser.close();

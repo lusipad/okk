@@ -15,6 +15,7 @@
     "dev": "concurrently -k \"npm run dev -w @okclaw/web-frontend\" \"npm run dev:electron\"",
     "dev:electron": "npm run build:desktop && wait-on tcp:5173 && cross-env OKCLAW_DESKTOP_DEV_URL=http://localhost:5173 electron dist/main/index.js",
     "package": "npm run build && electron-builder",
+    "package:win": "npm run build && electron-builder --win dir --x64 --publish never",
     "test": "vitest run"
   },
   "build": {

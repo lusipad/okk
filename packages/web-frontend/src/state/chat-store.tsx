@@ -399,10 +399,12 @@ function reducer(state: ChatState, action: ChatAction): ChatState {
   }
 
   if (action.type === 'set_agents') {
-    const selectedAgentId =
+    const currentSelectedId =
       state.selectedAgentId && action.agents.some((agent) => agent.id === state.selectedAgentId)
         ? state.selectedAgentId
-        : action.agents[0]?.id ?? null;
+        : null;
+    const preferredCodexId = action.agents.find((agent) => agent.backend === 'codex')?.id ?? null;
+    const selectedAgentId = currentSelectedId ?? preferredCodexId ?? action.agents[0]?.id ?? null;
     return {
       ...state,
       agents: action.agents,

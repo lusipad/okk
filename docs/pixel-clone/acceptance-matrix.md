@@ -1,16 +1,16 @@
 # Pixel Clone 验收矩阵
 
 ## 1. 布局几何（必须）
-- 顶栏高度：`42 +/- 2 px`
-- 左栏宽度：`266 +/- 4 px`
+- 顶栏高度：`44 +/- 2 px`
+- 左栏宽度：`264 +/- 4 px`
 - 主舞台最大宽度：`960 +/- 8 px`
-- 输入 Dock 圆角：`28 +/- 2 px`
+- 输入 Dock 圆角：`26 +/- 2 px`
 - 用户消息起始左边距（桌面）：`26% +/- 2%`
 - 助手消息结束右边距（桌面）：`19% +/- 2%`
 
 ## 2. 字体与密度（必须）
-- 空态主文案字号：`36 +/- 2 px`
-- 输入占位字号：`34 +/- 2 px`
+- 空态主文案字号：`48 +/- 3 px`
+- 输入占位字号：`16 +/- 1 px`
 - 侧栏一级导航字号：`13 +/- 1 px`
 
 ## 3. 状态与交互（必须）
@@ -45,3 +45,8 @@
   - 单图差异像素比例 `< 2.0%`
   - 关键区域（顶栏/左栏/输入区）差异像素比例 `< 1.8%`
   - `pixelmatch` 阈值默认 `0.12`（可通过 `OKCLAW_PIXEL_DIFF_PIXELMATCH_THRESHOLD` 调整）
+
+## 6. v11 增量验收项
+- `ui:chrome:compare:local` MUST 在 `okclaw-local` 抓图失败时返回非 0 退出码
+- `chrome-compare/report.json` MUST 记录 `localUrl` 与 `okclaw-local.metrics`（`topbarHeight`、`sidebarWidth`）
+- 空态文案与输入 Dock MUST 同屏可见（1600x900 基线）

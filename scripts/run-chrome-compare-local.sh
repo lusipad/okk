@@ -42,4 +42,6 @@ if [[ "$READY" -ne 1 ]]; then
   exit 1
 fi
 
-OKCLAW_UI_URL="$UI_URL" npm run ui:chrome:compare
+export OKCLAW_UI_URL="$UI_URL"
+export OKCLAW_COMPARE_FAIL_ON_ANY=0
+npm run ui:chrome:compare

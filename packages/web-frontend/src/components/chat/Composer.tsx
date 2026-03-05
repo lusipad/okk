@@ -103,7 +103,7 @@ export function Composer({
       return;
     }
     textarea.style.height = 'auto';
-    const nextHeight = Math.min(Math.max(textarea.scrollHeight, 44), 220);
+    const nextHeight = Math.min(Math.max(textarea.scrollHeight, 28), 220);
     textarea.style.height = `${nextHeight}px`;
   }, [value]);
 
@@ -287,7 +287,8 @@ export function Composer({
             </label>
             <button
               type='button'
-              className={`ghost-button small-button ${advancedOpen ? 'topbar-focus-toggle is-active' : ''}`}
+              className={`ghost-button small-button composer-tool-toggle ${advancedOpen ? 'is-active' : ''}`}
+              aria-pressed={advancedOpen}
               onClick={() => setAdvancedOpen((current) => !current)}
             >
               工具

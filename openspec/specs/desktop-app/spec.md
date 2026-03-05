@@ -11,6 +11,14 @@ TBD - created by archiving change okclaw-architecture. Update Purpose after arch
 - **THEN** 系统 SHALL 创建 BrowserWindow 加载 React 前端
 - **AND** Main 进程 SHALL 初始化 core 包的所有服务（engine、knowledge、repo、db）
 
+### Requirement: Windows 桌面版自动打包
+系统 SHALL 提供 GitHub Actions 流水线，自动产出可直接运行的 Windows 桌面版安装产物。
+
+#### Scenario: 手动触发或版本标签触发打包
+- **WHEN** 研发在 GitHub Actions 手动触发桌面打包工作流，或推送 `v*` 标签
+- **THEN** 系统 SHALL 执行 `@okclaw/desktop` 的测试与 Windows 打包流程
+- **AND** SHALL 产出 `win-unpacked/OKClaw.exe` 与分发 zip 包作为构建产物
+
 ### Requirement: IPC 桥接层
 系统 SHALL 通过 Electron IPC channels 桥接 Renderer 和 Main 进程，Main 进程调用 core 包的服务。
 
@@ -65,4 +73,3 @@ TBD - created by archiving change okclaw-architecture. Update Purpose after arch
 - **WHEN** 用户首次启动应用或手动触发扫描
 - **THEN** 系统 SHALL 扫描常用目录（~/Projects、~/repos、~/code 等）
 - **AND** 列出发现的 Git 仓库供用户选择注册
-
