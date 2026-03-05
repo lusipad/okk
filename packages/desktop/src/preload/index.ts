@@ -22,6 +22,10 @@ export interface IOProviderResponse {
 type Unsubscribe = () => void;
 
 const desktopBridge = {
+  runtime: {
+    apiBaseUrl: process.env.OKCLAW_DESKTOP_API_BASE_URL ?? "http://127.0.0.1:3000",
+    wsBaseUrl: process.env.OKCLAW_DESKTOP_WS_BASE_URL ?? "ws://127.0.0.1:3000"
+  },
   io: {
     qa: (request?: IOProviderRequest): Promise<IOProviderResponse> =>
       ipcRenderer.invoke(IO_CHANNELS.qa, request),
@@ -53,6 +57,7 @@ const desktopBridge = {
 };
 
 contextBridge.exposeInMainWorld("okclawDesktop", desktopBridge);
+contextBridge.exposeInMainWorld("okclawDesktopRuntime", desktopBridge.runtime);
 
 window.addEventListener("DOMContentLoaded", () => {
   window.addEventListener("dragover", (event) => {

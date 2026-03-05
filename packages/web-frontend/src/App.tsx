@@ -10,8 +10,29 @@ import { ChatPage } from './pages/ChatPage';
 import { McpSettingsPage } from './pages/McpSettingsPage';
 import { SkillsPage } from './pages/SkillsPage';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://127.0.0.1:3000';
-const WS_BASE_URL = import.meta.env.VITE_WS_BASE_URL ?? 'ws://127.0.0.1:3000';
+interface DesktopRuntimeConfig {
+  apiBaseUrl?: string;
+  wsBaseUrl?: string;
+}
+
+function resolveRuntimeBaseUrls(): { apiBaseUrl: string; wsBaseUrl: string } {
+  const runtimeConfig = (
+    window as Window & {
+      okclawDesktopRuntime?: DesktopRuntimeConfig;
+    }
+  ).okclawDesktopRuntime;
+
+  const apiBaseUrl =
+    runtimeConfig?.apiBaseUrl?.trim() ||
+    import.meta.env.VITE_API_BASE_URL ||
+    'http://127.0.0.1:3000';
+  const wsBaseUrl =
+    runtimeConfig?.wsBaseUrl?.trim() ||
+    import.meta.env.VITE_WS_BASE_URL ||
+    'ws://127.0.0.1:3000';
+
+  return { apiBaseUrl, wsBaseUrl };
+}
 
 interface GuardProps {
   authenticated: boolean;
@@ -28,6 +49,7 @@ function Guard({ authenticated, children }: GuardProps) {
 export function App() {
   const { token, logout } = useAuth();
   const Router = window.location.protocol === 'file:' ? HashRouter : BrowserRouter;
+  const { apiBaseUrl, wsBaseUrl } = useMemo(() => resolveRuntimeBaseUrls(), []);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -42,12 +64,12 @@ export function App() {
   const io = useMemo(
     () =>
       new HttpWsIOProvider({
-        baseUrl: API_BASE_URL,
-        wsBaseUrl: WS_BASE_URL,
+        baseUrl: apiBaseUrl,
+        wsBaseUrl,
         getToken: () => localStorage.getItem('okclaw.jwt'),
         onAuthExpired: logout
       }),
-    [logout]
+    [apiBaseUrl, wsBaseUrl, logout]
   );
 
   return (

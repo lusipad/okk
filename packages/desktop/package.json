@@ -4,14 +4,19 @@
   "private": true,
   "type": "module",
   "main": "dist/main/index.js",
+  "dependencies": {
+    "@okclaw/core": "*",
+    "@okclaw/web-backend": "*"
+  },
   "scripts": {
     "clean": "rimraf dist",
     "build:ts": "tsc -p tsconfig.json",
+    "build:backend": "npm run build -w @okclaw/core && npm run build -w @okclaw/web-backend",
     "copy:renderer": "node ./scripts/copy-assets.mjs renderer",
     "copy:web": "node ./scripts/copy-assets.mjs web",
     "build:desktop": "npm run clean && npm run build:ts && npm run copy:renderer",
     "build:web": "cross-env OKCLAW_VITE_BASE=./ npm run build -w @okclaw/web-frontend",
-    "build": "npm run build:web && npm run build:desktop && npm run copy:web",
+    "build": "npm run build:backend && npm run build:web && npm run build:desktop && npm run copy:web",
     "dev": "concurrently -k \"npm run dev -w @okclaw/web-frontend\" \"npm run dev:electron\"",
     "dev:electron": "npm run build:desktop && wait-on tcp:5173 && cross-env OKCLAW_DESKTOP_DEV_URL=http://localhost:5173 electron dist/main/index.js",
     "package": "npm run build && electron-builder",

@@ -19,6 +19,14 @@ TBD - created by archiving change okclaw-architecture. Update Purpose after arch
 - **THEN** 系统 SHALL 执行 `@okclaw/desktop` 的测试与 Windows 打包流程
 - **AND** SHALL 产出 `win-unpacked/OKClaw.exe` 与分发 zip 包作为构建产物
 
+### Requirement: 桌面内置后端服务
+系统 SHALL 在桌面应用启动时自动拉起本地后端服务，避免依赖外部手动启动 `web-backend`。
+
+#### Scenario: 桌面启动自动可用
+- **WHEN** 用户直接启动 Windows 桌面版 `OKClaw.exe`
+- **THEN** 系统 SHALL 在主进程启动本地 API/WS 服务并注入前端运行时配置
+- **AND** 用户输入消息后 SHALL 可直接获得回复，无需额外启动 `http://127.0.0.1:3000`
+
 ### Requirement: IPC 桥接层
 系统 SHALL 通过 Electron IPC channels 桥接 Renderer 和 Main 进程，Main 进程调用 core 包的服务。
 
