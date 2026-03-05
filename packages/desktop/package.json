@@ -11,12 +11,14 @@
     "copy:web": "node ./scripts/copy-assets.mjs web",
     "build:desktop": "npm run clean && npm run build:ts && npm run copy:renderer",
     "build:web": "cross-env OKCLAW_VITE_BASE=./ npm run build -w @okclaw/web-frontend",
-    "build": "npm run build:web && npm run build:desktop && npm run copy:web",
+    "build": "npm run build:backend && npm run build:web && npm run build:desktop && npm run copy:web",
     "dev": "concurrently -k \"npm run dev -w @okclaw/web-frontend\" \"npm run dev:electron\"",
     "dev:electron": "npm run build:desktop && wait-on tcp:5173 && cross-env OKCLAW_DESKTOP_DEV_URL=http://localhost:5173 electron dist/main/index.js",
     "package": "npm run build && electron-builder",
     "package:win": "npm run build && electron-builder --win dir --x64 --publish never",
-    "test": "vitest run"
+    "test": "vitest run",
+    "build:backend": "npm run build:core && npm run build -w @okclaw/web-backend",
+    "build:core": "npm run build -w @okclaw/core"
   },
   "build": {
     "appId": "com.okclaw.desktop",
@@ -43,5 +45,8 @@
     "rimraf": "^6.0.1",
     "vitest": "^3.2.4",
     "wait-on": "^8.0.1"
+  },
+  "dependencies": {
+    "@okclaw/web-backend": "*"
   }
 }
