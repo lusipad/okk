@@ -13,7 +13,7 @@ interface IOProviderResponse {
   timestamp: string;
 }
 
-interface OkclawDesktopBridge {
+interface OkkDesktopBridge {
   io: {
     qa: (request?: IOProviderRequest) => Promise<IOProviderResponse>;
     knowledge: (request?: IOProviderRequest) => Promise<IOProviderResponse>;
@@ -31,7 +31,7 @@ interface OkclawDesktopBridge {
 
 declare global {
   interface Window {
-    okclawDesktop: OkclawDesktopBridge;
+    okkDesktop: OkkDesktopBridge;
   }
 }
 

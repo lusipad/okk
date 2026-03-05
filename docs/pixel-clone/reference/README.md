@@ -14,12 +14,12 @@
 
 可选阈值（默认 `full=8`, `key=5`）：
 
-- `OKCLAW_PIXEL_REFERENCE_FULL_THRESHOLD`
-- `OKCLAW_PIXEL_REFERENCE_KEY_THRESHOLD`
-- `OKCLAW_PIXEL_REFERENCE_EXACT_DIMENSIONS`（`1` 表示强制参考图与当前图尺寸一致）
+- `OKK_PIXEL_REFERENCE_FULL_THRESHOLD`
+- `OKK_PIXEL_REFERENCE_KEY_THRESHOLD`
+- `OKK_PIXEL_REFERENCE_EXACT_DIMENSIONS`（`1` 表示强制参考图与当前图尺寸一致）
 
 严格模式（无参考图时直接失败）：
 
-- `OKCLAW_PIXEL_REFERENCE_REQUIRED=1`
+- `OKK_PIXEL_REFERENCE_REQUIRED=1`
 - `npm run ui:pixel:reference-diff:strict`
 - `npm run ui:pixel:gate:strict`

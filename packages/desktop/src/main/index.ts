@@ -148,7 +148,7 @@ function createMainWindow(): BrowserWindow {
 }
 
 async function loadMainWindowContent(window: BrowserWindow): Promise<void> {
-  const devUrl = process.env.OKCLAW_DESKTOP_DEV_URL?.trim();
+  const devUrl = process.env.OKK_DESKTOP_DEV_URL?.trim();
 
   if (devUrl) {
     await window.loadURL(devUrl);
@@ -171,7 +171,7 @@ function createTray(): Tray | null {
   }
   const windowTray = new Tray(trayIcon);
 
-  windowTray.setToolTip("OKClaw Desktop");
+  windowTray.setToolTip("OKK Desktop");
   windowTray.setContextMenu(
     Menu.buildFromTemplate([
       { label: "显示主窗口", click: () => focusMainWindow() },
@@ -241,7 +241,7 @@ app.whenReady().then(async () => {
     stopEmbeddedBackend = backendRuntime.close;
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    dialog.showErrorBox("OKClaw Backend 启动失败", message);
+    dialog.showErrorBox("OKK Backend 启动失败", message);
     app.quit();
     return;
   }

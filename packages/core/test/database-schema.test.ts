@@ -7,7 +7,7 @@ import { SqliteDatabase } from "../src/database/sqlite-database.js";
 const tempDirs: string[] = [];
 
 const createTempDb = (): SqliteDatabase => {
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "okclaw-core-schema-"));
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "okk-core-schema-"));
   tempDirs.push(tempDir);
   const dbPath = path.join(tempDir, "core.db");
   return new SqliteDatabase({ dbPath });

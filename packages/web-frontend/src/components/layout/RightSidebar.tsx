@@ -69,7 +69,7 @@ export function RightSidebar({
   const latestRuns = teamRuns.slice(0, 4);
   const graphBaseWidth = 460;
   const graphPreferenceKey = useMemo(
-    () => `okclaw.graph.preferences.${teamView.teamName ?? 'default'}`,
+    () => `okk.graph.preferences.${teamView.teamName ?? 'default'}`,
     [teamView.teamName]
   );
   const taskGraphNodes = useMemo(() => {
@@ -483,7 +483,7 @@ export function RightSidebar({
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement('a');
     anchor.href = url;
-    anchor.download = `okclaw-team-report-${safeTimestamp}.md`;
+    anchor.download = `okk-team-report-${safeTimestamp}.md`;
     document.body.append(anchor);
     anchor.click();
     anchor.remove();

@@ -14,6 +14,6 @@ packages/**/.vite/
 *.db-shm
 *.db-wal
 output/
-.okclaw/
+.okk/
 preview.err
 preview.log

@@ -1,7 +1,7 @@
 # web-frontend Specification
 
 ## Purpose
-TBD - created by archiving change okclaw-architecture. Update Purpose after archive.
+TBD - created by archiving change okk-architecture. Update Purpose after archive.
 ## Requirements
 ### Requirement: 双栏主布局与协作抽屉
 系统 SHALL 提供“左栏 + 中栏”的主舞台布局，并将协作信息收纳为按需展开的右侧抽屉，以保持 Chat 主流程聚焦。
@@ -114,7 +114,7 @@ TBD - created by archiving change okclaw-architecture. Update Purpose after arch
 #### Scenario: 本地 Chrome 对比失败快返
 - **WHEN** 研发执行 `npm run ui:chrome:compare:local` 且本地页面抓图失败
 - **THEN** 系统 SHALL 返回非 0 退出码并在报告中标记失败目标
-- **AND** 报告 SHALL 包含 `localUrl` 与 `okclaw-local` 关键几何指标
+- **AND** 报告 SHALL 包含 `localUrl` 与 `okk-local` 关键几何指标
 
 #### Scenario: 像素差异阈值可配置
 - **WHEN** 研发在不同平台执行 `ui:pixel:diff`

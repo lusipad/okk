@@ -7,7 +7,7 @@ import { AgentRegistry } from "../src/agents/agent-registry.js";
 const tempDirs: string[] = [];
 
 const createTempDir = async (): Promise<string> => {
-  const directory = await fs.mkdtemp(path.join(os.tmpdir(), "okclaw-agent-registry-"));
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), "okk-agent-registry-"));
   tempDirs.push(directory);
   return directory;
 };
@@ -57,7 +57,7 @@ describe("AgentRegistry", () => {
 
   it("目录不存在时返回 warning 而不是抛错", async () => {
     const registry = new AgentRegistry();
-    const warnings = await registry.loadFromDirectory(path.join(os.tmpdir(), "okclaw-not-found"));
+    const warnings = await registry.loadFromDirectory(path.join(os.tmpdir(), "okk-not-found"));
 
     expect(warnings).toHaveLength(1);
     expect(warnings[0]).toContain("Skip directory");

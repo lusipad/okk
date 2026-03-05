@@ -57,7 +57,7 @@ export function LoginPage() {
     <div className='auth-page'>
       <form className='auth-card' onSubmit={handleSubmit}>
         <div className='auth-heading'>
-          <h1>欢迎登录 okclaw</h1>
+          <h1>欢迎登录 OKK</h1>
           <p className='auth-subtitle'>登录后继续使用会话、Agent 与工具能力。</p>
         </div>
         <section className='auth-tip-card auth-tip-card-info'>

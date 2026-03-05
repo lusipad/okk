@@ -17,7 +17,7 @@
 
 ## 主线 B（P0）：真实 Claude/Codex CLI 接入
 
-- [x] B1 在 `@okclaw/core` 导出可被 web-backend 动态加载的 createCore 工厂
+- [x] B1 在 `@okk/core` 导出可被 web-backend 动态加载的 createCore 工厂
 - [x] B2 在 core 内注册 Claude Code CLI / Codex CLI backend（spawn + 流式解析）
 - [x] B3 将 web-backend 从 in-memory mock 切换到真实 core 工厂加载
 - [x] B4 完成 ask/follow_up/abort/resume 全链路联调（含 event_id 幂等与重放）

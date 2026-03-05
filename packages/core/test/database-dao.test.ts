@@ -7,7 +7,7 @@ import { SqliteDatabase } from "../src/database/sqlite-database.js";
 const tempDirs: string[] = [];
 
 const createTempDb = (): { db: SqliteDatabase; tempDir: string } => {
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "okclaw-core-"));
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "okk-core-"));
   tempDirs.push(tempDir);
   const dbPath = path.join(tempDir, "core.db");
   return { db: new SqliteDatabase({ dbPath }), tempDir };
@@ -31,8 +31,8 @@ describe("SqliteDatabase DAO", () => {
       });
 
       const repository = db.repositories.create({
-        name: "okclaw",
-        path: "/tmp/okclaw",
+        name: "okk",
+        path: "/tmp/okk",
         defaultBackend: "codex"
       });
 

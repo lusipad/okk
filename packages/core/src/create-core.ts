@@ -201,7 +201,7 @@ interface ResolvedRepositoryContext {
 }
 
 const DEFAULT_ADMIN_ID = "u-admin";
-const DEFAULT_DB_RELATIVE_PATH = ".okclaw/core.db";
+const DEFAULT_DB_RELATIVE_PATH = ".okk/core.db";
 
 const DEFAULT_AGENTS: CoreAgentRecord[] = [
   {
@@ -248,7 +248,7 @@ function pickWorkspaceRoot(startDir: string): string {
 }
 
 function resolveDatabasePath(options: CreateCoreOptions, workspaceRoot: string): string {
-  const configured = options.dbPath ?? process.env.OKCLAW_CORE_DB_PATH;
+  const configured = options.dbPath ?? process.env.OKK_CORE_DB_PATH;
   const trimmed = configured?.trim();
   if (trimmed) {
     return trimmed === ":memory:" ? trimmed : path.resolve(trimmed);
@@ -456,7 +456,7 @@ export async function createCore(options: CreateCoreOptions = {}): Promise<CoreA
   const availableBackends = new Set<BackendName>();
   const backendHealth = new Map<BackendName, CoreBackendHealth>();
 
-  const codexCommand = options.codexCommand ?? process.env.OKCLAW_CODEX_COMMAND ?? "codex";
+  const codexCommand = options.codexCommand ?? process.env.OKK_CODEX_COMMAND ?? "codex";
   if (isCommandAvailable(codexCommand)) {
     backendManager.registerBackend(
       new CodexCliBackend({
@@ -481,7 +481,7 @@ export async function createCore(options: CreateCoreOptions = {}): Promise<CoreA
     logger.warn("core_backend_unavailable", { backend: "codex", command: codexCommand });
   }
 
-  const claudeCommand = options.claudeCommand ?? process.env.OKCLAW_CLAUDE_COMMAND ?? "claude";
+  const claudeCommand = options.claudeCommand ?? process.env.OKK_CLAUDE_COMMAND ?? "claude";
   if (isCommandAvailable(claudeCommand)) {
     backendManager.registerBackend(
       new ClaudeCliBackend({
@@ -1098,4 +1098,4 @@ export async function createCore(options: CreateCoreOptions = {}): Promise<CoreA
   return core;
 }
 
-export const createOkclawCore = createCore;
+export const createOkkCore = createCore;

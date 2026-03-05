@@ -1,5 +1,5 @@
 import { createServer } from "node:net";
-import { createApp } from "@okclaw/web-backend";
+import { createApp } from "@okk/web-backend";
 
 const HOST = "127.0.0.1";
 const PORT_START = 3230;
@@ -44,8 +44,8 @@ export async function startEmbeddedBackend(): Promise<EmbeddedBackendRuntime> {
   const apiBaseUrl = `http://${HOST}:${port}`;
   const wsBaseUrl = `ws://${HOST}:${port}`;
 
-  process.env.OKCLAW_DESKTOP_API_BASE_URL = apiBaseUrl;
-  process.env.OKCLAW_DESKTOP_WS_BASE_URL = wsBaseUrl;
+  process.env.OKK_DESKTOP_API_BASE_URL = apiBaseUrl;
+  process.env.OKK_DESKTOP_WS_BASE_URL = wsBaseUrl;
 
   return {
     apiBaseUrl,

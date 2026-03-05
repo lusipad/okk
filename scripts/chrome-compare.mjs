@@ -3,7 +3,7 @@ import path from "node:path";
 import { chromium } from "playwright";
 
 const OUTPUT_DIR = path.resolve("output/playwright/chrome-compare");
-const LOCAL_URL = process.env.OKCLAW_UI_URL || "http://127.0.0.1:5201";
+const LOCAL_URL = process.env.OKK_UI_URL || "http://127.0.0.1:5201";
 const VIEWPORT = { width: 1600, height: 900 };
 
 fs.mkdirSync(OUTPUT_DIR, { recursive: true });
@@ -14,7 +14,7 @@ const targets = [
   { key: "official-chatgpt-site", url: "https://openai.com/chatgpt/" },
   { key: "official-claude-site", url: "https://www.anthropic.com/claude" },
   { key: "official-opencowork", url: "https://opencowork.com" },
-  { key: "okclaw-local", url: LOCAL_URL }
+  { key: "okk-local", url: LOCAL_URL }
 ];
 
 let browser;
@@ -26,9 +26,9 @@ try {
 
 const page = await browser.newPage({ viewport: VIEWPORT });
 await page.addInitScript(() => {
-  localStorage.setItem("okclaw.jwt", "chrome-compare-token");
-  if (!localStorage.getItem("okclaw.theme")) {
-    localStorage.setItem("okclaw.theme", "dark");
+  localStorage.setItem("okk.jwt", "chrome-compare-token");
+  if (!localStorage.getItem("okk.theme")) {
+    localStorage.setItem("okk.theme", "dark");
   }
 });
 const results = [];
@@ -39,7 +39,7 @@ for (const target of targets) {
     await page.goto(target.url, { waitUntil: "domcontentloaded", timeout: 60000 });
     await page.waitForTimeout(3000);
     let localMetrics = null;
-    if (target.key === "okclaw-local") {
+    if (target.key === "okk-local") {
       localMetrics = await page.evaluate(() => {
         document.querySelectorAll(".connection-banner, .chat-alert").forEach((node) => node.remove());
         document.querySelectorAll(".capability-warning-bar").forEach((node) => node.remove());
@@ -90,8 +90,8 @@ fs.writeFileSync(
 
 console.log(`compare_report=${reportPath}`);
 const failedTargets = results.filter((item) => !item.pass);
-const localResult = results.find((item) => item.key === "okclaw-local");
-const failOnAny = process.env.OKCLAW_COMPARE_FAIL_ON_ANY === "1";
+const localResult = results.find((item) => item.key === "okk-local");
+const failOnAny = process.env.OKK_COMPARE_FAIL_ON_ANY === "1";
 
 if (!localResult?.pass || (failOnAny && failedTargets.length > 0)) {
   const failedKeys = failedTargets.map((item) => item.key).join(",");

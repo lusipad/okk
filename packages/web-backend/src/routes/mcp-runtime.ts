@@ -147,7 +147,7 @@ class JsonRpcStdioClient {
       protocolVersion: "2024-11-05",
       capabilities: {},
       clientInfo: {
-        name: "okclaw",
+        name: "okk",
         version: "0.1.0"
       }
     });

@@ -398,7 +398,7 @@ test("REST /api/agents 支持 runtime backends 与 team runs", async () => {
 
 test("REST 路由兼容前端页面：sessions/mcp/skills", async () => {
   const app = await createApp({ jwtSecret: "test-secret", logger: false, coreMode: "memory" });
-  const previousSkillMarketPath = process.env.OKCLAW_SKILL_MARKET_PATH;
+  const previousSkillMarketPath = process.env.OKK_SKILL_MARKET_PATH;
   let marketTempDir: string | null = null;
 
   try {
@@ -479,12 +479,12 @@ test("REST 路由兼容前端页面：sessions/mcp/skills", async () => {
       payload: {
         name: "echo",
         arguments: {
-          text: "okclaw",
+          text: "okk",
         },
       },
     });
     assert.equal(toolCall.statusCode, 200);
-    assert.match(String(toolCall.json().content ?? ""), /echo:okclaw/);
+    assert.match(String(toolCall.json().content ?? ""), /echo:okk/);
 
     const resourcesList = await app.inject({
       method: "GET",
@@ -521,7 +521,7 @@ test("REST 路由兼容前端页面：sessions/mcp/skills", async () => {
     });
     assert.equal(deletedServer.statusCode, 204);
 
-    const importDir = await fs.mkdtemp(path.join(os.tmpdir(), "okclaw-skill-test-"));
+    const importDir = await fs.mkdtemp(path.join(os.tmpdir(), "okk-skill-test-"));
     const importedSkillFolder = path.join(importDir, "sample-skill");
     await fs.mkdir(importedSkillFolder, { recursive: true });
     await fs.writeFile(
@@ -611,7 +611,7 @@ echo "hello"
     });
     assert.equal(removedSkill.statusCode, 204);
 
-    marketTempDir = await fs.mkdtemp(path.join(os.tmpdir(), "okclaw-skill-market-"));
+    marketTempDir = await fs.mkdtemp(path.join(os.tmpdir(), "okk-skill-market-"));
     const marketSourceSkill = path.join(marketTempDir, "market-skill-source");
     await fs.mkdir(marketSourceSkill, { recursive: true });
     await fs.writeFile(
@@ -649,7 +649,7 @@ echo "market"
       ),
       "utf-8",
     );
-    process.env.OKCLAW_SKILL_MARKET_PATH = marketIndexPath;
+    process.env.OKK_SKILL_MARKET_PATH = marketIndexPath;
 
     const marketList = await app.inject({
       method: "GET",
@@ -695,9 +695,9 @@ echo "market"
     await fs.rm(importDir, { recursive: true, force: true });
   } finally {
     if (previousSkillMarketPath === undefined) {
-      delete process.env.OKCLAW_SKILL_MARKET_PATH;
+      delete process.env.OKK_SKILL_MARKET_PATH;
     } else {
-      process.env.OKCLAW_SKILL_MARKET_PATH = previousSkillMarketPath;
+      process.env.OKK_SKILL_MARKET_PATH = previousSkillMarketPath;
     }
     if (marketTempDir) {
       await fs.rm(marketTempDir, { recursive: true, force: true });
@@ -707,7 +707,7 @@ echo "market"
 });
 
 test("REST /api/knowledge 支持 CRUD、版本与 FTS 过滤搜索", async () => {
-  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "okclaw-knowledge-api-"));
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "okk-knowledge-api-"));
   const workspaceRoot = path.join(tempDir, "workspace");
   await fs.mkdir(workspaceRoot, { recursive: true });
 

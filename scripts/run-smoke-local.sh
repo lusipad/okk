@@ -35,4 +35,4 @@ if [[ "$READY" -ne 1 ]]; then
   exit 1
 fi
 
-OKCLAW_UI_URL="$UI_URL" npm exec -- node scripts/smoke-e2e.mjs
+OKK_UI_URL="$UI_URL" npm exec -- node scripts/smoke-e2e.mjs

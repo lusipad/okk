@@ -3,7 +3,7 @@ import { createApp, type CoreMode } from "./app.js";
 const host = process.env.HOST ?? "0.0.0.0";
 const port = Number(process.env.PORT ?? "3000");
 
-const envCoreMode = process.env.OKCLAW_CORE_MODE?.trim();
+const envCoreMode = process.env.OKK_CORE_MODE?.trim();
 const coreMode: CoreMode =
   envCoreMode === "real" || envCoreMode === "auto" || envCoreMode === "memory"
     ? envCoreMode

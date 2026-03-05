@@ -32,7 +32,7 @@
   - 已新增官方参考对比脚本（`ui:pixel:reference-diff`）
   - 已新增官方参考严格校验（`ui:pixel:reference-diff:strict`）
   - 已新增 Chrome 对比抓图脚本（`ui:chrome:compare` + `ui:chrome:compare:local`）
-  - 已修复本地 Chrome 对比端口透传，`okclaw-local` 抓图失败将显式 fail-fast
+  - 已修复本地 Chrome 对比端口透传，`okk-local` 抓图失败将显式 fail-fast
   - 已新增一键验收闸门（`ui:pixel:gate`）
   - 已新增严格闸门（`ui:pixel:gate:strict`，当前已验证可通过）
   - 官方参考图可替换当前 seed 参考后再次 strict 验证

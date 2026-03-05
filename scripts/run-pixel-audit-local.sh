@@ -2,12 +2,12 @@
 set -euo pipefail
 
 FRONTEND_LOG="output/pixel/frontend.log"
-UI_PORT="${OKCLAW_UI_PORT:-5200}"
+UI_PORT="${OKK_UI_PORT:-5200}"
 UI_URL="http://127.0.0.1:${UI_PORT}"
 
 mkdir -p "output/pixel"
 
-npm run dev -w @okclaw/web-frontend -- --port "$UI_PORT" --strictPort > "$FRONTEND_LOG" 2>&1 &
+npm run dev -w @okk/web-frontend -- --port "$UI_PORT" --strictPort > "$FRONTEND_LOG" 2>&1 &
 FRONTEND_PID=$!
 
 sleep 1

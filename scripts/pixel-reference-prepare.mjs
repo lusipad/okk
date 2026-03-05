@@ -5,7 +5,7 @@ import { PNG } from "pngjs";
 
 const REFERENCE_DIR = path.resolve("docs/pixel-clone/reference");
 const cliSourceDir = process.argv[2]?.trim();
-const sourceDir = path.resolve(cliSourceDir || process.env.OKCLAW_PIXEL_REFERENCE_SOURCE || REFERENCE_DIR);
+const sourceDir = path.resolve(cliSourceDir || process.env.OKK_PIXEL_REFERENCE_SOURCE || REFERENCE_DIR);
 const TARGET_FILES = [
   "chat-empty-1600x900.png",
   "chat-empty-1920x1080.png",

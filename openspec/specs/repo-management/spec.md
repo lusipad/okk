@@ -1,7 +1,7 @@
 # repo-management Specification
 
 ## Purpose
-TBD - created by archiving change okclaw-architecture. Update Purpose after archive.
+TBD - created by archiving change okk-architecture. Update Purpose after archive.
 ## Requirements
 ### Requirement: 仓库注册与验证
 系统 SHALL 支持注册本地代码仓库，验证路径存在性和安全性（路径白名单）。

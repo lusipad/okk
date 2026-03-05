@@ -1,6 +1,6 @@
 import type { WebSocket } from "ws";
 import { randomUUID } from "node:crypto";
-import type { OkclawCore } from "../core/types.js";
+import type { OkkCore } from "../core/types.js";
 import type { BackendEventEnvelope, QaAskMessage, QaClientMessage, QaResumeMessage } from "../types/contracts.js";
 import { parseQaClientMessage } from "../types/contracts.js";
 import { QaEventStore, type KnowledgeSuggestionSnapshot } from "./qa-event-store.js";
@@ -54,7 +54,7 @@ export class QaGateway {
 
   private readonly pendingByMessage = new Map<string, Promise<void>>();
 
-  constructor(private readonly core: OkclawCore) {}
+  constructor(private readonly core: OkkCore) {}
 
   onConnection(socket: WebSocket, sessionId: string): void {
     socket.on("message", (raw) => {

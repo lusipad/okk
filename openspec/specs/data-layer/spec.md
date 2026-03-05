@@ -1,7 +1,7 @@
 # data-layer Specification
 
 ## Purpose
-TBD - created by archiving change okclaw-architecture. Update Purpose after archive.
+TBD - created by archiving change okk-architecture. Update Purpose after archive.
 ## Requirements
 ### Requirement: SQLite 数据库初始化
 系统 SHALL 使用 better-sqlite3 初始化 SQLite 数据库，启用 WAL 模式，执行 schema 迁移。

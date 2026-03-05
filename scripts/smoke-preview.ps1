@@ -12,7 +12,7 @@ $proc = Start-Process -FilePath "npm.cmd" -ArgumentList @(
   "run",
   "preview",
   "-w",
-  "@okclaw/web-frontend",
+  "@okk/web-frontend",
   "--",
   "--host",
   "127.0.0.1",

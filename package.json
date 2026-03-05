@@ -1,16 +1,16 @@
 {
-  "name": "okclaw",
+  "name": "okk",
   "version": "0.1.0",
   "private": true,
-  "description": "okclaw - intranet code knowledge platform",
+  "description": "OKK - AI-native engineering workspace",
   "workspaces": [
     "packages/*"
   ],
   "scripts": {
-    "build": "npm run build -ws --if-present",
-    "dev": "concurrently -k \"npm run dev -w @okclaw/web-backend\" \"npm run dev -w @okclaw/web-frontend\"",
-    "test": "npm run test -ws --if-present",
-    "lint": "npm run lint -ws --if-present",
+    "build": "npm run build --workspaces --if-present",
+    "dev": "concurrently -k \"npm run dev -w @okk/web-backend\" \"npm run dev -w @okk/web-frontend\"",
+    "test": "npm run test --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present",
     "release:prepare": "node scripts/prepare-release.mjs",
     "ui:pixel:baseline": "node scripts/pixel-baseline.mjs",
     "ui:pixel:audit": "node scripts/pixel-audit.mjs",
@@ -36,3 +36,4 @@
     "node": ">=22.0.0"
   }
 }
+

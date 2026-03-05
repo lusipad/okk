@@ -6,7 +6,7 @@ const OUTPUT_DIR = path.resolve("output/pixel");
 const CURRENT_DIR = path.join(OUTPUT_DIR, "current");
 const REPORT_PATH = path.join(OUTPUT_DIR, "audit-report.json");
 const cliUiUrl = process.argv[2]?.trim();
-const configuredUiUrl = process.env.OKCLAW_UI_URL?.trim();
+const configuredUiUrl = process.env.OKK_UI_URL?.trim();
 const uiPortCandidates = [5173, 5174, 5175, 5176, 5177];
 
 fs.mkdirSync(CURRENT_DIR, { recursive: true });
@@ -58,7 +58,7 @@ async function pickUiUrl() {
         continue;
       }
       const text = await source.text();
-      if (text.includes("okclaw.theme") && text.includes("ChatPage")) {
+      if (text.includes("okk.theme") && text.includes("ChatPage")) {
         return candidate;
       }
     } catch {
@@ -85,9 +85,9 @@ try {
 
 const page = await browser.newPage({ viewport: { width: 1600, height: 900 } });
 await page.addInitScript(() => {
-  localStorage.setItem("okclaw.jwt", "pixel-audit-token");
-  localStorage.setItem("okclaw.theme", "dark");
-  localStorage.setItem("okclaw.focus-mode", "0");
+  localStorage.setItem("okk.jwt", "pixel-audit-token");
+  localStorage.setItem("okk.theme", "dark");
+  localStorage.setItem("okk.focus-mode", "0");
 });
 await page.goto(uiUrl, { waitUntil: "domcontentloaded", timeout: 30000 });
 await waitForVisible(page.getByTestId("composer-input"), 20000);

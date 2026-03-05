@@ -1,5 +1,5 @@
 {
-  "name": "@okclaw/web-backend",
+  "name": "@okk/web-backend",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -18,10 +18,10 @@
     "fastify-plugin": "^5.0.1"
   },
   "peerDependencies": {
-    "@okclaw/core": "*"
+    "@okk/core": "*"
   },
   "peerDependenciesMeta": {
-    "@okclaw/core": {
+    "@okk/core": {
       "optional": true
     }
   },

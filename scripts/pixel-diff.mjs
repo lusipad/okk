@@ -8,9 +8,9 @@ const CURRENT_DIR = path.resolve("output/pixel/current");
 const DIFF_DIR = path.resolve("output/pixel/diff");
 const REPORT_PATH = path.resolve("output/pixel/diff-report.json");
 
-const FULL_THRESHOLD_PERCENT = Number(process.env.OKCLAW_PIXEL_DIFF_FULL_THRESHOLD ?? "2");
-const KEY_THRESHOLD_PERCENT = Number(process.env.OKCLAW_PIXEL_DIFF_KEY_THRESHOLD ?? "1.8");
-const PIXELMATCH_THRESHOLD = Number(process.env.OKCLAW_PIXEL_DIFF_PIXELMATCH_THRESHOLD ?? "0.12");
+const FULL_THRESHOLD_PERCENT = Number(process.env.OKK_PIXEL_DIFF_FULL_THRESHOLD ?? "2");
+const KEY_THRESHOLD_PERCENT = Number(process.env.OKK_PIXEL_DIFF_KEY_THRESHOLD ?? "1.8");
+const PIXELMATCH_THRESHOLD = Number(process.env.OKK_PIXEL_DIFF_PIXELMATCH_THRESHOLD ?? "0.12");
 
 if (!fs.existsSync(BASELINE_DIR)) {
   console.error(`missing_baseline_dir=${BASELINE_DIR}`);

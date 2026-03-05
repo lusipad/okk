@@ -18,9 +18,9 @@ interface DesktopRuntimeConfig {
 function resolveRuntimeBaseUrls(): { apiBaseUrl: string; wsBaseUrl: string } {
   const runtimeConfig = (
     window as Window & {
-      okclawDesktopRuntime?: DesktopRuntimeConfig;
+      okkDesktopRuntime?: DesktopRuntimeConfig;
     }
-  ).okclawDesktopRuntime;
+  ).okkDesktopRuntime;
 
   const apiBaseUrl =
     runtimeConfig?.apiBaseUrl?.trim() ||
@@ -53,7 +53,7 @@ export function App() {
 
   useEffect(() => {
     const root = document.documentElement;
-    const stored = localStorage.getItem('okclaw.theme');
+    const stored = localStorage.getItem('okk.theme');
     if (stored === 'light' || stored === 'dark') {
       root.dataset.theme = stored;
       return;
@@ -66,7 +66,7 @@ export function App() {
       new HttpWsIOProvider({
         baseUrl: apiBaseUrl,
         wsBaseUrl,
-        getToken: () => localStorage.getItem('okclaw.jwt'),
+        getToken: () => localStorage.getItem('okk.jwt'),
         onAuthExpired: logout
       }),
     [apiBaseUrl, wsBaseUrl, logout]

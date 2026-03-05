@@ -4,7 +4,7 @@
 
 ## What Changes
 
-- 构建 okclaw 平台：基于 NanoClaw 架构的公司内网代码仓库知识库
+- 构建 okk 平台：基于 NanoClaw 架构的公司内网代码仓库知识库
 - 新增 AI 后端执行引擎：对接 Claude Code CLI 和 OpenAI Codex CLI 作为后端子进程（均通过 `child_process.spawn` 管理），而非直接 API 调用
 - 新增 Web 版（Phase 1）：Fastify + WebSocket 后端 + React SPA 前端，支持多用户（<20 人团队）
 - 新增桌面端（Phase 2）：Electron 应用，类似 OpenCowork / Codex App 形态，个人本地使用
@@ -32,7 +32,7 @@
 
 - `ai-backend-engine`: AI 后端执行引擎 — 统一的 IBackend 接口，Claude Code CLI 和 Codex CLI 均通过 `child_process.spawn` 管理子进程、stdout/stdin 流式通信、并发队列控制、会话持久化与恢复、流式输出解析
 - `agent-system`: 多 Agent 系统 — Agent 定义加载（Markdown 格式）、Agent 注册表、Sub-Agent 执行器（借鉴 OpenCowork runner.ts）、Agent Teams 编排（应用层编排模式）、Team 事件总线和消息队列
-- `skills-system`: 双层 Skills 系统 — 底层：MCP servers 集成（默认集成 Azure DevOps MCP、Git MCP、SQLite MCP、Web Search MCP），为 CLI 子进程动态生成 MCP 配置；上层：okclaw 自建 Skills（SKILL.md + scripts/ 格式），提供知识库特有功能（knowledge-export、repo-stats、code-analysis、dependency-audit）；MCP server 管理 UI
+- `skills-system`: 双层 Skills 系统 — 底层：MCP servers 集成（默认集成 Azure DevOps MCP、Git MCP、SQLite MCP、Web Search MCP），为 CLI 子进程动态生成 MCP 配置；上层：okk 自建 Skills（SKILL.md + scripts/ 格式），提供知识库特有功能（knowledge-export、repo-stats、code-analysis、dependency-audit）；MCP server 管理 UI
 - `knowledge-engine`: 知识库引擎 — 知识条目 CRUD、FTS5 全文搜索、从 Q&A 自动提取知识建议（knowledge-extractor Agent）、版本历史、质量评分（用户反馈 + 时效性）、过时检测（Git diff 比对）
 - `repo-management`: 代码仓库管理 — 仓库注册与路径验证（移植 NanoClaw mount-security）、仓库上下文构建（workingDir + CLAUDE.md + 已有知识注入）、Git 变更监听
 - `web-backend`: Web 后端服务 — Fastify + JWT 认证、REST API 路由、WebSocket 流式 Q&A 和 Team 事件推送、请求频率限制

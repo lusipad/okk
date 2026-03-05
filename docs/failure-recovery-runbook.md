@@ -1,4 +1,4 @@
-# OKClaw 故障恢复手册
+# OKK 故障恢复手册
 
 ## 1. 故障分级
 
@@ -42,7 +42,7 @@
 
 ### 3.5 数据库异常
 
-- 停服务后备份 `.okclaw/core.db`
+- 停服务后备份 `.okk/core.db`
 - 检查磁盘权限与可用空间
 - 必要时从最近备份恢复（见第 4 节）
 
@@ -53,7 +53,7 @@
 停止写入后执行文件级备份：
 
 ```bash
-cp .okclaw/core.db .okclaw/core.db.bak-$(date +%Y%m%d%H%M%S)
+cp .okk/core.db .okk/core.db.bak-$(date +%Y%m%d%H%M%S)
 ```
 
 ## 4.2 恢复

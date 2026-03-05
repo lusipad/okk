@@ -2,8 +2,8 @@ import { createContext, useCallback, useContext, useMemo, useState } from 'react
 import type { ReactNode } from 'react';
 import type { UserProfile } from '../types/domain';
 
-const TOKEN_KEY = 'okclaw.jwt';
-const USER_KEY = 'okclaw.user';
+const TOKEN_KEY = 'okk.jwt';
+const USER_KEY = 'okk.user';
 
 interface AuthContextValue {
   token: string | null;

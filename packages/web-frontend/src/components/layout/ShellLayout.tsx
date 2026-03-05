@@ -12,7 +12,7 @@ export function ShellLayout({ left, center, right }: ShellLayoutProps) {
   const [leftOpen, setLeftOpen] = useState(false);
   const [rightOpen, setRightOpen] = useState(false);
   const [focusMode, setFocusMode] = useState<boolean>(() => {
-    const stored = localStorage.getItem('okclaw.focus-mode');
+    const stored = localStorage.getItem('okk.focus-mode');
     return stored === '1';
   });
   const [themeMode, setThemeMode] = useState<'light' | 'dark'>(() =>
@@ -58,7 +58,7 @@ export function ShellLayout({ left, center, right }: ShellLayoutProps) {
   }, [commandOpen]);
 
   useEffect(() => {
-    localStorage.setItem('okclaw.focus-mode', focusMode ? '1' : '0');
+    localStorage.setItem('okk.focus-mode', focusMode ? '1' : '0');
     if (focusMode) {
       setLeftOpen(false);
       setRightOpen(false);
@@ -95,7 +95,7 @@ export function ShellLayout({ left, center, right }: ShellLayoutProps) {
   const switchTheme = (): void => {
     const next = themeMode === 'dark' ? 'light' : 'dark';
     document.documentElement.dataset.theme = next;
-    localStorage.setItem('okclaw.theme', next);
+    localStorage.setItem('okk.theme', next);
     setThemeMode(next);
   };
   const toggleFocusMode = (): void => {
@@ -175,7 +175,7 @@ export function ShellLayout({ left, center, right }: ShellLayoutProps) {
           <span className='topbar-brand-icon' aria-hidden='true'>
             ◎
           </span>
-          <h1>okclaw</h1>
+          <h1>OKK</h1>
         </div>
         <div className='topbar-center'>
           <span className='topbar-model'>
@@ -222,7 +222,7 @@ export function ShellLayout({ left, center, right }: ShellLayoutProps) {
         </button>
         <div className='mobile-title'>
           <span className='status-dot' aria-hidden='true' />
-          <h1>okclaw</h1>
+          <h1>OKK</h1>
         </div>
         <button type='button' className='ghost-button' aria-label='打开上下文面板' onClick={() => setRightOpen(true)}>
           上下文

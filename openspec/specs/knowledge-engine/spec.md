@@ -1,7 +1,7 @@
 # knowledge-engine Specification
 
 ## Purpose
-TBD - created by archiving change okclaw-architecture. Update Purpose after archive.
+TBD - created by archiving change okk-architecture. Update Purpose after archive.
 ## Requirements
 ### Requirement: 知识条目 CRUD
 系统 SHALL 提供知识条目的创建、读取、更新、删除操作，每个条目包含 title、content（Markdown）、summary、repo_id、category、tags、quality_score、status（draft/published/stale/archived）。

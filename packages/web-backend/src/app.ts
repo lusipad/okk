@@ -4,7 +4,7 @@ import websocket from "@fastify/websocket";
 import { jwtPlugin } from "./auth/jwt.js";
 import { createInMemoryCore } from "./core/in-memory-core.js";
 import { loadCore } from "./core/load-core.js";
-import type { LoadCoreOptions, OkclawCore } from "./core/types.js";
+import type { LoadCoreOptions, OkkCore } from "./core/types.js";
 import { apiRoutes } from "./routes/index.js";
 import { QaGateway } from "./ws/qa-gateway.js";
 import { TeamGateway } from "./ws/team-gateway.js";
@@ -15,7 +15,7 @@ export type CoreMode = "real" | "auto" | "memory";
 export interface CreateAppOptions {
   logger?: boolean;
   jwtSecret?: string;
-  core?: OkclawCore;
+  core?: OkkCore;
   coreMode?: CoreMode;
   coreOptions?: LoadCoreOptions["createCoreOptions"];
 }
@@ -25,7 +25,7 @@ function resolveCoreMode(options: CreateAppOptions): CoreMode {
     return options.coreMode;
   }
 
-  const fromEnv = process.env.OKCLAW_CORE_MODE?.trim();
+  const fromEnv = process.env.OKK_CORE_MODE?.trim();
   if (fromEnv === "real" || fromEnv === "auto" || fromEnv === "memory") {
     return fromEnv;
   }
@@ -38,7 +38,7 @@ export async function createApp(options: CreateAppOptions = {}) {
     logger: options.logger ?? false,
   });
 
-  const jwtSecret = options.jwtSecret ?? process.env.JWT_SECRET ?? "okclaw-dev-secret";
+  const jwtSecret = options.jwtSecret ?? process.env.JWT_SECRET ?? "okk-dev-secret";
   const coreMode = resolveCoreMode(options);
 
   const logger: LoadCoreOptions["logger"] = {

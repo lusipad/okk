@@ -7,10 +7,10 @@ import process from "node:process";
 const outputDir = path.resolve("output/playwright");
 fs.mkdirSync(outputDir, { recursive: true });
 
-const configuredUiUrl = process.env.OKCLAW_UI_URL?.trim();
-const apiUrl = process.env.OKCLAW_API_URL ?? "http://127.0.0.1:3000";
-const username = process.env.OKCLAW_USER ?? "admin";
-const password = process.env.OKCLAW_PASS ?? "admin";
+const configuredUiUrl = process.env.OKK_UI_URL?.trim();
+const apiUrl = process.env.OKK_API_URL ?? "http://127.0.0.1:3000";
+const username = process.env.OKK_USER ?? "admin";
+const password = process.env.OKK_PASS ?? "admin";
 const mockMcpScriptPath = path.resolve("scripts/mock-mcp-server.mjs").replace(/\\/g, "/");
 const uiPortCandidates = [5173, 5174, 5175, 5176, 5177];
 
@@ -180,7 +180,7 @@ try {
 
   await page.getByTestId("nav-mcp").click();
   await waitForVisible(page.getByTestId("mcp-server-list"), 20000);
-  const jwtToken = await page.evaluate(() => localStorage.getItem("okclaw.jwt") ?? "");
+  const jwtToken = await page.evaluate(() => localStorage.getItem("okk.jwt") ?? "");
   if (!jwtToken) {
     throw new Error("missing jwt after login");
   }
@@ -284,7 +284,7 @@ try {
   await skills.first().locator("[data-testid^='skill-detail-']").click();
   await page.waitForTimeout(1200);
 
-  tempSkillDir = await fsp.mkdtemp(path.join(os.tmpdir(), "okclaw-skill-e2e-"));
+  tempSkillDir = await fsp.mkdtemp(path.join(os.tmpdir(), "okk-skill-e2e-"));
   const skillFolder = path.join(tempSkillDir, "smoke-skill");
   await fsp.mkdir(skillFolder, { recursive: true });
   await fsp.writeFile(

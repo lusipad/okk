@@ -23,8 +23,8 @@ type Unsubscribe = () => void;
 
 const desktopBridge = {
   runtime: {
-    apiBaseUrl: process.env.OKCLAW_DESKTOP_API_BASE_URL ?? "http://127.0.0.1:3000",
-    wsBaseUrl: process.env.OKCLAW_DESKTOP_WS_BASE_URL ?? "ws://127.0.0.1:3000"
+    apiBaseUrl: process.env.OKK_DESKTOP_API_BASE_URL ?? "http://127.0.0.1:3000",
+    wsBaseUrl: process.env.OKK_DESKTOP_WS_BASE_URL ?? "ws://127.0.0.1:3000"
   },
   io: {
     qa: (request?: IOProviderRequest): Promise<IOProviderResponse> =>
@@ -56,8 +56,8 @@ const desktopBridge = {
   }
 };
 
-contextBridge.exposeInMainWorld("okclawDesktop", desktopBridge);
-contextBridge.exposeInMainWorld("okclawDesktopRuntime", desktopBridge.runtime);
+contextBridge.exposeInMainWorld("okkDesktop", desktopBridge);
+contextBridge.exposeInMainWorld("okkDesktopRuntime", desktopBridge.runtime);
 
 window.addEventListener("DOMContentLoaded", () => {
   window.addEventListener("dragover", (event) => {

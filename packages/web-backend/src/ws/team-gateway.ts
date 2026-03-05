@@ -1,5 +1,5 @@
 import type { WebSocket } from "ws";
-import type { OkclawCore } from "../core/types.js";
+import type { OkkCore } from "../core/types.js";
 
 function sendJson(socket: WebSocket, payload: unknown): void {
   if (socket.readyState !== socket.OPEN) {
@@ -9,7 +9,7 @@ function sendJson(socket: WebSocket, payload: unknown): void {
 }
 
 export class TeamGateway {
-  constructor(private readonly core: OkclawCore) {}
+  constructor(private readonly core: OkkCore) {}
 
   onConnection(socket: WebSocket, teamId: string): void {
     const unsubscribe = this.core.team.subscribe(teamId, (event) => {

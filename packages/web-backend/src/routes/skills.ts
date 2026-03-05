@@ -167,7 +167,7 @@ const SCAN_RULES: ScanRule[] = [
 const MAX_SCAN_FILE_SIZE = 256 * 1024;
 const MAX_SCAN_FILES = 200;
 const MAX_FILE_LIST_COUNT = 500;
-const SKILL_MARKET_TEMP_PREFIX = "okclaw-skill-market-";
+const SKILL_MARKET_TEMP_PREFIX = "okk-skill-market-";
 
 let standaloneInstalledDaoPromise: Promise<InstalledSkillsDaoLike | null> | null = null;
 const installedSkillsFallback = new Map<string, InstalledSkillRow>();
@@ -198,7 +198,7 @@ function pickWorkspaceRoot(): string {
 }
 
 function resolveSkillsDirectory(): string {
-  const configured = process.env.OKCLAW_SKILLS_DIR?.trim();
+  const configured = process.env.OKK_SKILLS_DIR?.trim();
   if (configured) {
     return path.resolve(configured);
   }
@@ -220,12 +220,12 @@ function resolveSkillsDirectory(): string {
 }
 
 function resolveSkillMarketIndexPath(): string {
-  const configured = process.env.OKCLAW_SKILL_MARKET_PATH?.trim();
+  const configured = process.env.OKK_SKILL_MARKET_PATH?.trim();
   if (configured) {
     return path.resolve(configured);
   }
 
-  return path.join(pickWorkspaceRoot(), ".okclaw", "skill-market.json");
+  return path.join(pickWorkspaceRoot(), ".okk", "skill-market.json");
 }
 
 function normalizeMarketString(value: unknown, fallback = ""): string {
@@ -321,7 +321,7 @@ async function resolveStandaloneInstalledSkillsDao(): Promise<InstalledSkillsDao
       const dynamicImport = new Function("specifier", "return import(specifier)") as (
         specifier: string
       ) => Promise<Record<string, unknown>>;
-      const coreModule = await dynamicImport("@okclaw/core");
+      const coreModule = await dynamicImport("@okk/core");
       const SqliteDatabaseCtor = coreModule.SqliteDatabase;
 
       if (typeof SqliteDatabaseCtor !== "function") {
@@ -329,9 +329,9 @@ async function resolveStandaloneInstalledSkillsDao(): Promise<InstalledSkillsDao
       }
 
       const workspaceRoot = pickWorkspaceRoot();
-      const dbPath = process.env.OKCLAW_CORE_DB_PATH?.trim()
-        ? path.resolve(process.env.OKCLAW_CORE_DB_PATH)
-        : path.join(workspaceRoot, ".okclaw", "core.db");
+      const dbPath = process.env.OKK_CORE_DB_PATH?.trim()
+        ? path.resolve(process.env.OKK_CORE_DB_PATH)
+        : path.join(workspaceRoot, ".okk", "core.db");
 
       const database = new (SqliteDatabaseCtor as new (options: { dbPath: string }) => Record<string, unknown>)({
         dbPath
@@ -673,7 +673,7 @@ function normalizePathForResponse(filePath: string): string {
 }
 
 async function loadSkillMarketItems(): Promise<SkillMarketItem[]> {
-  const configuredUrl = process.env.OKCLAW_SKILL_MARKET_URL?.trim();
+  const configuredUrl = process.env.OKK_SKILL_MARKET_URL?.trim();
   const configuredFilePath = resolveSkillMarketIndexPath();
   let rawPayload: unknown = null;
 

@@ -1,11 +1,11 @@
-import type { OkclawCore } from "../core/types.js";
+import type { OkkCore } from "../core/types.js";
 import type { QaGateway } from "../ws/qa-gateway.js";
 import type { TeamGateway } from "../ws/team-gateway.js";
 
 declare module "fastify" {
   interface FastifyInstance {
     authenticate: import("fastify").preHandlerAsyncHookHandler;
-    core: OkclawCore;
+    core: OkkCore;
     qaGateway: QaGateway;
     teamGateway: TeamGateway;
   }

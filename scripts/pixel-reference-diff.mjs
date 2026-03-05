@@ -8,12 +8,12 @@ const CURRENT_DIR = path.resolve("output/pixel/current");
 const DIFF_DIR = path.resolve("output/pixel/reference-diff");
 const REPORT_PATH = path.resolve("output/pixel/reference-diff-report.json");
 const args = new Set(process.argv.slice(2));
-const referenceRequired = process.env.OKCLAW_PIXEL_REFERENCE_REQUIRED === "1" || args.has("--required");
+const referenceRequired = process.env.OKK_PIXEL_REFERENCE_REQUIRED === "1" || args.has("--required");
 const exactDimensionsRequired =
-  process.env.OKCLAW_PIXEL_REFERENCE_EXACT_DIMENSIONS === "1" || args.has("--exact-dimensions") || referenceRequired;
+  process.env.OKK_PIXEL_REFERENCE_EXACT_DIMENSIONS === "1" || args.has("--exact-dimensions") || referenceRequired;
 
-const FULL_THRESHOLD_PERCENT = Number(process.env.OKCLAW_PIXEL_REFERENCE_FULL_THRESHOLD ?? "8");
-const KEY_THRESHOLD_PERCENT = Number(process.env.OKCLAW_PIXEL_REFERENCE_KEY_THRESHOLD ?? "5");
+const FULL_THRESHOLD_PERCENT = Number(process.env.OKK_PIXEL_REFERENCE_FULL_THRESHOLD ?? "8");
+const KEY_THRESHOLD_PERCENT = Number(process.env.OKK_PIXEL_REFERENCE_KEY_THRESHOLD ?? "5");
 
 if (!fs.existsSync(REFERENCE_DIR)) {
   if (referenceRequired) {

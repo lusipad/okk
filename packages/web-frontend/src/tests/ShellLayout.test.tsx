@@ -5,7 +5,7 @@ import { ShellLayout } from '../components/layout/ShellLayout';
 
 describe('ShellLayout', () => {
   it('默认不展示协作面板，点击后可打开', async () => {
-    localStorage.removeItem('okclaw.focus-mode');
+    localStorage.removeItem('okk.focus-mode');
     const user = userEvent.setup();
     render(
       <MemoryRouter initialEntries={['/']}>
@@ -47,7 +47,7 @@ describe('ShellLayout', () => {
   });
 
   it('支持 Ctrl/Cmd + Shift + L 切换专注模式', async () => {
-    localStorage.removeItem('okclaw.focus-mode');
+    localStorage.removeItem('okk.focus-mode');
     const user = userEvent.setup();
     const { container } = render(
       <MemoryRouter initialEntries={['/']}>

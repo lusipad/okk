@@ -1,7 +1,7 @@
 # ai-backend-engine Specification
 
 ## Purpose
-TBD - created by archiving change okclaw-architecture. Update Purpose after archive.
+TBD - created by archiving change okk-architecture. Update Purpose after archive.
 ## Requirements
 ### Requirement: 统一后端接口
 系统 SHALL 定义 IBackend 接口，所有 AI CLI 后端实现此接口，提供 `execute()` 返回 `AsyncGenerator<BackendEvent>`、`abort()` 方法。所有后端均通过 `child_process.spawn` 管理 CLI 子进程。

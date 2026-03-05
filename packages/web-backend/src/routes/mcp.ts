@@ -85,12 +85,12 @@ function pickWorkspaceRoot(): string {
 }
 
 function resolveStoreFilePath(): string {
-  const configured = process.env.OKCLAW_MCP_CONFIG_PATH?.trim();
+  const configured = process.env.OKK_MCP_CONFIG_PATH?.trim();
   if (configured) {
     return path.resolve(configured);
   }
 
-  return path.join(pickWorkspaceRoot(), ".okclaw", "mcp-servers.json");
+  return path.join(pickWorkspaceRoot(), ".okk", "mcp-servers.json");
 }
 
 function nowIso(): string {

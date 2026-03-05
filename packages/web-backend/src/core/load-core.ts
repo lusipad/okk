@@ -1,12 +1,12 @@
 import { createInMemoryCore } from "./in-memory-core.js";
-import type { LoadCoreOptions, OkclawCore } from "./types.js";
+import type { LoadCoreOptions, OkkCore } from "./types.js";
 
-type CoreFactory = (options?: Record<string, unknown>) => Promise<OkclawCore> | OkclawCore;
+type CoreFactory = (options?: Record<string, unknown>) => Promise<OkkCore> | OkkCore;
 
 function pickFactory(moduleNamespace: Record<string, unknown>): CoreFactory | null {
   const candidates = [
     moduleNamespace.createCore,
-    moduleNamespace.createOkclawCore,
+    moduleNamespace.createOkkCore,
     moduleNamespace.default,
   ];
 
@@ -19,7 +19,7 @@ function pickFactory(moduleNamespace: Record<string, unknown>): CoreFactory | nu
   return null;
 }
 
-export async function loadCore(options: LoadCoreOptions): Promise<OkclawCore> {
+export async function loadCore(options: LoadCoreOptions): Promise<OkkCore> {
   const dynamicImport = new Function("specifier", "return import(specifier)") as (
     specifier: string,
   ) => Promise<Record<string, unknown>>;
@@ -31,10 +31,10 @@ export async function loadCore(options: LoadCoreOptions): Promise<OkclawCore> {
   };
 
   try {
-    const moduleNamespace = await dynamicImport("@okclaw/core");
+    const moduleNamespace = await dynamicImport("@okk/core");
     const factory = pickFactory(moduleNamespace);
     if (!factory) {
-      const message = "detected @okclaw/core, but no createCore factory is exported";
+      const message = "detected @okk/core, but no createCore factory is exported";
       if (!allowInMemoryFallback) {
         throw new Error(message);
       }
@@ -43,7 +43,7 @@ export async function loadCore(options: LoadCoreOptions): Promise<OkclawCore> {
     }
 
     options.logger.info("core_factory_loaded", {
-      source: "@okclaw/core",
+      source: "@okk/core",
       allowInMemoryFallback,
     });
     return await factory(factoryOptions);

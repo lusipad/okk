@@ -1,7 +1,7 @@
 # web-backend Specification
 
 ## Purpose
-TBD - created by archiving change okclaw-architecture. Update Purpose after archive.
+TBD - created by archiving change okk-architecture. Update Purpose after archive.
 ## Requirements
 ### Requirement: REST API 路由
 系统 SHALL 提供 Fastify REST API，包括认证（/api/auth）、仓库管理（/api/repos）、会话管理（/api/sessions）、Q&A（/api/qa）、知识库（/api/knowledge）、Agent（/api/agents）、Skills（/api/skills）路由。

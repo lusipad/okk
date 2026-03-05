@@ -25,7 +25,7 @@ function onRequest(request) {
           resources: {}
         },
         serverInfo: {
-          name: "okclaw-mock-mcp",
+          name: "okk-mock-mcp",
           version: "0.0.1"
         }
       }

@@ -1,5 +1,5 @@
 import type { TeamEvent } from "../types/contracts.js";
-import type { CoreApi, CreateCoreOptions } from "@okclaw/core";
+import type { CoreApi, CreateCoreOptions } from "@okk/core";
 
 export interface AuthUser {
   id: string;
@@ -107,7 +107,7 @@ export interface TeamRunRecord {
   members: TeamRunMemberResult[];
 }
 
-export interface OkclawCore {
+export interface OkkCore {
   runtime: {
     listBackendHealth(): Promise<RuntimeBackendHealth[]>;
   };
@@ -162,4 +162,4 @@ export interface LoadCoreOptions {
   >;
 }
 
-type _CoreApiIsCompatible = CoreApi extends OkclawCore ? true : never;
+type _CoreApiIsCompatible = CoreApi extends OkkCore ? true : never;

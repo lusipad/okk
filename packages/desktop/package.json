@@ -1,35 +1,36 @@
 {
-  "name": "@okclaw/desktop",
+  "name": "@okk/desktop",
   "version": "0.1.0",
   "private": true,
   "type": "module",
   "main": "dist/main/index.js",
   "dependencies": {
-    "@okclaw/core": "*",
-    "@okclaw/web-backend": "*"
+    "@okk/core": "*",
+    "@okk/web-backend": "*"
   },
   "scripts": {
     "clean": "rimraf dist",
     "build:ts": "tsc -p tsconfig.json",
-    "build:backend": "npm run build -w @okclaw/core && npm run build -w @okclaw/web-backend",
+    "build:backend": "npm run build -w @okk/core && npm run build -w @okk/web-backend",
     "copy:renderer": "node ./scripts/copy-assets.mjs renderer",
     "copy:web": "node ./scripts/copy-assets.mjs web",
     "build:desktop": "npm run clean && npm run build:ts && npm run copy:renderer",
-    "build:web": "cross-env OKCLAW_VITE_BASE=./ npm run build -w @okclaw/web-frontend",
+    "build:web": "cross-env OKK_VITE_BASE=./ npm run build -w @okk/web-frontend",
     "build": "npm run build:backend && npm run build:web && npm run build:desktop && npm run copy:web",
-    "dev": "concurrently -k \"npm run dev -w @okclaw/web-frontend\" \"npm run dev:electron\"",
-    "dev:electron": "npm run build:desktop && wait-on tcp:5173 && cross-env OKCLAW_DESKTOP_DEV_URL=http://localhost:5173 electron dist/main/index.js",
+    "dev": "concurrently -k \"npm run dev -w @okk/web-frontend\" \"npm run dev:electron\"",
+    "dev:electron": "npm run build:desktop && wait-on tcp:5173 && cross-env OKK_DESKTOP_DEV_URL=http://localhost:5173 electron dist/main/index.js",
     "package": "npm run build && electron-builder",
     "package:win": "npm run build && electron-builder --win dir --x64 --publish never",
     "test": "vitest run"
   },
   "build": {
-    "appId": "com.okclaw.desktop",
+    "appId": "com.okk.desktop",
     "electronVersion": "30.0.0",
-    "productName": "OKClaw",
+    "productName": "OKK",
     "win": {
       "target": "dir",
-      "signAndEditExecutable": false
+      "signAndEditExecutable": false,
+      "executableName": "OKK"
     },
     "directories": {
       "output": "release"
@@ -48,5 +49,7 @@
     "rimraf": "^6.0.1",
     "vitest": "^3.2.4",
     "wait-on": "^8.0.1"
-  }
+  },
+  "description": "OKK Desktop - AI-native engineering workspace",
+  "author": "OKK"
 }

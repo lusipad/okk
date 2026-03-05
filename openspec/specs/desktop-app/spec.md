@@ -1,7 +1,7 @@
 # desktop-app Specification
 
 ## Purpose
-TBD - created by archiving change okclaw-architecture. Update Purpose after archive.
+TBD - created by archiving change okk-architecture. Update Purpose after archive.
 ## Requirements
 ### Requirement: Electron 应用壳
 系统 SHALL 提供 Electron 36 桌面应用，使用 electron-vite 构建，包含 Main 进程、Preload 脚本和 Renderer 进程。
@@ -16,14 +16,14 @@ TBD - created by archiving change okclaw-architecture. Update Purpose after arch
 
 #### Scenario: 手动触发或版本标签触发打包
 - **WHEN** 研发在 GitHub Actions 手动触发桌面打包工作流，或推送 `v*` 标签
-- **THEN** 系统 SHALL 执行 `@okclaw/desktop` 的测试与 Windows 打包流程
-- **AND** SHALL 产出 `win-unpacked/OKClaw.exe` 与分发 zip 包作为构建产物
+- **THEN** 系统 SHALL 执行 `@okk/desktop` 的测试与 Windows 打包流程
+- **AND** SHALL 产出 `win-unpacked/OKK.exe` 与分发 zip 包作为构建产物
 
 ### Requirement: 桌面内置后端服务
 系统 SHALL 在桌面应用启动时自动拉起本地后端服务，避免依赖外部手动启动 `web-backend`。
 
 #### Scenario: 桌面启动自动可用
-- **WHEN** 用户直接启动 Windows 桌面版 `OKClaw.exe`
+- **WHEN** 用户直接启动 Windows 桌面版 `OKK.exe`
 - **THEN** 系统 SHALL 在主进程启动本地 API/WS 服务并注入前端运行时配置
 - **AND** 用户输入消息后 SHALL 可直接获得回复，无需额外启动 `http://127.0.0.1:3000`
 

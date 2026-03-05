@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import type {
   AgentRecord,
   KnowledgeRecord,
-  OkclawCore,
+  OkkCore,
   QaRequest,
   RepoRecord,
   SessionRecord,
@@ -14,7 +14,7 @@ import type { TeamEvent } from "../types/contracts.js";
 
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-export function createInMemoryCore(): OkclawCore {
+export function createInMemoryCore(): OkkCore {
   const now = () => new Date().toISOString();
 
   const users = [{ id: "u-admin", username: "admin", role: "admin" as const, password: "admin" }];

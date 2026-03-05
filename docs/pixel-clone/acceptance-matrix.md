@@ -22,8 +22,8 @@
 - 协作面板可通过顶栏按钮与 Esc 关闭
 
 ## 4. 自动化检查命令
-- `npm run test -w @okclaw/web-frontend`
-- `npm run build -w @okclaw/web-frontend`
+- `npm run test -w @okk/web-frontend`
+- `npm run build -w @okk/web-frontend`
 - `npm run ui:pixel:baseline`
 - `npm run ui:pixel:audit`
 - `npm run ui:pixel:diff`
@@ -44,9 +44,9 @@
 - 通过阈值：
   - 单图差异像素比例 `< 2.0%`
   - 关键区域（顶栏/左栏/输入区）差异像素比例 `< 1.8%`
-  - `pixelmatch` 阈值默认 `0.12`（可通过 `OKCLAW_PIXEL_DIFF_PIXELMATCH_THRESHOLD` 调整）
+  - `pixelmatch` 阈值默认 `0.12`（可通过 `OKK_PIXEL_DIFF_PIXELMATCH_THRESHOLD` 调整）
 
 ## 6. v11 增量验收项
-- `ui:chrome:compare:local` MUST 在 `okclaw-local` 抓图失败时返回非 0 退出码
-- `chrome-compare/report.json` MUST 记录 `localUrl` 与 `okclaw-local.metrics`（`topbarHeight`、`sidebarWidth`）
+- `ui:chrome:compare:local` MUST 在 `okk-local` 抓图失败时返回非 0 退出码
+- `chrome-compare/report.json` MUST 记录 `localUrl` 与 `okk-local.metrics`（`topbarHeight`、`sidebarWidth`）
 - 空态文案与输入 Dock MUST 同屏可见（1600x900 基线）

@@ -1,7 +1,7 @@
 # agent-system Specification
 
 ## Purpose
-TBD - created by archiving change okclaw-architecture. Update Purpose after archive.
+TBD - created by archiving change okk-architecture. Update Purpose after archive.
 ## Requirements
 ### Requirement: Agent 定义格式
 系统 SHALL 支持通过 Markdown 文件定义 Agent，包含 YAML frontmatter（name、description、icon、allowedTools、maxIterations、model、temperature）和系统提示正文。

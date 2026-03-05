@@ -12,7 +12,7 @@ if (input) {
 
     if (event.key === "Enter") {
       const query = input.value.trim();
-      void window.okclawDesktop.search.focusMainWindow(query);
+      void window.okkDesktop.search.focusMainWindow(query);
       window.close();
     }
   });
