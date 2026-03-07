@@ -14,6 +14,10 @@ import { TeamManager, type TeamMemberInput } from "./team/index.js";
 import type {
   AgentDefinition,
   BackendName,
+  CollaborationAction,
+  CollaborationDiagnostics,
+  CollaborationRunStatus,
+  CollaborationSourceType,
   KnowledgeStatus,
   Repository,
   Session,
@@ -94,6 +98,10 @@ export interface CoreBackendHealth {
   command: string;
   available: boolean;
   reason?: string;
+  sourceType?: CollaborationSourceType;
+  runtimeStatus?: CollaborationRunStatus;
+  diagnostics?: CollaborationDiagnostics;
+  actions?: CollaborationAction[];
 }
 
 export interface CoreTeamRunMemberInput {
@@ -257,29 +265,182 @@ function resolveDatabasePath(options: CreateCoreOptions, workspaceRoot: string):
   return path.resolve(workspaceRoot, DEFAULT_DB_RELATIVE_PATH);
 }
 
-function isCommandAvailable(command: string): boolean {
-  const trimmed = command.trim();
-  if (!trimmed) {
-    return false;
+interface BackendCommandConfig {
+  command: string;
+  source: "option" | "env" | "default";
+  envName?: string;
+}
+
+function quoteWindowsShellArg(value: string): string {
+  if (!/[\s"]/u.test(value)) {
+    return value;
+  }
+
+  return `"${value.replace(/"/g, '""')}"`;
+}
+
+function resolveBackendCommand(
+  explicitCommand: string | undefined,
+  envName: string,
+  fallbackCommand: string
+): BackendCommandConfig {
+  const configured = explicitCommand?.trim();
+  if (configured) {
+    return {
+      command: configured,
+      source: "option"
+    };
+  }
+
+  const fromEnv = process.env[envName]?.trim();
+  if (fromEnv) {
+    return {
+      command: fromEnv,
+      source: "env",
+      envName
+    };
+  }
+
+  return {
+    command: fallbackCommand,
+    source: "default"
+  };
+}
+
+function describeBackendCommandSource(config: BackendCommandConfig): string {
+  if (config.source === "option") {
+    return "createCore options";
+  }
+
+  if (config.source === "env") {
+    return `环境变量 ${config.envName}`;
+  }
+
+  return "默认命令";
+}
+
+function probeBackendCommand(backend: BackendName, config: BackendCommandConfig): CoreBackendHealth {
+  const command = config.command.trim();
+  const sourceDetail = `命令来源: ${describeBackendCommandSource(config)}`;
+
+  if (!command) {
+    return {
+      backend,
+      command,
+      available: false,
+      reason: "command_missing",
+      sourceType: "backend",
+      runtimeStatus: "unavailable",
+      diagnostics: {
+        code: "command_missing",
+        message: "CLI 命令未配置",
+        detail: sourceDetail,
+        retryable: true,
+        severity: "error"
+      },
+      actions: [
+        { kind: "refresh", label: "刷新状态" },
+        { kind: "copy_diagnostic", label: "复制诊断" }
+      ]
+    };
   }
 
   try {
     const result =
       process.platform === "win32"
-        ? spawnSync("cmd.exe", ["/d", "/s", "/c", trimmed, "--help"], {
+        ? spawnSync("cmd.exe", ["/d", "/s", "/c", `${quoteWindowsShellArg(command)} --help`], {
             stdio: "ignore",
             windowsHide: true,
             timeout: 4000
           })
-        : spawnSync(trimmed, ["--help"], {
+        : spawnSync(command, ["--help"], {
             stdio: "ignore",
             windowsHide: true,
             timeout: 4000
           });
-    return !result.error;
-  } catch {
-    return false;
+
+    if (result.error) {
+      const probeError = result.error as NodeJS.ErrnoException;
+      const timedOut = probeError.code === "ETIMEDOUT";
+      const reason = timedOut ? "command_probe_timeout" : "command_not_found_or_not_executable";
+      return {
+        backend,
+        command,
+        available: false,
+        reason,
+        sourceType: "backend",
+        runtimeStatus: "unavailable",
+        diagnostics: {
+          code: reason,
+          message: timedOut ? "CLI 命令探测超时" : "CLI 命令不可用",
+          detail: `${sourceDetail}；请先确认 \`${command}\` 可执行，并手动运行 \`${command} --help\` 复核环境。`,
+          retryable: true,
+          severity: "error"
+        },
+        actions: [
+          { kind: "refresh", label: "刷新状态" },
+          { kind: "copy_diagnostic", label: "复制诊断" }
+        ]
+      };
+    }
+
+    if (result.status !== 0) {
+      return {
+        backend,
+        command,
+        available: false,
+        reason: "command_not_found_or_not_executable",
+        sourceType: "backend",
+        runtimeStatus: "unavailable",
+        diagnostics: {
+          code: "command_not_found_or_not_executable",
+          message: "CLI 命令不可用",
+          detail: `${sourceDetail}；命令退出码为 ${result.status ?? "unknown"}，请手动运行 \`${command} --help\` 复核环境。`,
+          retryable: true,
+          severity: "error"
+        },
+        actions: [
+          { kind: "refresh", label: "刷新状态" },
+          { kind: "copy_diagnostic", label: "复制诊断" }
+        ]
+      };
+    }
+  } catch (error) {
+    return {
+      backend,
+      command,
+      available: false,
+      reason: "command_probe_failed",
+      sourceType: "backend",
+      runtimeStatus: "unavailable",
+      diagnostics: {
+        code: "command_probe_failed",
+        message: "CLI 命令探测失败",
+        detail: `${sourceDetail}；${error instanceof Error ? error.message : String(error)}`,
+        retryable: true,
+        severity: "error"
+      },
+      actions: [
+        { kind: "refresh", label: "刷新状态" },
+        { kind: "copy_diagnostic", label: "复制诊断" }
+      ]
+    };
   }
+
+  return {
+    backend,
+    command,
+    available: true,
+    sourceType: "backend",
+    runtimeStatus: "ready",
+    diagnostics: {
+      code: "backend_ready",
+      message: "CLI 后端可用",
+      detail: sourceDetail,
+      retryable: false,
+      severity: "info"
+    }
+  };
 }
 
 function toAuthUser(user: { id: string; username: string; role: UserRole }): CoreAuthUser {
@@ -456,55 +617,55 @@ export async function createCore(options: CreateCoreOptions = {}): Promise<CoreA
   const availableBackends = new Set<BackendName>();
   const backendHealth = new Map<BackendName, CoreBackendHealth>();
 
-  const codexCommand = options.codexCommand ?? process.env.OKK_CODEX_COMMAND ?? "codex";
-  if (isCommandAvailable(codexCommand)) {
+  const codexConfig = resolveBackendCommand(options.codexCommand, "OKK_CODEX_COMMAND", "codex");
+  const codexHealth = probeBackendCommand("codex", codexConfig);
+  if (codexHealth.available) {
     backendManager.registerBackend(
       new CodexCliBackend({
-        command: codexCommand,
+        command: codexConfig.command,
         onLog: (entry) => emitCoreLog(logger, entry, "backend")
       })
     );
     availableBackends.add("codex");
-    backendHealth.set("codex", {
+    logger.info("core_backend_enabled", {
       backend: "codex",
-      command: codexCommand,
-      available: true
+      command: codexConfig.command,
+      source: codexConfig.source
     });
-    logger.info("core_backend_enabled", { backend: "codex", command: codexCommand });
   } else {
-    backendHealth.set("codex", {
+    logger.warn("core_backend_unavailable", {
       backend: "codex",
-      command: codexCommand,
-      available: false,
-      reason: "command_not_found_or_not_executable"
+      command: codexConfig.command,
+      reason: codexHealth.reason,
+      source: codexConfig.source
     });
-    logger.warn("core_backend_unavailable", { backend: "codex", command: codexCommand });
   }
+  backendHealth.set("codex", codexHealth);
 
-  const claudeCommand = options.claudeCommand ?? process.env.OKK_CLAUDE_COMMAND ?? "claude";
-  if (isCommandAvailable(claudeCommand)) {
+  const claudeConfig = resolveBackendCommand(options.claudeCommand, "OKK_CLAUDE_COMMAND", "claude");
+  const claudeHealth = probeBackendCommand("claude-code", claudeConfig);
+  if (claudeHealth.available) {
     backendManager.registerBackend(
       new ClaudeCliBackend({
-        command: claudeCommand,
+        command: claudeConfig.command,
         onLog: (entry) => emitCoreLog(logger, entry, "backend")
       })
     );
     availableBackends.add("claude-code");
-    backendHealth.set("claude-code", {
+    logger.info("core_backend_enabled", {
       backend: "claude-code",
-      command: claudeCommand,
-      available: true
+      command: claudeConfig.command,
+      source: claudeConfig.source
     });
-    logger.info("core_backend_enabled", { backend: "claude-code", command: claudeCommand });
   } else {
-    backendHealth.set("claude-code", {
+    logger.warn("core_backend_unavailable", {
       backend: "claude-code",
-      command: claudeCommand,
-      available: false,
-      reason: "command_not_found_or_not_executable"
+      command: claudeConfig.command,
+      reason: claudeHealth.reason,
+      source: claudeConfig.source
     });
-    logger.warn("core_backend_unavailable", { backend: "claude-code", command: claudeCommand });
   }
+  backendHealth.set("claude-code", claudeHealth);
 
   const repositoryContextService = new RepositoryContextService(database.knowledge);
   const qaSessionToBackendSession = new Map<string, { backend: BackendName; sessionId: string }>();
@@ -624,7 +785,7 @@ export async function createCore(options: CreateCoreOptions = {}): Promise<CoreA
     publishTeamEvent({
       teamId: event.teamId,
       type: event.type,
-      payload: event.payload as Record<string, unknown>
+      payload: event.payload as unknown as Record<string, unknown>
     });
   });
 
@@ -1099,3 +1260,17 @@ export async function createCore(options: CreateCoreOptions = {}): Promise<CoreA
 }
 
 export const createOkkCore = createCore;
+
+
+
+
+
+
+
+
+
+
+
+
+
+

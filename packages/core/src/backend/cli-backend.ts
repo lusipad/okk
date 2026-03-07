@@ -5,6 +5,27 @@ import { AsyncEventQueue } from "../utils/async-event-queue.js";
 import { generateId } from "../utils/id.js";
 import type { IBackend } from "./i-backend.js";
 
+type StreamSource = "stdout" | "stderr";
+type FailureStage = "spawn" | "startup" | "execution" | "abort";
+
+interface SpawnTarget {
+  command: string;
+  args: string[];
+}
+
+interface AttemptFailure {
+  code: string;
+  stage: FailureStage;
+  message: string;
+  detail?: string;
+  retryable: boolean;
+}
+
+interface AttemptResult {
+  success: boolean;
+  retryable: boolean;
+}
+
 export interface CliBackendLogEntry {
   level: "info" | "warn" | "error";
   backend: string;
@@ -22,6 +43,10 @@ export interface CliBackendOptions {
   onLog?: (entry: CliBackendLogEntry) => void;
   stderrTailSize?: number;
   executionTimeoutMs?: number;
+  startupTimeoutMs?: number;
+  maxRetries?: number;
+  retryDelayMs?: number;
+  cleanupGraceMs?: number;
 }
 
 const defaultCapabilities: BackendCapabilities = {
@@ -31,7 +56,13 @@ const defaultCapabilities: BackendCapabilities = {
 };
 
 const DEFAULT_STDERR_TAIL_SIZE = 30;
+const DEFAULT_STARTUP_TIMEOUT_MS = 15000;
 const DEFAULT_EXECUTION_TIMEOUT_MS = 120000;
+const DEFAULT_MAX_RETRIES = 0;
+const DEFAULT_RETRY_DELAY_MS = 750;
+const DEFAULT_CLEANUP_GRACE_MS = 2000;
+const MAX_JSON_RECOVERY_LINES = 8;
+const MAX_JSON_RECOVERY_LENGTH = 16000;
 
 const isObject = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null;
@@ -44,6 +75,49 @@ const joinNonEmpty = (values: Array<string | null | undefined>, separator = "\n"
     .filter(Boolean);
   return normalized.length > 0 ? normalized.join(separator) : null;
 };
+
+const delay = async (ms: number): Promise<void> => {
+  if (ms <= 0) {
+    return;
+  }
+
+  await new Promise((resolve) => setTimeout(resolve, ms));
+};
+
+const isDirectExecutableCommand = (command: string): boolean => /\.exe$/i.test(command.trim());
+
+const quoteWindowsShellArg = (value: string): string => {
+  if (value.length === 0) {
+    return '""';
+  }
+
+  if (!/[\s"&()^|<>]/.test(value)) {
+    return value;
+  }
+
+  return `"${value.replace(/"/g, '""')}"`;
+};
+
+const resolveSpawnTarget = (command: string, args: string[]): SpawnTarget => {
+  if (process.platform !== "win32" || isDirectExecutableCommand(command)) {
+    return { command, args };
+  }
+
+  const commandLine = [command, ...args].map((value) => quoteWindowsShellArg(value)).join(" ");
+  return {
+    command: "cmd.exe",
+    args: ["/d", "/s", "/c", commandLine]
+  };
+};
+
+const isMeaningfulOutputEvent = (event: BackendEventInput): boolean =>
+  event.type === "text_delta" ||
+  event.type === "tool_call_start" ||
+  event.type === "tool_call_input_delta" ||
+  event.type === "tool_call_end" ||
+  event.type === "sub_agent_start" ||
+  event.type === "sub_agent_end" ||
+  event.type === "knowledge_suggestion";
 
 const parseDirectBackendEvent = (parsed: Record<string, unknown>): BackendEventInput | null => {
   if (typeof parsed.type !== "string" || !isObject(parsed.payload)) {
@@ -90,7 +164,60 @@ const parseCodexJsonEvent = (parsed: Record<string, unknown>): BackendEventInput
       };
     }
 
+    if (itemType === "tool_call") {
+      const toolCallId = asString(item?.id) ?? asString(item?.call_id) ?? asString(item?.tool_call_id);
+      const name = asString(item?.name) ?? asString(item?.tool_name);
+      if (toolCallId && name) {
+        return {
+          type: "tool_call_start",
+          payload: { toolCallId, name }
+        };
+      }
+    }
+
     return null;
+  }
+
+  if (type === "item.delta") {
+    const item = isObject(parsed.item) ? parsed.item : null;
+    const itemType = item ? asString(item.type) : null;
+    const toolCallId = item ? asString(item.id) ?? asString(item.call_id) ?? asString(item.tool_call_id) : null;
+    const content =
+      asString(parsed.delta) ??
+      asString(parsed.text_delta) ??
+      (isObject(parsed.delta) ? asString(parsed.delta.content) : null);
+
+    if (itemType === "reasoning" && content) {
+      return {
+        type: "thinking_delta",
+        payload: { content }
+      };
+    }
+
+    if (itemType === "tool_call" && toolCallId && content) {
+      return {
+        type: "tool_call_input_delta",
+        payload: { toolCallId, content }
+      };
+    }
+  }
+
+  if (type === "item.failed") {
+    const item = isObject(parsed.item) ? parsed.item : null;
+    const toolCallId = item ? asString(item.id) ?? asString(item.call_id) ?? asString(item.tool_call_id) : null;
+    if (toolCallId) {
+      return {
+        type: "tool_call_end",
+        payload: {
+          toolCallId,
+          error: joinNonEmpty([
+            asString(parsed.message),
+            asString(parsed.error),
+            asString(parsed.detail)
+          ]) ?? "tool call failed"
+        }
+      };
+    }
   }
 
   if (type === "turn.completed") {
@@ -112,6 +239,7 @@ const parseCodexJsonEvent = (parsed: Record<string, unknown>): BackendEventInput
       payload: {
         code: "cli_error",
         message: message ?? "CLI returned an error event",
+        retryable: false,
         details: parsed
       }
     };
@@ -181,6 +309,33 @@ const parseClaudeStreamJsonEvent = (parsed: Record<string, unknown>): BackendEve
     };
   }
 
+  if (type === "tool_use") {
+    const toolCallId = asString(parsed.id) ?? asString(parsed.tool_use_id);
+    const name = asString(parsed.name);
+    if (toolCallId && name) {
+      return {
+        type: "tool_call_start",
+        payload: { toolCallId, name },
+        sessionId: asString(parsed.session_id) ?? undefined
+      };
+    }
+  }
+
+  if (type === "tool_result") {
+    const toolCallId = asString(parsed.tool_use_id) ?? asString(parsed.id);
+    if (toolCallId) {
+      return {
+        type: "tool_call_end",
+        payload: {
+          toolCallId,
+          output: joinNonEmpty([asString(parsed.content), asString(parsed.result)]) ?? undefined,
+          error: asString(parsed.error) ?? undefined
+        },
+        sessionId: asString(parsed.session_id) ?? undefined
+      };
+    }
+  }
+
   if (type === "result") {
     const isError = parsed.is_error === true;
     if (isError) {
@@ -195,6 +350,7 @@ const parseClaudeStreamJsonEvent = (parsed: Record<string, unknown>): BackendEve
         payload: {
           code: "cli_result_error",
           message: message ?? "CLI returned error result",
+          retryable: false,
           details: parsed
         },
         sessionId: asString(parsed.session_id) ?? undefined
@@ -211,23 +367,51 @@ const parseClaudeStreamJsonEvent = (parsed: Record<string, unknown>): BackendEve
   return null;
 };
 
-const asBackendEvent = (line: string): BackendEventInput | null => {
-  const trimmed = line.trim();
-  if (!trimmed) {
-    return null;
-  }
-
-  let parsed: unknown;
+const tryParseJsonRecord = (input: string): Record<string, unknown> | null => {
   try {
-    parsed = JSON.parse(trimmed);
+    const parsed: unknown = JSON.parse(input);
+    return isObject(parsed) ? parsed : null;
   } catch {
-    return { type: "text_delta", payload: { content: line } };
+    return null;
   }
+};
 
-  if (!isObject(parsed)) {
+const extractJsonCandidate = (input: string): string | null => {
+  const firstBrace = input.indexOf("{");
+  const lastBrace = input.lastIndexOf("}");
+  if (firstBrace === -1 || lastBrace <= firstBrace) {
     return null;
   }
 
+  return input.slice(firstBrace, lastBrace + 1);
+};
+
+const looksLikeJsonFragment = (input: string): boolean => {
+  const trimmed = input.trim();
+  if (!trimmed) {
+    return false;
+  }
+
+  return (
+    trimmed.startsWith("{") ||
+    trimmed.startsWith("[") ||
+    trimmed.endsWith("}") ||
+    trimmed.endsWith("]") ||
+    trimmed.includes('"type"')
+  );
+};
+
+const fallbackEventForLine = (line: string, source: StreamSource): BackendEventInput =>
+  source === "stderr"
+    ? { type: "thinking_delta", payload: { content: line } }
+    : { type: "text_delta", payload: { content: line } };
+
+const fallbackEventForParsedObject = (line: string): BackendEventInput => ({
+  type: "thinking_delta",
+  payload: { content: line.trim() }
+});
+
+const mapParsedBackendEvent = (parsed: Record<string, unknown>, rawLine: string): BackendEventInput | null => {
   const mapped =
     parseDirectBackendEvent(parsed) ??
     parseCodexJsonEvent(parsed) ??
@@ -248,8 +432,193 @@ const asBackendEvent = (line: string): BackendEventInput | null => {
     return { type: "text_delta", payload: { content: parsed.text } };
   }
 
-  return { type: "thinking_delta", payload: { content: trimmed } };
+  return fallbackEventForParsedObject(rawLine);
 };
+
+interface ParsedLineResult {
+  event: BackendEventInput | null;
+  recoveredFromWrappedJson: boolean;
+  needsContinuation: boolean;
+}
+
+export interface CliLineParsePreview {
+  event: BackendEventInput | null;
+  strategy: "json" | "prefixed_json" | "embedded_json" | "plain_text" | "incomplete_json";
+}
+
+const parseBackendLine = (line: string, source: StreamSource): ParsedLineResult => {
+  const trimmed = line.trim();
+  if (!trimmed) {
+    return {
+      event: null,
+      recoveredFromWrappedJson: false,
+      needsContinuation: false
+    };
+  }
+
+  const directRecord = tryParseJsonRecord(trimmed);
+  if (directRecord) {
+    return {
+      event: mapParsedBackendEvent(directRecord, trimmed),
+      recoveredFromWrappedJson: false,
+      needsContinuation: false
+    };
+  }
+
+  const candidate = extractJsonCandidate(trimmed);
+  if (candidate && candidate !== trimmed) {
+    const candidateRecord = tryParseJsonRecord(candidate);
+    if (candidateRecord) {
+      return {
+        event: mapParsedBackendEvent(candidateRecord, trimmed),
+        recoveredFromWrappedJson: true,
+        needsContinuation: false
+      };
+    }
+  }
+
+  if (looksLikeJsonFragment(trimmed)) {
+    return {
+      event: null,
+      recoveredFromWrappedJson: false,
+      needsContinuation: true
+    };
+  }
+
+  return {
+    event: fallbackEventForLine(line, source),
+    recoveredFromWrappedJson: false,
+    needsContinuation: false
+  };
+};
+
+export const parseCliEventLine = (line: string): CliLineParsePreview => {
+  const trimmed = line.trim();
+  if (!trimmed) {
+    return {
+      event: null,
+      strategy: "plain_text"
+    };
+  }
+
+  const directRecord = tryParseJsonRecord(trimmed);
+  if (directRecord) {
+    return {
+      event: mapParsedBackendEvent(directRecord, trimmed),
+      strategy: "json"
+    };
+  }
+
+  if (trimmed.startsWith("data:")) {
+    const prefixedRecord = tryParseJsonRecord(trimmed.slice(5).trim());
+    if (prefixedRecord) {
+      return {
+        event: mapParsedBackendEvent(prefixedRecord, trimmed),
+        strategy: "prefixed_json"
+      };
+    }
+  }
+
+  const candidate = extractJsonCandidate(trimmed);
+  if (candidate && candidate !== trimmed) {
+    const candidateRecord = tryParseJsonRecord(candidate);
+    if (candidateRecord) {
+      return {
+        event: mapParsedBackendEvent(candidateRecord, trimmed),
+        strategy: "embedded_json"
+      };
+    }
+  }
+
+  if (looksLikeJsonFragment(trimmed)) {
+    return {
+      event: null,
+      strategy: "incomplete_json"
+    };
+  }
+
+  return {
+    event: fallbackEventForLine(line, "stdout"),
+    strategy: "plain_text"
+  };
+};
+
+class CliLineParser {
+  private readonly bufferedLines: string[] = [];
+
+  constructor(
+    private readonly source: StreamSource,
+    private readonly emitLog: (message: string, data?: Record<string, unknown>) => void,
+    private readonly pushEvent: (event: BackendEventInput) => void
+  ) {}
+
+  handleLine(line: string): void {
+    if (this.bufferedLines.length > 0) {
+      this.bufferedLines.push(line);
+      const combined = this.bufferedLines.join("\n");
+      const combinedResult = parseBackendLine(combined, this.source);
+      if (combinedResult.event) {
+        if (combinedResult.recoveredFromWrappedJson || this.bufferedLines.length > 1) {
+          this.emitLog("backend_protocol_recovered", {
+            source: this.source,
+            bufferedLineCount: this.bufferedLines.length
+          });
+        }
+        this.bufferedLines.length = 0;
+        this.pushEvent(combinedResult.event);
+        return;
+      }
+
+      if (
+        combinedResult.needsContinuation &&
+        this.bufferedLines.length < MAX_JSON_RECOVERY_LINES &&
+        combined.length < MAX_JSON_RECOVERY_LENGTH
+      ) {
+        return;
+      }
+
+      this.emitLog("backend_protocol_drift_fallback", {
+        source: this.source,
+        bufferedLineCount: this.bufferedLines.length,
+        contentPreview: combined.slice(0, 240)
+      });
+      this.bufferedLines.length = 0;
+      this.pushEvent(fallbackEventForLine(combined, this.source));
+      return;
+    }
+
+    const result = parseBackendLine(line, this.source);
+    if (result.event) {
+      if (result.recoveredFromWrappedJson) {
+        this.emitLog("backend_protocol_recovered", {
+          source: this.source,
+          contentPreview: line.slice(0, 240)
+        });
+      }
+      this.pushEvent(result.event);
+      return;
+    }
+
+    if (result.needsContinuation) {
+      this.bufferedLines.push(line);
+    }
+  }
+
+  flush(): void {
+    if (this.bufferedLines.length === 0) {
+      return;
+    }
+
+    const combined = this.bufferedLines.join("\n");
+    this.emitLog("backend_protocol_incomplete_json", {
+      source: this.source,
+      bufferedLineCount: this.bufferedLines.length,
+      contentPreview: combined.slice(0, 240)
+    });
+    this.bufferedLines.length = 0;
+    this.pushEvent(fallbackEventForLine(combined, this.source));
+  }
+}
 
 export class CliBackend implements IBackend {
   readonly name: string;
@@ -261,6 +630,10 @@ export class CliBackend implements IBackend {
   private readonly onLog?: (entry: CliBackendLogEntry) => void;
   private readonly stderrTailSize: number;
   private readonly executionTimeoutMs: number;
+  private readonly startupTimeoutMs: number;
+  private readonly maxRetries: number;
+  private readonly retryDelayMs: number;
+  private readonly cleanupGraceMs: number;
   private readonly running = new Map<string, ChildProcessWithoutNullStreams>();
 
   constructor(options: CliBackendOptions) {
@@ -272,6 +645,10 @@ export class CliBackend implements IBackend {
     this.onLog = options.onLog;
     this.stderrTailSize = options.stderrTailSize ?? DEFAULT_STDERR_TAIL_SIZE;
     this.executionTimeoutMs = options.executionTimeoutMs ?? DEFAULT_EXECUTION_TIMEOUT_MS;
+    this.startupTimeoutMs = options.startupTimeoutMs ?? DEFAULT_STARTUP_TIMEOUT_MS;
+    this.maxRetries = options.maxRetries ?? DEFAULT_MAX_RETRIES;
+    this.retryDelayMs = options.retryDelayMs ?? DEFAULT_RETRY_DELAY_MS;
+    this.cleanupGraceMs = options.cleanupGraceMs ?? DEFAULT_CLEANUP_GRACE_MS;
   }
 
   async *execute(request: BackendRequest): AsyncGenerator<BackendEventInput> {
@@ -285,180 +662,8 @@ export class CliBackend implements IBackend {
       return;
     }
 
-    const args = this.buildArgs(request);
-    const spawnCommand =
-      process.platform === "win32" ? "cmd.exe" : this.command;
-    const spawnArgs =
-      process.platform === "win32"
-        ? ["/d", "/s", "/c", this.command, ...args]
-        : args;
-    const child = spawn(spawnCommand, spawnArgs, {
-      cwd: request.workingDirectory,
-      env: this.env,
-      stdio: "pipe",
-      windowsHide: true
-    });
-    this.trackSession(sessionId, child);
-    this.emitLog("info", sessionId, "backend_spawned", {
-      command: this.command,
-      args,
-      spawnCommand,
-      spawnArgs,
-      pid: child.pid ?? null,
-      workingDirectory: request.workingDirectory ?? null
-    });
-
     const queue = new AsyncEventQueue<BackendEventInput>();
-    let doneEmitted = false;
-    let timedOut = false;
-    const stderrTail: string[] = [];
-    const timeoutTimer = setTimeout(() => {
-      timedOut = true;
-      this.emitLog("error", sessionId, "backend_execution_timeout", {
-        command: this.command,
-        args,
-        timeoutMs: this.executionTimeoutMs
-      });
-      pushEvent({
-        type: "error",
-        payload: {
-          code: "backend_execution_timeout",
-          message: `${this.name} execution timeout after ${this.executionTimeoutMs}ms`,
-          details: {
-            command: this.command,
-            args,
-            timeoutMs: this.executionTimeoutMs,
-            sessionId
-          }
-        }
-      });
-      this.abort(sessionId);
-    }, this.executionTimeoutMs);
-    timeoutTimer.unref?.();
-
-    const rememberStderr = (line: string): void => {
-      stderrTail.push(line);
-      while (stderrTail.length > this.stderrTailSize) {
-        stderrTail.shift();
-      }
-    };
-
-    const pushEvent = (event: BackendEventInput): void => {
-      if (event.type === "done") {
-        doneEmitted = true;
-      }
-
-      let normalizedEvent: BackendEventInput;
-      if (event.type === "session_update") {
-        normalizedEvent = event;
-        this.trackSession(event.payload.sessionId, child);
-      } else if (event.sessionId) {
-        normalizedEvent = event;
-      } else {
-        normalizedEvent = { ...event, sessionId };
-      }
-
-      queue.push(normalizedEvent);
-    };
-
-    const stdoutReader = readline.createInterface({ input: child.stdout });
-    const stderrReader = readline.createInterface({ input: child.stderr });
-
-    stdoutReader.on("line", (line) => {
-      const event = asBackendEvent(line);
-      if (event) {
-        pushEvent(event);
-      }
-    });
-
-    stderrReader.on("line", (line) => {
-      rememberStderr(line);
-      this.emitLog("warn", sessionId, "backend_stderr", { line });
-      pushEvent({
-        type: "thinking_delta",
-        payload: { content: line }
-      });
-    });
-
-    child.once("error", (error) => {
-        this.emitLog("error", sessionId, "backend_spawn_failed", {
-          message: error.message,
-          command: this.command,
-          args,
-          spawnCommand,
-          spawnArgs
-        });
-        pushEvent({
-          type: "error",
-          payload: {
-            code: "spawn_failed",
-          message: error.message,
-            details: {
-              command: this.command,
-              args,
-              spawnCommand,
-              spawnArgs,
-              sessionId
-            }
-          }
-        });
-      });
-
-    child.once("close", (code, signal) => {
-      const success = code === 0;
-      if (!success) {
-        this.emitLog("error", sessionId, "backend_exit_nonzero", {
-          command: this.command,
-          args,
-          spawnCommand,
-          spawnArgs,
-          exitCode: code,
-          signal,
-          stderrTail
-        });
-        pushEvent({
-          type: "error",
-          payload: {
-            code: "backend_exit_nonzero",
-            message: `${this.name} exited with code ${code ?? "null"}${signal ? ` (signal: ${signal})` : ""}`,
-            details: {
-              command: this.command,
-              args,
-              spawnCommand,
-              spawnArgs,
-              exitCode: code,
-              signal,
-              stderrTail,
-              sessionId
-            }
-          }
-        });
-      } else {
-        this.emitLog("info", sessionId, "backend_exit", {
-          command: this.command,
-          args,
-          spawnCommand,
-          spawnArgs,
-          exitCode: code,
-          signal
-        });
-      }
-
-      if (!doneEmitted) {
-        pushEvent({
-          type: "done",
-          payload: {
-            reason: success ? "completed" : timedOut ? "backend_timeout" : "backend_exit_nonzero"
-          }
-        });
-      }
-
-      clearTimeout(timeoutTimer);
-      stdoutReader.close();
-      stderrReader.close();
-      queue.end();
-      this.untrackChild(child);
-    });
+    void this.runWithRetries(request, sessionId, queue);
 
     for await (const event of queue) {
       yield event;
@@ -490,7 +695,7 @@ export class CliBackend implements IBackend {
       } else {
         child.kill("SIGKILL");
       }
-    }, 2000);
+    }, this.cleanupGraceMs);
     timer.unref?.();
   }
 
@@ -504,6 +709,328 @@ export class CliBackend implements IBackend {
     }
     args.push(request.prompt ?? "");
     return args;
+  }
+
+  private async runWithRetries(
+    request: BackendRequest,
+    sessionId: string,
+    queue: AsyncEventQueue<BackendEventInput>
+  ): Promise<void> {
+    const attempts = this.maxRetries + 1;
+
+    try {
+      for (let attempt = 1; attempt <= attempts; attempt += 1) {
+        const isFinalAttempt = attempt === attempts;
+        const result = await this.executeAttempt({
+          request,
+          sessionId,
+          queue,
+          attempt,
+          isFinalAttempt
+        });
+
+        if (result.success || !result.retryable || isFinalAttempt) {
+          return;
+        }
+
+        this.emitLog("warn", sessionId, "backend_retry_scheduled", {
+          attempt,
+          nextAttempt: attempt + 1,
+          retryDelayMs: this.retryDelayMs
+        });
+        await delay(this.retryDelayMs * attempt);
+      }
+    } finally {
+      queue.end();
+    }
+  }
+
+  private async executeAttempt(options: {
+    request: BackendRequest;
+    sessionId: string;
+    queue: AsyncEventQueue<BackendEventInput>;
+    attempt: number;
+    isFinalAttempt: boolean;
+  }): Promise<AttemptResult> {
+    const { request, sessionId, queue, attempt, isFinalAttempt } = options;
+    const args = this.buildArgs(request);
+    const spawnTarget = resolveSpawnTarget(this.command, args);
+    const child = spawn(spawnTarget.command, spawnTarget.args, {
+      cwd: request.workingDirectory,
+      env: this.env,
+      stdio: "pipe",
+      windowsHide: true
+    });
+    this.trackSession(sessionId, child);
+
+    this.emitLog("info", sessionId, "backend_spawned", {
+      command: this.command,
+      args,
+      spawnCommand: spawnTarget.command,
+      spawnArgs: spawnTarget.args,
+      pid: child.pid ?? null,
+      attempt,
+      workingDirectory: request.workingDirectory ?? null
+    });
+
+    let doneEmitted = false;
+    let firstSignalSeen = false;
+    let meaningfulOutputSeen = false;
+    let acceptOutput = true;
+    let activeSessionId = sessionId;
+    let terminalFailure: AttemptFailure | null = null;
+    const stderrTail: string[] = [];
+
+    const rememberStderr = (line: string): void => {
+      stderrTail.push(line);
+      while (stderrTail.length > this.stderrTailSize) {
+        stderrTail.shift();
+      }
+    };
+
+    const pushEvent = (event: BackendEventInput): void => {
+      if (event.type === "done") {
+        doneEmitted = true;
+      }
+      if (isMeaningfulOutputEvent(event)) {
+        meaningfulOutputSeen = true;
+      }
+
+      const normalizedEvent =
+        event.type === "session_update"
+          ? { ...event, sessionId: event.payload.sessionId }
+          : event.sessionId
+            ? event
+            : { ...event, sessionId: activeSessionId };
+
+      if (normalizedEvent.type === "session_update") {
+        activeSessionId = normalizedEvent.payload.sessionId;
+        this.trackSession(normalizedEvent.payload.sessionId, child);
+      }
+
+      queue.push(normalizedEvent);
+    };
+
+    const emitParserLog = (message: string, data?: Record<string, unknown>): void => {
+      this.emitLog("warn", sessionId, message, {
+        attempt,
+        ...(data ?? {})
+      });
+    };
+
+    const stdoutParser = new CliLineParser("stdout", emitParserLog, pushEvent);
+    const stderrParser = new CliLineParser("stderr", emitParserLog, pushEvent);
+    const stdoutReader = readline.createInterface({ input: child.stdout });
+    const stderrReader = readline.createInterface({ input: child.stderr });
+
+    return await new Promise<AttemptResult>((resolve) => {
+      const startupTimer = setTimeout(() => {
+        if (firstSignalSeen || terminalFailure) {
+          return;
+        }
+
+        acceptOutput = false;
+        terminalFailure = {
+          code: "backend_startup_timeout",
+          stage: "startup",
+          message: `${this.name} startup timeout after ${this.startupTimeoutMs}ms`,
+          detail: "CLI 已启动但在启动窗口内没有产生任何 stdout/stderr 输出。",
+          retryable: true
+        };
+        this.emitLog("error", sessionId, "backend_startup_timeout", {
+          attempt,
+          command: this.command,
+          args,
+          timeoutMs: this.startupTimeoutMs
+        });
+        this.abort(sessionId);
+      }, this.startupTimeoutMs);
+      startupTimer.unref?.();
+
+      const executionTimer = setTimeout(() => {
+        if (terminalFailure) {
+          return;
+        }
+
+        acceptOutput = false;
+        terminalFailure = {
+          code: "backend_execution_timeout",
+          stage: "execution",
+          message: `${this.name} execution timeout after ${this.executionTimeoutMs}ms`,
+          detail: "CLI 在执行窗口内未正常结束。",
+          retryable: !meaningfulOutputSeen
+        };
+        this.emitLog("error", sessionId, "backend_execution_timeout", {
+          attempt,
+          command: this.command,
+          args,
+          timeoutMs: this.executionTimeoutMs
+        });
+        this.abort(sessionId);
+      }, this.executionTimeoutMs);
+      executionTimer.unref?.();
+
+      const markSignalSeen = (): void => {
+        firstSignalSeen = true;
+        clearTimeout(startupTimer);
+      };
+
+      const finalize = (result: AttemptResult): void => {
+        clearTimeout(startupTimer);
+        clearTimeout(executionTimer);
+        if (terminalFailure === null || terminalFailure.code === "backend_exit_nonzero") {
+          stdoutParser.flush();
+          stderrParser.flush();
+        }
+        stdoutReader.close();
+        stderrReader.close();
+        this.untrackChild(child);
+        resolve(result);
+      };
+
+      const emitFailure = (failure: AttemptFailure, code: number | null, signal: NodeJS.Signals | null): void => {
+        if (!isFinalAttempt) {
+          return;
+        }
+
+        pushEvent({
+          type: "error",
+          payload: {
+            code: failure.code,
+            message: failure.message,
+            retryable: failure.retryable,
+            details: {
+              stage: failure.stage,
+              detail: failure.detail,
+              attempt,
+              command: this.command,
+              args,
+              spawnCommand: spawnTarget.command,
+              spawnArgs: spawnTarget.args,
+              exitCode: code,
+              signal,
+              stderrTail,
+              sessionId,
+              diagnostics: {
+                code: failure.code,
+                message: failure.message,
+                detail: failure.detail,
+                retryable: failure.retryable,
+                severity: "error"
+              },
+              suggestedActions: [
+                failure.retryable ? "retry" : "check_runtime_configuration",
+                "copy_diagnostic"
+              ]
+            }
+          }
+        });
+      };
+
+      child.stdout.on("data", () => {
+        markSignalSeen();
+      });
+
+      child.stderr.on("data", () => {
+        markSignalSeen();
+      });
+
+      stdoutReader.on("line", (line) => {
+        markSignalSeen();
+        if (!acceptOutput) {
+          return;
+        }
+        stdoutParser.handleLine(line);
+      });
+
+      stderrReader.on("line", (line) => {
+        markSignalSeen();
+        if (!acceptOutput) {
+          return;
+        }
+        rememberStderr(line);
+        this.emitLog("warn", sessionId, "backend_stderr", { attempt, line });
+        stderrParser.handleLine(line);
+      });
+
+      child.once("error", (error) => {
+        if (!terminalFailure) {
+          acceptOutput = false;
+          terminalFailure = {
+          code: "spawn_failed",
+          stage: "spawn",
+          message: error.message,
+          detail: "CLI 进程未能成功启动，请检查命令路径、权限或安装状态。",
+          retryable: true
+        };
+        }
+        this.emitLog("error", sessionId, "backend_spawn_failed", {
+          attempt,
+          message: error.message,
+          command: this.command,
+          args,
+          spawnCommand: spawnTarget.command,
+          spawnArgs: spawnTarget.args
+        });
+      });
+
+      child.once("close", (code, signal) => {
+        markSignalSeen();
+
+        if (!terminalFailure && code !== 0) {
+          terminalFailure = {
+            code: signal ? "backend_aborted" : "backend_exit_nonzero",
+            stage: signal ? "abort" : "execution",
+            message: signal
+              ? `${this.name} terminated by signal ${signal}`
+              : `${this.name} exited with code ${code ?? "null"}`,
+            detail: stderrTail.length > 0 ? stderrTail.join("\n") : undefined,
+            retryable: signal !== null && !meaningfulOutputSeen
+          };
+        }
+
+        const success = terminalFailure === null;
+        if (success) {
+          this.emitLog("info", sessionId, "backend_exit", {
+            attempt,
+            command: this.command,
+            args,
+            spawnCommand: spawnTarget.command,
+            spawnArgs: spawnTarget.args,
+            exitCode: code,
+            signal
+          });
+        } else {
+          const failure = terminalFailure!;
+          this.emitLog("error", sessionId, failure.code, {
+            attempt,
+            command: this.command,
+            args,
+            spawnCommand: spawnTarget.command,
+            spawnArgs: spawnTarget.args,
+            exitCode: code,
+            signal,
+            stderrTail,
+            stage: failure.stage
+          });
+          emitFailure(failure, code, signal);
+        }
+
+        if ((success || isFinalAttempt) && !doneEmitted) {
+          pushEvent({
+            type: "done",
+            payload: {
+              reason: success ? "completed" : terminalFailure?.code ?? "backend_failed"
+            }
+          });
+        }
+
+        finalize({
+          success,
+          retryable: terminalFailure?.retryable ?? false
+        });
+      });
+    });
   }
 
   private trackSession(sessionId: string, child: ChildProcessWithoutNullStreams): void {
@@ -550,3 +1077,8 @@ export class CliBackend implements IBackend {
     killer.on("error", () => undefined);
   }
 }
+
+
+
+
+
