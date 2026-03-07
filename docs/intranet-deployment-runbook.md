@@ -73,6 +73,14 @@ node packages/web-backend/dist/server.js
 - `OKK_CORE_DB_PATH`：SQLite 路径（可选）
 - `OKK_SKILL_MARKET_PATH`：Skill 市场索引文件（可选）
 
+CLI 命令来源优先级：
+
+1. `createCore({ codexCommand / claudeCommand })`
+2. 环境变量 `OKK_CODEX_COMMAND` / `OKK_CLAUDE_COMMAND`
+3. 默认命令 `codex` / `claude`
+
+部署后若要确认实际生效的是哪一层配置，登录后查看 `GET /api/agents/runtime/backends` 返回的 `diagnostics.detail`，其中会包含命令来源与建议动作。
+
 ## 8. 发布流程
 
 ```bash
@@ -83,18 +91,23 @@ npm run package -w @okk/desktop
 验收建议：
 
 - `bash -lc "./scripts/run-smoke-local.sh"` 返回 `login_ok/chat_ok/mcp_ok/skills_ok=true`
+- `npm run smoke -w @okk/desktop` 返回 `desktop_smoke_ok=true`，并在 `output/desktop-smoke/` 留存 runtime state、stdout/stderr 与日志文件
 - Web 发布产物位于 `release/`，桌面 Windows 原始产物位于 `packages/desktop/release/win-unpacked/`。`OKK Desktop Windows Package` 工作流会输出 `OKK-Desktop-windows-x64-<ref>.zip`、对应 `.sha256.txt`，以及同名 release notes Markdown。手动触发时仅上传 artifact；当仓库收到 `v*` tag push 时，workflow 还会自动创建 GitHub Release 并附带这些文件。
 
-## 9. 上线验收清单
+## 9. 运行时诊断建议
+
+- 登录后优先检查 `GET /api/agents/runtime/backends`
+- 可用后端应返回：`available=true`、`runtimeStatus=ready`
+- 不可用后端应返回结构化 `diagnostics` 与 `actions`
+- 若 `diagnostics.code` 为 `command_not_found_or_not_executable`，优先修正 CLI 安装或 PATH
+- 若 `diagnostics.code` 为 `command_probe_timeout`，优先排查杀软、网络盘或卡死的 shell wrapper
+
+## 10. 上线验收清单
 
 - 登录可用，JWT 校验正常
 - 会话创建/流式对话正常
 - Skill 安装/删除/市场安装正常
 - MCP 启停、工具调用、资源读取正常
 - WebSocket 断开可恢复
+- Desktop 启动异常可切换到诊断页并支持打开日志/重试启动
 - SQLite 数据可持久化重启后恢复
-
-
-
-
-

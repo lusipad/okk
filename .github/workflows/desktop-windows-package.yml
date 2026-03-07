@@ -75,6 +75,11 @@ jobs:
             Start-Sleep -Seconds (10 * $i)
           }
 
+      - name: Run packaged desktop smoke
+        shell: pwsh
+        run: |
+          node scripts/desktop-smoke.mjs --mode packaged --entry packages/desktop/release/win-unpacked/OKK.exe --outputDir packages/desktop/release/desktop-smoke
+
       - name: Create distributable zip from win-unpacked
         shell: pwsh
         run: |
@@ -130,6 +135,7 @@ jobs:
             '- SHA256: `${{ steps.checksums.outputs.sha256 }}`',
             '- Desktop tests: `npm run test -w @okk/desktop`',
             '- Packaging command: `npm run package:win -w @okk/desktop`',
+            '- Packaged smoke: `node scripts/desktop-smoke.mjs --mode packaged --entry packages/desktop/release/win-unpacked/OKK.exe`',
             '',
             '## Usage',
             '',
@@ -169,6 +175,7 @@ jobs:
             packages/desktop/release/${{ steps.package_meta.outputs.zip_name }}
             packages/desktop/release/${{ steps.package_meta.outputs.checksum_name }}
             packages/desktop/release/${{ steps.package_meta.outputs.release_notes_name }}
+            packages/desktop/release/desktop-smoke/**
           if-no-files-found: error
           retention-days: 14
 
