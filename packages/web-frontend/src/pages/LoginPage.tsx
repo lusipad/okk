@@ -57,8 +57,8 @@ export function LoginPage() {
     <div className='auth-page'>
       <form className='auth-card' onSubmit={handleSubmit}>
         <div className='auth-heading'>
-          <h1>欢迎登录 OKK</h1>
-          <p className='auth-subtitle'>登录后继续使用会话、Agent 与工具能力。</p>
+          <h1>欢迎回来</h1>
+          <p className='auth-subtitle'>登录后继续与你的赛博合伙人协作。</p>
         </div>
         <section className='auth-tip-card auth-tip-card-info'>
           <p className='auth-tip-title'>开发环境默认账号</p>
@@ -102,5 +102,6 @@ export function LoginPage() {
     </div>
   );
 }
+
 
 

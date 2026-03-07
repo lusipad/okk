@@ -25,7 +25,7 @@ export function ActivationDock({
   return (
     <section className='activation-dock' aria-label='Skills 与 MCP 快捷入口'>
       <div className='activation-inline'>
-        <span className='small-text'>能力</span>
+        <span className='small-text'>合伙人能力</span>
         <Link className='activation-inline-item' to='/skills'>
           Skills {ratioText(skillsInstalled, skillsTotal)}
         </Link>
@@ -37,3 +37,4 @@ export function ActivationDock({
     </section>
   );
 }
+

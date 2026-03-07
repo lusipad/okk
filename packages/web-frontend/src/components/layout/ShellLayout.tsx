@@ -8,11 +8,45 @@ interface ShellLayoutProps {
   right: ReactNode;
 }
 
+interface DesktopShellBridge {
+  search?: {
+    onQuery?: (listener: (query: string) => void) => () => void;
+  };
+  files?: {
+    pick?: () => Promise<string[]>;
+  };
+}
+
+interface CommandPaletteEventDetail {
+  query?: string;
+}
+
+
+interface DesktopFileSelectionDetail {
+  paths?: string[];
+}
+
+declare global {
+  interface WindowEventMap {
+    'okk:command-palette': CustomEvent<CommandPaletteEventDetail>;
+    'okk:desktop-files-selected': CustomEvent<DesktopFileSelectionDetail>;
+  }
+}
+
+const COMMAND_PALETTE_EVENT = 'okk:command-palette';
+const DESKTOP_FILES_SELECTED_EVENT = 'okk:desktop-files-selected';
+const FOCUS_MODE_STORAGE_KEY = 'okk.focus-mode';
+const RIGHT_PANEL_STORAGE_KEY = 'okk.right-panel-open';
+
+function normalizeCommandQuery(value: unknown): string {
+  return typeof value === 'string' ? value.trim() : '';
+}
+
 export function ShellLayout({ left, center, right }: ShellLayoutProps) {
   const [leftOpen, setLeftOpen] = useState(false);
-  const [rightOpen, setRightOpen] = useState(false);
+  const [rightOpen, setRightOpen] = useState<boolean>(() => localStorage.getItem(RIGHT_PANEL_STORAGE_KEY) === '1');
   const [focusMode, setFocusMode] = useState<boolean>(() => {
-    const stored = localStorage.getItem('okk.focus-mode');
+    const stored = localStorage.getItem(FOCUS_MODE_STORAGE_KEY);
     return stored === '1';
   });
   const [themeMode, setThemeMode] = useState<'light' | 'dark'>(() =>
@@ -22,6 +56,17 @@ export function ShellLayout({ left, center, right }: ShellLayoutProps) {
   const [commandQuery, setCommandQuery] = useState('');
   const location = useLocation();
   const navigate = useNavigate();
+  const desktopBridge = useMemo(() => (window as Window & { okkDesktop?: DesktopShellBridge }).okkDesktop, []);
+
+  const closeCommandPalette = (): void => {
+    setCommandOpen(false);
+    setCommandQuery('');
+  };
+
+  const openCommandPalette = (query: unknown = ''): void => {
+    setCommandQuery(normalizeCommandQuery(query));
+    setCommandOpen(true);
+  };
 
   useEffect(() => {
     if (!leftOpen && !rightOpen) {
@@ -48,7 +93,7 @@ export function ShellLayout({ left, center, right }: ShellLayoutProps) {
 
     const closeOnEscape = (event: KeyboardEvent): void => {
       if (event.key === 'Escape') {
-        setCommandOpen(false);
+        closeCommandPalette();
       }
     };
     window.addEventListener('keydown', closeOnEscape);
@@ -58,7 +103,7 @@ export function ShellLayout({ left, center, right }: ShellLayoutProps) {
   }, [commandOpen]);
 
   useEffect(() => {
-    localStorage.setItem('okk.focus-mode', focusMode ? '1' : '0');
+    localStorage.setItem(FOCUS_MODE_STORAGE_KEY, focusMode ? '1' : '0');
     if (focusMode) {
       setLeftOpen(false);
       setRightOpen(false);
@@ -66,18 +111,27 @@ export function ShellLayout({ left, center, right }: ShellLayoutProps) {
   }, [focusMode]);
 
   useEffect(() => {
+    localStorage.setItem(RIGHT_PANEL_STORAGE_KEY, rightOpen ? '1' : '0');
+  }, [rightOpen]);
+
+  useEffect(() => {
     const handleShortcut = (event: KeyboardEvent): void => {
       if (!(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== 'k') {
         return;
       }
       event.preventDefault();
-      setCommandOpen((current) => !current);
+      if (commandOpen) {
+        closeCommandPalette();
+        return;
+      }
+      openCommandPalette();
     };
     window.addEventListener('keydown', handleShortcut);
     return () => {
       window.removeEventListener('keydown', handleShortcut);
     };
-  }, []);
+  }, [commandOpen]);
+
   useEffect(() => {
     const handleFocusShortcut = (event: KeyboardEvent): void => {
       if (!(event.ctrlKey || event.metaKey) || !event.shiftKey || event.key.toLowerCase() !== 'l') {
@@ -89,6 +143,31 @@ export function ShellLayout({ left, center, right }: ShellLayoutProps) {
     window.addEventListener('keydown', handleFocusShortcut);
     return () => {
       window.removeEventListener('keydown', handleFocusShortcut);
+    };
+  }, []);
+
+  useEffect(() => {
+    const subscribe = desktopBridge?.search?.onQuery;
+    if (!subscribe) {
+      return undefined;
+    }
+
+    const unsubscribe = subscribe((query) => {
+      setLeftOpen(false);
+      setRightOpen(false);
+      openCommandPalette(query);
+    });
+    return typeof unsubscribe === 'function' ? unsubscribe : undefined;
+  }, [desktopBridge]);
+
+  useEffect(() => {
+    const handleCommandPaletteRequest = (event: CustomEvent<CommandPaletteEventDetail>): void => {
+      openCommandPalette(event.detail?.query);
+    };
+
+    window.addEventListener(COMMAND_PALETTE_EVENT, handleCommandPaletteRequest);
+    return () => {
+      window.removeEventListener(COMMAND_PALETTE_EVENT, handleCommandPaletteRequest);
     };
   }, []);
 
@@ -104,46 +183,66 @@ export function ShellLayout({ left, center, right }: ShellLayoutProps) {
   const toggleRightPanel = (): void => {
     setRightOpen((current) => !current);
   };
+  const pickDesktopFiles = async (): Promise<void> => {
+    const pick = desktopBridge?.files?.pick;
+    if (!pick) {
+      return;
+    }
+    const paths = await pick();
+    if (paths.length === 0) {
+      return;
+    }
+    navigate('/');
+    window.dispatchEvent(new CustomEvent(DESKTOP_FILES_SELECTED_EVENT, { detail: { paths } }));
+    closeCommandPalette();
+  };
 
   const commandItems = useMemo(
-    () => [
-      {
-        id: 'go-chat',
-        title: '进入 Chat',
-        subtitle: '打开会话页',
-        action: () => navigate('/')
-      },
-      {
-        id: 'go-mcp',
-        title: '进入 MCP 设置',
-        subtitle: '查看并管理 MCP 连接',
-        action: () => navigate('/settings/mcp')
-      },
-      {
-        id: 'go-skills',
-        title: '进入 Skills',
-        subtitle: '查看技能与市场安装',
-        action: () => navigate('/skills')
-      },
-      {
-        id: 'toggle-theme',
-        title: themeMode === 'dark' ? '切换浅色主题' : '切换深色主题',
-        subtitle: '立即切换全局外观',
-        action: () => switchTheme()
-      },
-      {
-        id: 'toggle-focus',
-        title: focusMode ? '退出专注模式' : '开启专注模式',
-        subtitle: '隐藏侧边栏，聚焦当前会话',
-        action: () => toggleFocusMode()
-      },
-      {
-        id: 'toggle-collab',
-        title: rightOpen ? '关闭协作面板' : '打开协作面板',
-        subtitle: '查看 Team 时间线与任务图',
-        action: () => toggleRightPanel()
-      }
-    ],
+    () =>
+      [
+        {
+          id: 'go-chat',
+          title: '进入 Chat',
+          subtitle: '回到你和赛博合伙人的当前会话',
+          action: () => navigate('/')
+        },
+        {
+          id: 'go-mcp',
+          title: '进入 MCP 设置',
+          subtitle: '查看并管理 MCP 连接',
+          action: () => navigate('/settings/mcp')
+        },
+        {
+          id: 'go-skills',
+          title: '进入 Skills',
+          subtitle: '查看技能与市场安装',
+          action: () => navigate('/skills')
+        },
+        {
+          id: 'pick-desktop-files',
+          title: '选择本地文件或目录',
+          subtitle: '通过桌面原生文件选择器把路径注入当前工作台',
+          action: () => pickDesktopFiles()
+        },
+        {
+          id: 'toggle-theme',
+          title: themeMode === 'dark' ? '切换浅色主题' : '切换深色主题',
+          subtitle: '立即切换全局外观',
+          action: () => switchTheme()
+        },
+        {
+          id: 'toggle-focus',
+          title: focusMode ? '退出专注模式' : '开启专注模式',
+          subtitle: '隐藏侧边栏，聚焦当前会话',
+          action: () => toggleFocusMode()
+        },
+        {
+          id: 'toggle-collab',
+          title: rightOpen ? '关闭协作面板' : '打开协作面板',
+          subtitle: '查看 Team 时间线与任务图',
+          action: () => toggleRightPanel()
+        }
+      ] as Array<{ id: string; title: string; subtitle: string; action: () => void | Promise<void> }>,
     [focusMode, navigate, rightOpen, themeMode]
   );
   const filteredCommands = useMemo(() => {
@@ -163,9 +262,8 @@ export function ShellLayout({ left, center, right }: ShellLayoutProps) {
     if (!target) {
       return;
     }
-    target.action();
-    setCommandOpen(false);
-    setCommandQuery('');
+    void Promise.resolve(target.action());
+    closeCommandPalette();
   };
 
   return (
@@ -188,7 +286,7 @@ export function ShellLayout({ left, center, right }: ShellLayoutProps) {
             className='ghost-button topbar-command-button'
             aria-label='打开命令面板'
             title='Command palette (Ctrl/Cmd + K)'
-            onClick={() => setCommandOpen(true)}
+            onClick={() => openCommandPalette()}
           >
             ⌘K
           </button>
@@ -274,7 +372,7 @@ export function ShellLayout({ left, center, right }: ShellLayoutProps) {
       )}
 
       {commandOpen && (
-        <div className='drawer-mask command-palette-mask' role='presentation' onClick={() => setCommandOpen(false)}>
+        <div className='drawer-mask command-palette-mask' role='presentation' onClick={closeCommandPalette}>
           <aside
             className='command-palette'
             role='dialog'
@@ -291,23 +389,26 @@ export function ShellLayout({ left, center, right }: ShellLayoutProps) {
               />
               <span className='small-text'>Esc 关闭</span>
             </div>
-            <ul className='command-palette-list'>
+            <div className='command-palette-body'>
               {filteredCommands.length === 0 ? (
-                <li className='command-palette-empty'>没有匹配命令</li>
+                <p className='empty-hint'>没有匹配“{commandQuery.trim()}”的命令。</p>
               ) : (
-                filteredCommands.map((item) => (
-                  <li key={item.id}>
-                    <button type='button' className='command-palette-item' onClick={() => executeCommand(item.id)}>
-                      <strong>{item.title}</strong>
-                      <span className='small-text'>{item.subtitle}</span>
-                    </button>
-                  </li>
-                ))
+                <ul className='command-palette-list'>
+                  {filteredCommands.map((item) => (
+                    <li key={item.id}>
+                      <button type='button' className='command-palette-item' onClick={() => executeCommand(item.id)}>
+                        <strong>{item.title}</strong>
+                        <span>{item.subtitle}</span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
               )}
-            </ul>
+            </div>
           </aside>
         </div>
       )}
     </div>
   );
 }
+

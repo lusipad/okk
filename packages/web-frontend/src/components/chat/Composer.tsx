@@ -11,6 +11,11 @@ interface McpOption {
   name: string;
 }
 
+interface ComposerExternalDraft {
+  id: string;
+  text: string;
+}
+
 interface ComposerProps {
   agents: AgentInfo[];
   selectedAgentId: string | null;
@@ -20,6 +25,9 @@ interface ComposerProps {
   selectedMcpServerIds: string[];
   streaming: boolean;
   canRetry: boolean;
+  injectedDraft?: ComposerExternalDraft | null;
+  onExternalDraftApplied?: () => void;
+  sendBlockedReason?: string | null;
   onChangeAgent: (agentId: string | null) => void;
   onChangeSkillIds: (skillIds: string[]) => void;
   onChangeMcpServerIds: (serverIds: string[]) => void;
@@ -41,6 +49,9 @@ export function Composer({
   selectedMcpServerIds,
   streaming,
   canRetry,
+  injectedDraft = null,
+  onExternalDraftApplied,
+  sendBlockedReason = null,
   onChangeAgent,
   onChangeSkillIds,
   onChangeMcpServerIds,
@@ -48,7 +59,7 @@ export function Composer({
   onStop,
   onRetry
 }: ComposerProps) {
-  const [value, setValue] = useState('');
+  const [value, setValue] = useState(() => injectedDraft?.text ?? '');
   const [sending, setSending] = useState(false);
   const [retrying, setRetrying] = useState(false);
   const [stopping, setStopping] = useState(false);
@@ -58,7 +69,7 @@ export function Composer({
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
   const busy = sending || retrying || stopping;
-  const canSend = value.trim().length > 0 && !busy && !streaming;
+  const canSend = value.trim().length > 0 && !busy && !streaming && !sendBlockedReason;
 
   const counterText = useMemo(() => `${value.length} 字`, [value.length]);
   const skillSummary = useMemo(() => `${selectedSkillIds.length}/${skills.length}`, [selectedSkillIds.length, skills.length]);
@@ -107,6 +118,20 @@ export function Composer({
     textarea.style.height = `${nextHeight}px`;
   }, [value]);
 
+  useEffect(() => {
+    if (!injectedDraft?.id) {
+      return;
+    }
+    setValue(injectedDraft.text);
+    setAdvancedOpen(true);
+    setFeedback('桌面原生输入已注入当前会话草稿。');
+    setFeedbackIsError(false);
+    onExternalDraftApplied?.();
+    window.setTimeout(() => {
+      textareaRef.current?.focus();
+    }, 0);
+  }, [injectedDraft?.id, injectedDraft?.text, onExternalDraftApplied]);
+
   const toggleSelection = (current: string[], id: string): string[] => {
     if (current.includes(id)) {
       return current.filter((item) => item !== id);
@@ -116,7 +141,7 @@ export function Composer({
 
   const submit = async (): Promise<void> => {
     const content = value.trim();
-    if (!content || busy || streaming) {
+    if (!content || busy || streaming || sendBlockedReason) {
       return;
     }
 
@@ -323,12 +348,11 @@ export function Composer({
           </div>
         </div>
       </div>
-      {feedback && (
-        <p className={`composer-feedback ${feedbackIsError ? 'error' : ''}`} role='status' aria-live='polite'>
-          {feedback}
+      {(feedback || sendBlockedReason) && (
+        <p className={`composer-feedback ${feedbackIsError || sendBlockedReason ? 'error' : ''}`} role='status' aria-live='polite'>
+          {feedback || sendBlockedReason}
         </p>
       )}
     </section>
   );
 }
-

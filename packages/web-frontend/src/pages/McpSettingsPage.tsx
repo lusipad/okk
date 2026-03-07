@@ -384,7 +384,7 @@ export function McpSettingsPage() {
             </button>
           </header>
 
-          <p className='empty-hint'>统一管理 MCP Server 配置、启停状态和运行时工具调试能力。</p>
+          <p className='empty-hint'>统一管理 MCP Server 配置、启停状态和运行时工具调试能力，让赛博合伙人安全接入外部工具与资源。</p>
 
           <article className='settings-card'>
             <div className='settings-form-grid'>
@@ -419,7 +419,7 @@ export function McpSettingsPage() {
           {loading ? (
             <p>加载中...</p>
           ) : servers.length === 0 ? (
-            <p className='empty-hint'>暂无 MCP Server，请先新增。</p>
+            <p className='empty-hint'>暂无 MCP Server，先为你的赛博合伙人接入外部能力。</p>
           ) : (
             <ul className='settings-list' data-testid='mcp-server-list'>
               {servers.map((server) => {
@@ -606,3 +606,4 @@ export function McpSettingsPage() {
     />
   );
 }
+

@@ -1,6 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { MouseEvent as ReactMouseEvent, WheelEvent as ReactWheelEvent } from 'react';
-import type { KnowledgeSuggestion, TeamPanelState } from '../../types/domain';
+import type {
+  CollaborationAction,
+  CollaborationDiagnostics,
+  CollaborationRunStatus,
+  CollaborationSourceType,
+  KnowledgeSuggestion,
+  TeamMemberEvent,
+  TeamPanelState
+} from '../../types/domain';
 import type { RuntimeBackendHealth, TeamRunRecord } from '../../io/types';
 import { KnowledgeSuggestionCard } from '../cards/KnowledgeSuggestionCard';
 
@@ -15,6 +23,129 @@ interface GraphPreference {
   manualNodePositions: Record<string, GraphPoint>;
 }
 
+type RightSidebarTab = 'overview' | 'timeline' | 'graph' | 'knowledge';
+
+const RIGHT_SIDEBAR_TAB_STORAGE_KEY = 'okk.right-sidebar.tab';
+
+function isRightSidebarTab(value: string | null): value is RightSidebarTab {
+  return value === 'overview' || value === 'timeline' || value === 'graph' || value === 'knowledge';
+}
+
+function readStoredRightSidebarTab(): RightSidebarTab | null {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+
+  try {
+    const value = window.localStorage.getItem(RIGHT_SIDEBAR_TAB_STORAGE_KEY);
+    return isRightSidebarTab(value) ? value : null;
+  } catch {
+    return null;
+  }
+}
+
+function persistRightSidebarTab(tab: RightSidebarTab): void {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  try {
+    window.localStorage.setItem(RIGHT_SIDEBAR_TAB_STORAGE_KEY, tab);
+  } catch {
+    // ignore persistence failure
+  }
+}
+
+function resolveDefaultTab(input: {
+  pendingSuggestions: number;
+  hasEvents: boolean;
+  teamRunError: string | null;
+}): RightSidebarTab {
+  if (input.pendingSuggestions > 0) {
+    return 'knowledge';
+  }
+  if (input.teamRunError || input.hasEvents) {
+    return 'timeline';
+  }
+  return 'overview';
+}
+
+function formatRuntimeStatusLabel(status: CollaborationRunStatus | undefined): string {
+  if (status === 'completed') {
+    return 'completed';
+  }
+  if (status === 'failed') {
+    return 'failed';
+  }
+  if (status === 'aborted') {
+    return 'aborted';
+  }
+  if (status === 'ready') {
+    return 'ready';
+  }
+  if (status === 'unavailable') {
+    return 'unavailable';
+  }
+  if (status === 'queued') {
+    return 'queued';
+  }
+  return 'running';
+}
+
+function getRuntimeStatusPillClass(status: CollaborationRunStatus | undefined): string {
+  if (status === 'completed' || status === 'ready') {
+    return 'pill-success';
+  }
+  if (status === 'failed' || status === 'aborted' || status === 'unavailable') {
+    return 'pill-error';
+  }
+  return 'pill-running';
+}
+
+function formatSourceTypeLabel(sourceType: CollaborationSourceType | undefined): string {
+  if (sourceType === 'agent') {
+    return 'Agent';
+  }
+  if (sourceType === 'backend') {
+    return 'Backend';
+  }
+  if (sourceType === 'skill') {
+    return 'Skill';
+  }
+  if (sourceType === 'mcp') {
+    return 'MCP';
+  }
+  if (sourceType === 'tool') {
+    return 'Tool';
+  }
+  return 'Team';
+}
+
+function buildDiagnosticCopyText(input: {
+  summary: string;
+  runId?: string;
+  sourceType?: CollaborationSourceType;
+  diagnostics?: CollaborationDiagnostics;
+}): string {
+  const lines = [input.summary];
+  if (input.runId) {
+    lines.push(`Run: ${input.runId}`);
+  }
+  if (input.sourceType) {
+    lines.push(`Source: ${input.sourceType}`);
+  }
+  if (input.diagnostics?.code) {
+    lines.push(`Code: ${input.diagnostics.code}`);
+  }
+  if (input.diagnostics?.message) {
+    lines.push(`Message: ${input.diagnostics.message}`);
+  }
+  if (input.diagnostics?.detail) {
+    lines.push(`Detail: ${input.diagnostics.detail}`);
+  }
+  return lines.join('\n');
+}
+
 interface RightSidebarProps {
   suggestions: KnowledgeSuggestion[];
   teamView: TeamPanelState;
@@ -25,6 +156,9 @@ interface RightSidebarProps {
   teamRunError?: string | null;
   onStartTeamRun?: () => void;
   onRefreshTeamRuns?: () => void;
+  onRefreshCapabilities?: () => void;
+  onRetryLastMessage?: () => void;
+  onOpenRoute?: (route: string) => void;
   onSaveSuggestion: (suggestionId: string) => void;
   onIgnoreSuggestion: (suggestionId: string) => void;
 }
@@ -39,10 +173,24 @@ export function RightSidebar({
   teamRunError = null,
   onStartTeamRun = () => undefined,
   onRefreshTeamRuns = () => undefined,
+  onRefreshCapabilities = () => undefined,
+  onRetryLastMessage = () => undefined,
+  onOpenRoute = () => undefined,
   onSaveSuggestion,
   onIgnoreSuggestion
 }: RightSidebarProps) {
-  const [activeTab, setActiveTab] = useState<'overview' | 'timeline' | 'graph' | 'knowledge'>('overview');
+  const pendingSuggestions = suggestions.filter((suggestion) => suggestion.status === 'pending').length;
+  const hasTimelineEvents = teamView.eventFeed.length > 0;
+  const storedActiveTab = useMemo(() => readStoredRightSidebarTab(), []);
+  const [activeTab, setActiveTab] = useState<RightSidebarTab>(() =>
+    storedActiveTab ??
+    resolveDefaultTab({
+      pendingSuggestions,
+      hasEvents: hasTimelineEvents,
+      teamRunError
+    })
+  );
+  const [hasExplicitTabPreference, setHasExplicitTabPreference] = useState<boolean>(() => storedActiveTab !== null);
   const [timelineQuery, setTimelineQuery] = useState('');
   const [focusedEventIds, setFocusedEventIds] = useState<string[]>([]);
   const [selectedGraphTaskIds, setSelectedGraphTaskIds] = useState<string[]>([]);
@@ -64,7 +212,6 @@ export function RightSidebar({
     originY: number;
   } | null>(null);
   const nodeDragMovedRef = useRef(false);
-  const pendingSuggestions = suggestions.filter((suggestion) => suggestion.status === 'pending').length;
   const backendReadyCount = runtimeBackends.filter((item) => item.available).length;
   const latestRuns = teamRuns.slice(0, 4);
   const graphBaseWidth = 460;
@@ -72,6 +219,86 @@ export function RightSidebar({
     () => `okk.graph.preferences.${teamView.teamName ?? 'default'}`,
     [teamView.teamName]
   );
+  const filteredTimelineEvents = useMemo(() => {
+    const query = timelineQuery.trim().toLowerCase();
+    if (!query) {
+      return teamView.eventFeed;
+    }
+    return teamView.eventFeed.filter((event) => {
+      const haystack = [
+        event.type,
+        event.summary,
+        event.sourceType ?? '',
+        event.status ?? '',
+        event.runId ?? '',
+        event.diagnostics?.message ?? '',
+        event.diagnostics?.detail ?? '',
+        event.diagnostics?.code ?? ''
+      ]
+        .join(' ')
+        .toLowerCase();
+      return haystack.includes(query);
+    });
+  }, [teamView.eventFeed, timelineQuery]);
+
+  useEffect(() => {
+    persistRightSidebarTab(activeTab);
+  }, [activeTab]);
+
+  useEffect(() => {
+    if (hasExplicitTabPreference) {
+      return;
+    }
+
+    setActiveTab(
+      resolveDefaultTab({
+        pendingSuggestions,
+        hasEvents: hasTimelineEvents,
+        teamRunError
+      })
+    );
+  }, [hasExplicitTabPreference, hasTimelineEvents, pendingSuggestions, teamRunError]);
+
+  const handleTabChange = (tab: RightSidebarTab): void => {
+    setHasExplicitTabPreference(true);
+    setActiveTab(tab);
+  };
+  const handleDiagnosticAction = (
+    action: CollaborationAction,
+    input: {
+      summary: string;
+      runId?: string;
+      sourceType?: CollaborationSourceType;
+      diagnostics?: CollaborationDiagnostics;
+    }
+  ): void => {
+    if (action.kind === 'retry') {
+      onRetryLastMessage();
+      return;
+    }
+
+    if (action.kind === 'refresh') {
+      if (input.sourceType === 'backend') {
+        onRefreshCapabilities();
+        return;
+      }
+      onRefreshTeamRuns();
+      return;
+    }
+
+    if (action.kind === 'open_route') {
+      if (action.route) {
+        onOpenRoute(action.route);
+      }
+      return;
+    }
+
+    if (typeof navigator === 'undefined' || !navigator.clipboard?.writeText) {
+      return;
+    }
+
+    void navigator.clipboard.writeText(buildDiagnosticCopyText(input));
+  };
   const taskGraphNodes = useMemo(() => {
     const resolveDependencyTaskId = (dependency: string): string | null => {
       const direct = teamView.tasks.find((task) => task.taskId === dependency);
@@ -157,15 +384,6 @@ export function RightSidebar({
     () => new Map(taskGraphNodes.map((item) => [item.taskId, item])),
     [taskGraphNodes]
   );
-  const filteredTimelineEvents = useMemo(() => {
-    const query = timelineQuery.trim().toLowerCase();
-    if (!query) {
-      return teamView.eventFeed;
-    }
-    return teamView.eventFeed.filter((event) => {
-      return event.type.toLowerCase().includes(query) || event.summary.toLowerCase().includes(query);
-    });
-  }, [teamView.eventFeed, timelineQuery]);
   const taskDepthById = useMemo(
     () => new Map(taskGraphNodes.map((task) => [task.taskId, task.depth])),
     [taskGraphNodes]
@@ -617,28 +835,28 @@ export function RightSidebar({
         <button
           type='button'
           className={`small-button ${activeTab === 'overview' ? 'primary-button' : 'ghost-button'}`}
-          onClick={() => setActiveTab('overview')}
+          onClick={() => handleTabChange('overview')}
         >
           概览
         </button>
         <button
           type='button'
           className={`small-button ${activeTab === 'timeline' ? 'primary-button' : 'ghost-button'}`}
-          onClick={() => setActiveTab('timeline')}
+          onClick={() => handleTabChange('timeline')}
         >
           时间线
         </button>
         <button
           type='button'
           className={`small-button ${activeTab === 'graph' ? 'primary-button' : 'ghost-button'}`}
-          onClick={() => setActiveTab('graph')}
+          onClick={() => handleTabChange('graph')}
         >
           任务图
         </button>
         <button
           type='button'
           className={`small-button ${activeTab === 'knowledge' ? 'primary-button' : 'ghost-button'}`}
-          onClick={() => setActiveTab('knowledge')}
+          onClick={() => handleTabChange('knowledge')}
         >
           知识
         </button>
@@ -688,11 +906,35 @@ export function RightSidebar({
             <article className='team-item'>
               <div className='team-item-header'>
                 <span>当前 Run</span>
-                <span className={`pill pill-${teamRun.status}`}>{teamRun.status}</span>
+                <span className={`pill ${getRuntimeStatusPillClass(teamRun.runtimeStatus)}`}>
+                  {formatRuntimeStatusLabel(teamRun.runtimeStatus)}
+                </span>
               </div>
               <p className='small-text'>{teamRun.teamName}</p>
               <p className='small-text'>成员 {teamRun.memberCount} · 开始于 {formatTime(teamRun.startedAt)}</p>
               {teamRun.summary && <p className='small-text'>{teamRun.summary}</p>}
+              {teamRun.diagnostics && <p className='small-text'>{teamRun.diagnostics.message}</p>}
+              {teamRun.actions && teamRun.actions.length > 0 && (
+                <div className='row-actions team-item-actions'>
+                  {teamRun.actions.map((action) => (
+                    <button
+                      key={`team-run-${action.kind}`}
+                      type='button'
+                      className='small-button ghost-button'
+                      onClick={() =>
+                        handleDiagnosticAction(action, {
+                          summary: teamRun.summary ?? teamRun.teamName,
+                          diagnostics: teamRun.diagnostics,
+                          runId: teamRun.id,
+                          sourceType: teamRun.sourceType
+                        })
+                      }
+                    >
+                      {action.label}
+                    </button>
+                  ))}
+                </div>
+              )}
             </article>
           )}
 
@@ -710,12 +952,33 @@ export function RightSidebar({
                 <li key={item.backend} className='team-item'>
                   <div className='team-item-header'>
                     <span>{item.backend}</span>
-                    <span className={`pill ${item.available ? 'pill-success' : 'pill-error'}`}>
-                      {item.available ? 'available' : 'unavailable'}
+                    <span className={`pill ${getRuntimeStatusPillClass(item.runtimeStatus)}`}>
+                      {formatRuntimeStatusLabel(item.runtimeStatus)}
                     </span>
                   </div>
                   <p className='small-text'>命令: {item.command || '-'}</p>
-                  {!item.available && item.reason && <p className='small-text'>{item.reason}</p>}
+                  {item.diagnostics && <p className='small-text'>{item.diagnostics.message}</p>}
+                  {item.diagnostics?.detail && <p className='small-text'>{item.diagnostics.detail}</p>}
+                  {item.actions && item.actions.length > 0 && (
+                    <div className='row-actions team-item-actions'>
+                      {item.actions.map((action) => (
+                        <button
+                          key={`${item.backend}-${action.kind}`}
+                          type='button'
+                          className='small-button ghost-button'
+                          onClick={() =>
+                            handleDiagnosticAction(action, {
+                              summary: `${item.backend} health`,
+                              diagnostics: item.diagnostics,
+                              sourceType: item.sourceType
+                            })
+                          }
+                        >
+                          {action.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </li>
               ))}
             </ul>
@@ -733,11 +996,14 @@ export function RightSidebar({
                 <li key={run.id} className='team-item'>
                   <div className='team-item-header'>
                     <span>{run.teamName}</span>
-                    <span className={`pill pill-${run.status}`}>{run.status}</span>
+                    <span className={`pill ${getRuntimeStatusPillClass(run.runtimeStatus)}`}>
+                      {formatRuntimeStatusLabel(run.runtimeStatus)}
+                    </span>
                   </div>
                   <p className='small-text'>
                     {run.memberCount} 成员 · 更新于 {formatTime(run.updatedAt)}
                   </p>
+                  {run.diagnostics && <p className='small-text'>{run.diagnostics.message}</p>}
                 </li>
               ))}
             </ul>
@@ -845,8 +1111,46 @@ export function RightSidebar({
                     {formatTime(event.createdAt)}
                   </time>
                   <div className='team-event-content'>
-                    <p className='team-event-type'>{event.type}</p>
+                    <div className='team-event-head'>
+                      <p className='team-event-type'>{event.type}</p>
+                      <div className='team-event-badges'>
+                        {event.sourceType && <span className='team-backend-tag'>{formatSourceTypeLabel(event.sourceType)}</span>}
+                        {event.status && (
+                          <span className={`pill ${getRuntimeStatusPillClass(event.status)}`}>
+                            {formatRuntimeStatusLabel(event.status)}
+                          </span>
+                        )}
+                      </div>
+                    </div>
                     <p className='small-text'>{event.summary}</p>
+                    {event.runId && <p className='small-text'>Run {event.runId}</p>}
+                    {event.diagnostics && (
+                      <div className='team-event-diagnostic'>
+                        <p className='small-text'>{event.diagnostics.message}</p>
+                        {event.diagnostics.detail && <p className='small-text'>{event.diagnostics.detail}</p>}
+                      </div>
+                    )}
+                    {event.actions && event.actions.length > 0 && (
+                      <div className='row-actions team-event-actions'>
+                        {event.actions.map((action) => (
+                          <button
+                            key={`${event.id}-${action.kind}`}
+                            type='button'
+                            className='small-button ghost-button'
+                            onClick={() =>
+                              handleDiagnosticAction(action, {
+                                summary: event.summary,
+                                diagnostics: event.diagnostics,
+                                runId: event.runId,
+                                sourceType: event.sourceType
+                              })
+                            }
+                          >
+                            {action.label}
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </li>
               ))}

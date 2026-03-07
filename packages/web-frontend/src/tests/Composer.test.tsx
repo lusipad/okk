@@ -84,4 +84,9 @@ describe('Composer', () => {
       expect(onStop).toHaveBeenCalledTimes(1);
     });
   });
+
 });
+
+
+
+
