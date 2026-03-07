@@ -4,6 +4,9 @@ import type {
   KnowledgeRecord,
   OkkCore,
   QaRequest,
+  RepoActivityRecord,
+  RepoContextRecord,
+  RepoContinueRecord,
   RepoRecord,
   SessionRecord,
   SkillRecord,
@@ -21,6 +24,7 @@ export function createInMemoryCore(): OkkCore {
   const repos: RepoRecord[] = [];
   const sessions: SessionRecord[] = [];
   const knowledge: KnowledgeRecord[] = [];
+  const repoContexts = new Map<string, RepoContextRecord>();
   const agents: AgentRecord[] = [
     {
       name: "knowledge-extractor",
@@ -66,6 +70,16 @@ export function createInMemoryCore(): OkkCore {
 
     return wrapped;
   };
+
+  const getDefaultRepoContext = (repoId: string, repoName: string): RepoContextRecord => ({
+    repoId,
+    repoName,
+    snapshot: {
+      preferredSkillIds: [],
+      preferredMcpServerIds: [],
+    },
+    recentActivities: [],
+  });
 
   async function* streamAnswer(request: QaRequest) {
     const flag = { aborted: false };
@@ -141,7 +155,61 @@ export function createInMemoryCore(): OkkCore {
           createdAt: now(),
         };
         repos.push(record);
+        repoContexts.set(record.id, {
+          repoId: record.id,
+          repoName: record.name,
+          snapshot: { preferredSkillIds: [], preferredMcpServerIds: [] },
+          recentActivities: []
+        });
         return record;
+      },
+      async getContext(repoId) {
+        const repoName = repos.find((item) => item.id === repoId)?.name ?? "默认仓库";
+        const current = repoContexts.get(repoId) ?? {
+          repoId,
+          repoName,
+          snapshot: { preferredSkillIds: [], preferredMcpServerIds: [] },
+          recentActivities: []
+        };
+        repoContexts.set(repoId, current);
+        return current;
+      },
+      async updateContext(repoId, input) {
+        const current = await this.getContext(repoId);
+        const next = {
+          ...current,
+          snapshot: {
+            ...current.snapshot,
+            ...input,
+            preferredSkillIds: input.preferredSkillIds ?? current.snapshot.preferredSkillIds,
+            preferredMcpServerIds: input.preferredMcpServerIds ?? current.snapshot.preferredMcpServerIds,
+            lastUpdatedAt: now(),
+          },
+          recentActivities: [
+            {
+              id: randomUUID(),
+              repoId,
+              activityType: "context_update",
+              summary: "更新了项目上下文偏好",
+              payload: input as Record<string, unknown>,
+              createdAt: now(),
+            },
+            ...current.recentActivities,
+          ].slice(0, 5),
+        };
+        repoContexts.set(repoId, next);
+        return next;
+      },
+      async continue(repoId) {
+        const current = await this.getContext(repoId);
+        return {
+          repoId,
+          repoName: current.repoName,
+          prompt: current.snapshot.continuePrompt ?? `请继续上次工作：${current.snapshot.lastActivitySummary ?? "继续当前仓库任务"}` ,
+          summary: current.snapshot.lastActivitySummary ?? current.recentActivities[0]?.summary ?? "继续上次工作",
+          snapshot: current.snapshot,
+          recentActivities: current.recentActivities,
+        };
       },
     },
     sessions: {

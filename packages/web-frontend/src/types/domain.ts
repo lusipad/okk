@@ -132,7 +132,46 @@ export interface TeamPanelState {
 export interface SessionInfo {
   id: string;
   title: string;
+  repoId?: string;
   updatedAt: string;
+}
+
+export interface RepoContextSnapshot {
+  preferredAgentId?: string | null;
+  preferredAgentName?: string | null;
+  preferredBackend?: string | null;
+  preferredMode?: string | null;
+  preferredSkillIds: string[];
+  preferredMcpServerIds: string[];
+  lastSessionId?: string | null;
+  lastActivitySummary?: string | null;
+  continuePrompt?: string | null;
+  lastUpdatedAt?: string | null;
+}
+
+export interface RepoActivityRecord {
+  id: string;
+  repoId?: string;
+  activityType: string;
+  summary: string;
+  payload: Record<string, unknown>;
+  createdAt: string;
+}
+
+export interface RepoContextRecord {
+  repoId?: string;
+  repoName: string;
+  snapshot: RepoContextSnapshot;
+  recentActivities: RepoActivityRecord[];
+}
+
+export interface RepoContinueRecord {
+  repoId?: string;
+  repoName: string;
+  prompt: string;
+  summary: string;
+  snapshot: RepoContextSnapshot;
+  recentActivities: RepoActivityRecord[];
 }
 
 export interface McpServerInfo {
@@ -160,3 +199,6 @@ export interface LoginResult {
   token: string;
   user: UserProfile;
 }
+
+
+

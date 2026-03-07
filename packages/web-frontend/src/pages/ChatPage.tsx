@@ -9,7 +9,10 @@ import { ShellLayout } from '../components/layout/ShellLayout';
 import { ConnectionBanner } from '../components/common/ConnectionBanner';
 import { MessageList } from '../components/chat/MessageList';
 import { Composer } from '../components/chat/Composer';
-import type { ChatMessage, TeamPanelState } from '../types/domain';
+import type { ChatMessage, RepoContextRecord, TeamPanelState } from '../types/domain';
+
+type LoadedRepoContext = RepoContextRecord & { repoName: string };
+type LoadedRepoContinue = { repoId?: string; repoName: string; prompt: string; summary: string; snapshot: RepoContextRecord['snapshot']; recentActivities: RepoContextRecord['recentActivities'] };
 import type { RuntimeBackendHealth, TeamRunRecord } from '../io/types';
 
 interface SelectableSkill {
@@ -109,8 +112,13 @@ export function ChatPage() {
   const [teamRuns, setTeamRuns] = useState<TeamRunRecord[]>([]);
   const [activeRunId, setActiveRunId] = useState<string | null>(null);
   const [composerExternalDraft, setComposerExternalDraft] = useState<ComposerExternalDraft | null>(null);
+  const [projectContext, setProjectContext] = useState<LoadedRepoContext | null>(null);
+  const [projectContextLoading, setProjectContextLoading] = useState(false);
+  const [projectContextError, setProjectContextError] = useState<string | null>(null);
 
   const currentSessionId = state.currentSessionId;
+  const currentSession = useMemo(() => state.sessions.find((item) => item.id === currentSessionId) ?? null, [currentSessionId, state.sessions]);
+  const currentRepoId = currentSession?.repoId ?? null;
   const messages = state.messagesBySession[currentSessionId ?? ''] ?? [];
   const suggestions = state.suggestionsBySession[currentSessionId ?? ''] ?? [];
   const teamView = state.teamViewBySession[currentSessionId ?? ''] ?? EMPTY_TEAM_VIEW;
@@ -246,6 +254,30 @@ export function ChatPage() {
     }
     void loadTeamRuns(currentSessionId);
   }, [currentSessionId, loadTeamRuns]);
+
+  const loadProjectContext = useCallback(async (repoId: string): Promise<void> => {
+    setProjectContextLoading(true);
+    setProjectContextError(null);
+    try {
+      const record = await io.getRepoContext(repoId);
+      setProjectContext(record);
+    } catch (incoming) {
+      setProjectContext(null);
+      setProjectContextError(toErrorMessage(incoming, '加载项目上下文失败'));
+    } finally {
+      setProjectContextLoading(false);
+    }
+  }, [io]);
+
+  useEffect(() => {
+    if (!currentRepoId) {
+      setProjectContext(null);
+      setProjectContextLoading(false);
+      setProjectContextError(null);
+      return;
+    }
+    void loadProjectContext(currentRepoId);
+  }, [currentRepoId, loadProjectContext]);
 
   useEffect(() => {
     const applyDesktopPaths = (paths: string[]): void => {
@@ -523,6 +555,50 @@ export function ChatPage() {
     }
   };
 
+  const continueProjectContext = async (): Promise<void> => {
+    if (!currentRepoId) {
+      return;
+    }
+
+    try {
+      const record = await io.continueRepoContext(currentRepoId) as LoadedRepoContinue;
+      setProjectContext({
+        repoId: record.repoId,
+        repoName: record.repoName,
+        snapshot: record.snapshot,
+        recentActivities: record.recentActivities
+      });
+      setComposerExternalDraft({
+        id: `continue-${Date.now()}`,
+        text: record.prompt
+      });
+    } catch (incoming) {
+      setError(toErrorMessage(incoming, '加载继续工作提示失败'));
+    }
+  };
+
+  const saveProjectContext = async (): Promise<void> => {
+    if (!currentRepoId) {
+      return;
+    }
+
+    try {
+      const record = await io.updateRepoContext(currentRepoId, {
+        preferredAgentId: selectedAgent?.id ?? null,
+        preferredAgentName: selectedAgent?.name ?? null,
+        preferredBackend: selectedAgent?.backend ?? null,
+        preferredMode: 'ask',
+        preferredSkillIds: selectedSkillIds,
+        preferredMcpServerIds: selectedMcpServerIds,
+        lastSessionId: currentSessionId ?? null,
+        lastActivitySummary: projectContext?.snapshot.lastActivitySummary ?? null
+      });
+      setProjectContext(record);
+    } catch (incoming) {
+      setError(toErrorMessage(incoming, '保存项目偏好失败'));
+    }
+  };
+
   const ignoreSuggestion = async (suggestionId: string): Promise<void> => {
     if (!currentSessionId) {
       return;
@@ -546,8 +622,22 @@ export function ChatPage() {
         <LeftSidebar
           sessions={state.sessions}
           currentSessionId={state.currentSessionId}
+          projectContext={
+            currentRepoId
+              ? {
+                  repoName: projectContext?.repoName ?? currentRepoId,
+                  preferredAgentName: projectContext?.snapshot.preferredAgentName ?? null,
+                  lastActivitySummary: projectContext?.snapshot.lastActivitySummary ?? projectContext?.recentActivities[0]?.summary ?? null,
+                  loading: projectContextLoading,
+                  error: projectContextError
+                }
+              : null
+          }
           onSelectSession={(sessionId) => dispatch({ type: 'set_current_session', sessionId })}
           onCreateSession={() => void createSession()}
+          onContinueProjectContext={() => void continueProjectContext()}
+          onSaveProjectContext={() => void saveProjectContext()}
+          onRefreshProjectContext={() => void (currentRepoId ? loadProjectContext(currentRepoId) : Promise.resolve())}
         />
       }
       center={
@@ -664,6 +754,7 @@ export function ChatPage() {
     />
   );
 }
+
 
 
 

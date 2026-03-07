@@ -57,6 +57,33 @@ describe('LeftSidebar', () => {
     expect(screen.getByText('修复登录与空白页')).toBeInTheDocument();
   });
 
+  it('展示分层信息架构并支持 Search 入口', async () => {
+    const user = userEvent.setup();
+    const commandListener = vi.fn();
+    window.addEventListener('okk:command-palette', commandListener as EventListener);
+
+    render(
+      <MemoryRouter initialEntries={['/']}>
+        <LeftSidebar
+          sessions={[{ id: 'session-1', title: '重构右侧任务图', updatedAt: '2026-02-01T00:00:00.000Z' }]}
+          currentSessionId='session-1'
+          onSelectSession={() => undefined}
+          onCreateSession={() => undefined}
+        />
+      </MemoryRouter>
+    );
+
+    expect(screen.getByRole('button', { name: 'New chat' })).toBeInTheDocument();
+    expect(screen.getByText('Search', { selector: '.sidebar-section-label' })).toBeInTheDocument();
+    expect(screen.getByText('Primary links', { selector: '.sidebar-section-label' })).toBeInTheDocument();
+    expect(screen.getAllByText('Chats').length).toBeGreaterThan(0);
+
+    await user.click(screen.getByTestId('sidebar-search-trigger'));
+    expect(commandListener).toHaveBeenCalledTimes(1);
+
+    window.removeEventListener('okk:command-palette', commandListener as EventListener);
+  });
+
   it('筛选无结果时显示空态提示', async () => {
     const user = userEvent.setup();
     render(
@@ -72,5 +99,40 @@ describe('LeftSidebar', () => {
 
     await user.type(screen.getByTestId('session-search-input'), '不存在');
     expect(screen.getByText('没有匹配“不存在”的会话。')).toBeInTheDocument();
+  });
+
+  it('展示项目上下文并支持继续上次工作与记住偏好', async () => {
+    const user = userEvent.setup();
+    const onContinue = vi.fn();
+    const onSave = vi.fn();
+
+    render(
+      <MemoryRouter initialEntries={['/']}>
+        <LeftSidebar
+          sessions={[{ id: 'session-1', title: '重构右侧任务图', repoId: 'repo-1', updatedAt: '2026-02-01T00:00:00.000Z' }]}
+          currentSessionId='session-1'
+          projectContext={{
+            repoName: 'okclaw',
+            preferredAgentName: 'code-reviewer',
+            lastActivitySummary: '继续修复登录流程'
+          }}
+          onSelectSession={() => undefined}
+          onCreateSession={() => undefined}
+          onContinueProjectContext={onContinue}
+          onSaveProjectContext={onSave}
+        />
+      </MemoryRouter>
+    );
+
+    expect(screen.getByTestId('sidebar-project-context')).toBeInTheDocument();
+    expect(screen.getByText('当前仓库：okclaw')).toBeInTheDocument();
+    expect(screen.getByText('偏好 Agent：code-reviewer')).toBeInTheDocument();
+    expect(screen.getByText('最近活动：继续修复登录流程')).toBeInTheDocument();
+
+    await user.click(screen.getByTestId('sidebar-project-continue'));
+    await user.click(screen.getByTestId('sidebar-project-save'));
+
+    expect(onContinue).toHaveBeenCalledTimes(1);
+    expect(onSave).toHaveBeenCalledTimes(1);
   });
 });

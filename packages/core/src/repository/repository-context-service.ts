@@ -14,6 +14,7 @@ export interface BuildRepositoryContextInput {
   repoId: string;
   additionalDirectories?: string[];
   knowledgeLimit?: number;
+  projectContextAppendix?: string;
 }
 
 const DEFAULT_DENY_PATTERNS = [
@@ -106,4 +107,6 @@ export class RepositoryContextService {
     };
   }
 }
+
+
 

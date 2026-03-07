@@ -6,6 +6,8 @@ import type {
   CollaborationSourceType,
   KnowledgeSuggestion,
   LoginResult,
+  RepoContextRecord,
+  RepoContinueRecord,
   SessionInfo,
   SkillInfo
 } from '../types/domain';
@@ -546,6 +548,18 @@ export class HttpWsIOProvider implements IOProvider {
     return this.http.post<SessionInfo>('/api/sessions', { title: resolvedTitle });
   }
 
+  async getRepoContext(repoId: string): Promise<RepoContextRecord> {
+    return this.http.get<RepoContextRecord>(`/api/repos/${encodeURIComponent(repoId)}/context`);
+  }
+
+  async updateRepoContext(repoId: string, input: Partial<RepoContextRecord['snapshot']>): Promise<RepoContextRecord> {
+    return this.http.patch<RepoContextRecord>(`/api/repos/${encodeURIComponent(repoId)}/context`, input);
+  }
+
+  async continueRepoContext(repoId: string): Promise<RepoContinueRecord> {
+    return this.http.post<RepoContinueRecord>(`/api/repos/${encodeURIComponent(repoId)}/continue`, {});
+  }
+
   async listRuntimeBackends(): Promise<RuntimeBackendHealth[]> {
     const payload = await this.http.get<
       BackendRuntimeHealthRecord[] | ListPayload<BackendRuntimeHealthRecord>
@@ -892,5 +906,7 @@ export class HttpWsIOProvider implements IOProvider {
     };
   }
 }
+
+
 
 

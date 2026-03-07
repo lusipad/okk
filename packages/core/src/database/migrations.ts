@@ -1,4 +1,4 @@
-import type { SqliteConnection } from "./sqlite-database.js";
+import type { SqliteConnection } from "./sqlite-adapter.js";
 import { CURRENT_SCHEMA_VERSION, createBaseSchemaSql } from "./schema.js";
 
 interface Migration {
@@ -20,20 +20,50 @@ const isIgnorableMigrationError = (error: unknown): boolean => {
 };
 
 const ensureCategoryColumn = (db: SqliteConnection): void => {
-  const tableInfo = db.prepare("PRAGMA table_info(knowledge_entries)").all() as Array<{
-    name: string;
-  }>;
+  const tableInfo = db.prepare("PRAGMA table_info(knowledge_entries)").all() as Array<{ name: string }>;
   const hasCategory = tableInfo.some((column) => column.name === "category");
 
   if (!hasCategory) {
-    db.exec(
-      "ALTER TABLE knowledge_entries ADD COLUMN category TEXT NOT NULL DEFAULT 'general';"
-    );
+    db.exec("ALTER TABLE knowledge_entries ADD COLUMN category TEXT NOT NULL DEFAULT 'general';");
   }
 
   db.prepare(
     "UPDATE knowledge_entries SET category = 'general' WHERE category IS NULL OR category = '';"
   ).run();
+};
+
+const ensureRepositoryContextColumns = (db: SqliteConnection): void => {
+  db.exec(createBaseSchemaSql);
+  const tableInfo = db.prepare("PRAGMA table_info(repositories)").all() as Array<{ name: string }>;
+  const hasSnapshot = tableInfo.some((column) => column.name === "context_snapshot_json");
+  const hasLastActivity = tableInfo.some((column) => column.name === "last_activity_at");
+
+  if (!hasSnapshot) {
+    db.exec("ALTER TABLE repositories ADD COLUMN context_snapshot_json TEXT NOT NULL DEFAULT '{}';");
+  }
+
+  if (!hasLastActivity) {
+    db.exec("ALTER TABLE repositories ADD COLUMN last_activity_at TEXT;");
+  }
+
+  db.prepare(
+    "UPDATE repositories SET context_snapshot_json = '{}' WHERE context_snapshot_json IS NULL OR context_snapshot_json = '';"
+  ).run();
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS repo_activity_log (
+      id TEXT PRIMARY KEY,
+      repo_id TEXT NOT NULL,
+      activity_type TEXT NOT NULL,
+      summary TEXT NOT NULL,
+      payload_json TEXT NOT NULL DEFAULT '{}',
+      created_at TEXT NOT NULL,
+      FOREIGN KEY (repo_id) REFERENCES repositories(id)
+    );
+  `);
+  db.exec(
+    "CREATE INDEX IF NOT EXISTS idx_repo_activity_log_repo_created ON repo_activity_log(repo_id, created_at DESC);"
+  );
 };
 
 const migrations: Migration[] = [
@@ -47,6 +77,12 @@ const migrations: Migration[] = [
     version: 2,
     run: (db) => {
       ensureCategoryColumn(db);
+    }
+  },
+  {
+    version: 3,
+    run: (db) => {
+      ensureRepositoryContextColumns(db);
     }
   }
 ];

@@ -1,4 +1,4 @@
-export const CURRENT_SCHEMA_VERSION = 2;
+export const CURRENT_SCHEMA_VERSION = 3;
 
 export const createBaseSchemaSql = `
 CREATE TABLE IF NOT EXISTS schema_migrations (
@@ -22,8 +22,23 @@ CREATE TABLE IF NOT EXISTS repositories (
   description TEXT,
   default_backend TEXT NOT NULL,
   status TEXT NOT NULL DEFAULT 'active',
-  created_at TEXT NOT NULL
+  created_at TEXT NOT NULL,
+  context_snapshot_json TEXT NOT NULL DEFAULT '{}',
+  last_activity_at TEXT
 );
+
+CREATE TABLE IF NOT EXISTS repo_activity_log (
+  id TEXT PRIMARY KEY,
+  repo_id TEXT NOT NULL,
+  activity_type TEXT NOT NULL,
+  summary TEXT NOT NULL,
+  payload_json TEXT NOT NULL DEFAULT '{}',
+  created_at TEXT NOT NULL,
+  FOREIGN KEY (repo_id) REFERENCES repositories(id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_repo_activity_log_repo_created
+ON repo_activity_log(repo_id, created_at DESC);
 
 CREATE TABLE IF NOT EXISTS sessions (
   id TEXT PRIMARY KEY,
@@ -157,4 +172,3 @@ CREATE TABLE IF NOT EXISTS installed_skills (
   installed_at TEXT NOT NULL
 );
 `;
-

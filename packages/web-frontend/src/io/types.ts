@@ -7,6 +7,8 @@ import type {
   KnowledgeSuggestion,
   LoginResult,
   McpServerInfo,
+  RepoContextRecord,
+  RepoContinueRecord,
   SessionInfo,
   SkillInfo,
   TeamMemberEvent,
@@ -203,6 +205,9 @@ export interface IOProvider {
   login(username: string, password: string): Promise<LoginResult>;
   listSessions(): Promise<SessionInfo[]>;
   createSession(title?: string): Promise<SessionInfo>;
+  getRepoContext(repoId: string): Promise<RepoContextRecord>;
+  updateRepoContext(repoId: string, input: Partial<RepoContextRecord['snapshot']>): Promise<RepoContextRecord>;
+  continueRepoContext(repoId: string): Promise<RepoContinueRecord>;
   listRuntimeBackends(): Promise<RuntimeBackendHealth[]>;
   askQuestion(input: AskQuestionInput): Promise<void>;
   retryQuestion(input: RetryQuestionInput): Promise<void>;
@@ -387,3 +392,4 @@ export interface TeamRunRecord {
   diagnostics?: CollaborationDiagnostics;
   actions?: CollaborationAction[];
 }
+

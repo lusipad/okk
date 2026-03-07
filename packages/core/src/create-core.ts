@@ -10,6 +10,7 @@ import {
 } from "./backend/index.js";
 import { AgentRunner } from "./agents/agent-runner.js";
 import { SqliteDatabase } from "./database/index.js";
+import type { RepoActivityRecord, RepositoryContextSnapshot, UpdateRepositoryContextInput } from "./database/dao/repositories-dao.js";
 import { TeamManager, type TeamMemberInput } from "./team/index.js";
 import type {
   AgentDefinition,
@@ -38,6 +39,44 @@ export interface CoreRepoRecord {
   name: string;
   path: string;
   createdAt: string;
+}
+
+export interface CoreRepoContextSnapshot {
+  preferredAgentId?: string | null;
+  preferredAgentName?: string | null;
+  preferredBackend?: BackendName | null;
+  preferredMode?: string | null;
+  preferredSkillIds: string[];
+  preferredMcpServerIds: string[];
+  lastSessionId?: string | null;
+  lastActivitySummary?: string | null;
+  continuePrompt?: string | null;
+  lastUpdatedAt?: string | null;
+}
+
+export interface CoreRepoActivityRecord {
+  id: string;
+  repoId: string;
+  activityType: string;
+  summary: string;
+  payload: Record<string, unknown>;
+  createdAt: string;
+}
+
+export interface CoreRepoContextRecord {
+  repoId: string;
+  repoName: string;
+  snapshot: CoreRepoContextSnapshot;
+  recentActivities: CoreRepoActivityRecord[];
+}
+
+export interface CoreRepoContinueRecord {
+  repoId: string;
+  repoName: string;
+  prompt: string;
+  summary: string;
+  snapshot: CoreRepoContextSnapshot;
+  recentActivities: CoreRepoActivityRecord[];
 }
 
 export interface CoreSessionRecord {
@@ -156,6 +195,9 @@ export interface CoreApi {
   repos: {
     list(): Promise<CoreRepoRecord[]>;
     create(input: Pick<CoreRepoRecord, "name" | "path">): Promise<CoreRepoRecord>;
+    getContext(repoId: string): Promise<CoreRepoContextRecord>;
+    updateContext(repoId: string, input: UpdateRepositoryContextInput): Promise<CoreRepoContextRecord>;
+    continue(repoId: string): Promise<CoreRepoContinueRecord>;
   };
   sessions: {
     list(): Promise<CoreSessionRecord[]>;
@@ -470,6 +512,61 @@ function toSessionRecord(record: Session): CoreSessionRecord {
   };
 }
 
+function toCoreRepoContextSnapshot(snapshot: RepositoryContextSnapshot): CoreRepoContextSnapshot {
+  return {
+    preferredAgentId: snapshot.preferredAgentId ?? null,
+    preferredAgentName: snapshot.preferredAgentName ?? null,
+    preferredBackend: snapshot.preferredBackend ?? null,
+    preferredMode: snapshot.preferredMode ?? null,
+    preferredSkillIds: snapshot.preferredSkillIds,
+    preferredMcpServerIds: snapshot.preferredMcpServerIds,
+    lastSessionId: snapshot.lastSessionId ?? null,
+    lastActivitySummary: snapshot.lastActivitySummary ?? null,
+    continuePrompt: snapshot.continuePrompt ?? null,
+    lastUpdatedAt: snapshot.lastUpdatedAt ?? null
+  };
+}
+
+function toCoreRepoActivityRecord(record: RepoActivityRecord): CoreRepoActivityRecord {
+  return {
+    id: record.id,
+    repoId: record.repoId,
+    activityType: record.activityType,
+    summary: record.summary,
+    payload: record.payload,
+    createdAt: record.createdAt
+  };
+}
+
+function formatProjectContextAppendix(snapshot: RepositoryContextSnapshot, recentActivities: RepoActivityRecord[]): string {
+  const lines: string[] = [];
+  if (snapshot.preferredAgentName || snapshot.preferredBackend || snapshot.preferredMode) {
+    lines.push("### Preferences");
+    if (snapshot.preferredAgentName) lines.push(`- Preferred Agent: ${snapshot.preferredAgentName}`);
+    if (snapshot.preferredBackend) lines.push(`- Preferred Backend: ${snapshot.preferredBackend}`);
+    if (snapshot.preferredMode) lines.push(`- Preferred Mode: ${snapshot.preferredMode}`);
+    if (snapshot.preferredSkillIds.length > 0) lines.push(`- Preferred Skills: ${snapshot.preferredSkillIds.join(", ")}`);
+    if (snapshot.preferredMcpServerIds.length > 0) lines.push(`- Preferred MCP Servers: ${snapshot.preferredMcpServerIds.join(", ")}`);
+  }
+  if (snapshot.lastActivitySummary) {
+    lines.push("### Last Activity");
+    lines.push(`- ${snapshot.lastActivitySummary}`);
+  }
+  if (recentActivities.length > 0) {
+    lines.push("### Recent Activities");
+    lines.push(...recentActivities.map((item, index) => `${index + 1}. ${item.summary}`));
+  }
+  return lines.join("\n");
+}
+
+function buildContinuePrompt(snapshot: RepositoryContextSnapshot, recentActivities: RepoActivityRecord[]): string {
+  if (snapshot.continuePrompt && snapshot.continuePrompt.trim().length > 0) {
+    return snapshot.continuePrompt;
+  }
+  const recentSummary = recentActivities[0]?.summary ?? snapshot.lastActivitySummary ?? "继续上次工作";
+  return `请继续上次工作：${recentSummary}`;
+}
+
 function summarizeContent(input: string): string {
   const trimmed = input.trim();
   if (trimmed.length <= 140) {
@@ -708,11 +805,16 @@ export async function createCore(options: CreateCoreOptions = {}): Promise<CoreA
       };
     }
 
+    const projectSnapshot = database.repositories.getContextSnapshot(repository.id);
+    const recentActivities = database.repositories.listRecentActivities(repository.id, 5);
+    const projectContextAppendix = formatProjectContextAppendix(projectSnapshot, recentActivities);
+
     try {
       const context = await repositoryContextService.buildContext({
         repositoryPath: repository.path,
         repoId: repository.id,
-        knowledgeLimit: 10
+        knowledgeLimit: 10,
+        projectContextAppendix
       });
 
       return {
@@ -842,6 +944,52 @@ export async function createCore(options: CreateCoreOptions = {}): Promise<CoreA
           defaultBackend: resolveActiveBackend()
         });
         return toRepoRecord(created);
+      },
+      async getContext(repoId) {
+        const repository = database.repositories.getById(repoId);
+        if (!repository) {
+          throw new Error("repository not found");
+        }
+        return {
+          repoId,
+          repoName: repository.name,
+          snapshot: toCoreRepoContextSnapshot(database.repositories.getContextSnapshot(repoId)),
+          recentActivities: database.repositories.listRecentActivities(repoId, 5).map(toCoreRepoActivityRecord)
+        };
+      },
+      async updateContext(repoId, input) {
+        const repository = database.repositories.getById(repoId);
+        if (!repository) {
+          throw new Error("repository not found");
+        }
+        const snapshot = database.repositories.updateContextSnapshot(repoId, input);
+        database.repositories.appendActivity(repoId, {
+          activityType: "context_update",
+          summary: "更新了项目上下文偏好",
+          payload: input as unknown as Record<string, unknown>
+        });
+        return {
+          repoId,
+          repoName: repository.name,
+          snapshot: toCoreRepoContextSnapshot(snapshot),
+          recentActivities: database.repositories.listRecentActivities(repoId, 5).map(toCoreRepoActivityRecord)
+        };
+      },
+      async continue(repoId) {
+        const repository = database.repositories.getById(repoId);
+        if (!repository) {
+          throw new Error("repository not found");
+        }
+        const snapshot = database.repositories.getContextSnapshot(repoId);
+        const recentActivities = database.repositories.listRecentActivities(repoId, 5);
+        return {
+          repoId,
+          repoName: repository.name,
+          prompt: buildContinuePrompt(snapshot, recentActivities),
+          summary: snapshot.lastActivitySummary ?? recentActivities[0]?.summary ?? "继续上次工作",
+          snapshot: toCoreRepoContextSnapshot(snapshot),
+          recentActivities: recentActivities.map(toCoreRepoActivityRecord)
+        };
       }
     },
     sessions: {
@@ -854,9 +1002,13 @@ export async function createCore(options: CreateCoreOptions = {}): Promise<CoreA
           database.repositories.getById(defaultRepo.id) ??
           defaultRepo;
 
-        const preferredBackend = availableBackends.has(repository.defaultBackend)
-          ? repository.defaultBackend
-          : resolveActiveBackend();
+        const repositoryContextSnapshot = database.repositories.getContextSnapshot(repository.id);
+        const preferredBackend =
+          repositoryContextSnapshot.preferredBackend && availableBackends.has(repositoryContextSnapshot.preferredBackend)
+            ? repositoryContextSnapshot.preferredBackend
+            : availableBackends.has(repository.defaultBackend)
+              ? repository.defaultBackend
+              : resolveActiveBackend();
 
         const created = database.sessions.create({
           userId: DEFAULT_ADMIN_ID,
@@ -1048,6 +1200,31 @@ export async function createCore(options: CreateCoreOptions = {}): Promise<CoreA
                 backendSessionId: qaSessionToBackendSession.get(request.sessionId)?.sessionId ?? null,
                 skillIds: requestedSkillIds,
                 resolvedSkillNames: resolvedSkills.map((item) => item.name),
+                mcpServerIds: requestedMcpServerIds
+              }
+            });
+
+            const activitySummary = summarizeContent(`${request.content}
+${assistantContent}`);
+            const continuePrompt = `请继续仓库 ${persistedSession.repoId} 上的工作，优先延续：${summarizeContent(request.content)}`;
+            database.repositories.updateContextSnapshot(persistedSession.repoId, {
+              preferredAgentName: request.agentName,
+              preferredBackend: request.backend,
+              preferredMode: request.action,
+              preferredSkillIds: requestedSkillIds,
+              preferredMcpServerIds: requestedMcpServerIds,
+              lastSessionId: persistedSession.id,
+              lastActivitySummary: activitySummary,
+              continuePrompt
+            });
+            database.repositories.appendActivity(persistedSession.repoId, {
+              activityType: "qa",
+              summary: activitySummary,
+              payload: {
+                sessionId: persistedSession.id,
+                agentName: request.agentName,
+                backend: request.backend,
+                skillIds: requestedSkillIds,
                 mcpServerIds: requestedMcpServerIds
               }
             });
@@ -1260,6 +1437,10 @@ export async function createCore(options: CreateCoreOptions = {}): Promise<CoreA
 }
 
 export const createOkkCore = createCore;
+
+
+
+
 
 
 

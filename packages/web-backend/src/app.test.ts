@@ -985,3 +985,46 @@ test("ws /qa 在没有进行中请求时返回 qa.abort_ignored", async () => {
     await app.close();
   }
 });
+
+test("REST /api/repos/context 支持读取、更新和继续工作摘要", async () => {
+  const app = await createApp({ jwtSecret: "test-secret", logger: false, coreMode: "memory" });
+  await app.listen({ host: "127.0.0.1", port: 0 });
+
+  try {
+    const token = await loginToken(app);
+    const headers = { Authorization: `Bearer ${token}` };
+
+    const reposResponse = await app.inject({ method: "GET", url: "/api/repos", headers });
+    assert.equal(reposResponse.statusCode, 200);
+    const repoId = (reposResponse.json().items as Array<{ id: string }>)[0]?.id;
+    assert.equal(typeof repoId, "string");
+
+    const getResponse = await app.inject({ method: "GET", url: `/api/repos/${repoId}/context`, headers });
+    assert.equal(getResponse.statusCode, 200, getResponse.body);
+    assert.equal(getResponse.json().repoId, repoId);
+
+    const patchResponse = await app.inject({
+      method: "PATCH",
+      url: `/api/repos/${repoId}/context`,
+      headers,
+      payload: {
+        preferredAgentName: "code-reviewer",
+        preferredBackend: "codex",
+        preferredMode: "ask",
+        preferredSkillIds: ["skill-a"],
+        continuePrompt: "请继续修复登录流程"
+      }
+    });
+    assert.equal(patchResponse.statusCode, 200, patchResponse.body);
+    assert.equal(patchResponse.json().snapshot.preferredAgentName, "code-reviewer");
+    assert.equal(patchResponse.json().snapshot.continuePrompt, "请继续修复登录流程");
+
+    const continueResponse = await app.inject({ method: "POST", url: `/api/repos/${repoId}/continue`, headers });
+    assert.equal(continueResponse.statusCode, 200, continueResponse.body);
+    assert.equal(continueResponse.json().repoId, repoId);
+    assert.equal(typeof continueResponse.json().prompt, "string");
+  } finally {
+    await app.close();
+  }
+});
+
