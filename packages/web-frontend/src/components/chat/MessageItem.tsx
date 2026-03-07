@@ -1,3 +1,4 @@
+import { useMemo, useState } from 'react';
 import type { ChatMessage } from '../../types/domain';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -6,6 +7,8 @@ import { ToolCallCard } from './ToolCallCard';
 interface MessageItemProps {
   message: ChatMessage;
 }
+
+const LONG_MESSAGE_THRESHOLD = 1200;
 
 function roleInitial(role: ChatMessage['role']): string {
   if (role === 'assistant') {
@@ -54,9 +57,17 @@ function formatExactTime(createdAt: string): string {
 }
 
 export function MessageItem({ message }: MessageItemProps) {
+  const [expanded, setExpanded] = useState(false);
   const hasContent = message.content.trim().length > 0;
   const hasToolCalls = message.toolCalls.length > 0;
   const hintText = message.status === 'error' ? '回复中断，可点击重试。' : null;
+  const isLongMessage = message.content.length > LONG_MESSAGE_THRESHOLD;
+  const visibleContent = useMemo(() => {
+    if (!isLongMessage || expanded) {
+      return message.content;
+    }
+    return `${message.content.slice(0, LONG_MESSAGE_THRESHOLD)}\n\n…（内容较长，已折叠）`;
+  }, [expanded, isLongMessage, message.content]);
 
   return (
     <article className={`message-item role-${message.role}`} data-status={message.status ?? 'idle'}>
@@ -72,23 +83,32 @@ export function MessageItem({ message }: MessageItemProps) {
             </time>
             {message.status === 'streaming' && <span className='small-text'>生成中</span>}
             {message.status === 'error' && <span className='small-text error-text'>失败</span>}
+            {message.status === 'aborted' && <span className='small-text'>已中止</span>}
           </div>
           {hintText ? <p className='message-hint'>{hintText}</p> : null}
           <div className='message-content' data-testid='message-content'>
             {hasContent ? (
-              <ReactMarkdown
-                remarkPlugins={[remarkGfm]}
-                components={{
-                  a: ({ ...props }) => <a {...props} target='_blank' rel='noreferrer' />,
-                  code: ({ className, children, ...props }) => (
-                    <code {...props} className={className}>
-                      {children}
-                    </code>
-                  )
-                }}
-              >
-                {message.content}
-              </ReactMarkdown>
+              <>
+                <ReactMarkdown
+                  remarkPlugins={[remarkGfm]}
+                  components={{
+                    a: ({ ...props }) => <a {...props} target='_blank' rel='noreferrer' />,
+                    pre: ({ children }) => <pre className='message-code-block'>{children}</pre>,
+                    code: ({ className, children, ...props }) => (
+                      <code {...props} className={className ? `${className} message-code-inline` : 'message-code-inline'}>
+                        {children}
+                      </code>
+                    )
+                  }}
+                >
+                  {visibleContent}
+                </ReactMarkdown>
+                {isLongMessage && (
+                  <button type='button' className='ghost-button small-button' onClick={() => setExpanded((value) => !value)}>
+                    {expanded ? '收起全文' : '展开全文'}
+                  </button>
+                )}
+              </>
             ) : message.status === 'streaming' ? (
               <span className='typing-indicator'>正在流式输出</span>
             ) : hasToolCalls ? (

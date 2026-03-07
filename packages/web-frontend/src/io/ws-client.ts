@@ -1,6 +1,9 @@
 import type {
+  SessionAbortIgnoredPayload,
   SessionEventEnvelope,
   SessionEventSubscriber,
+  SessionResumeFailedPayload,
+  SessionResumedPayload,
   TeamSubscriber,
   TeamWsEvent,
   WsConnectionState
@@ -27,8 +30,15 @@ interface RawBackendEvent {
   payload?: unknown;
 }
 
-const RESUME_BACKEND = 'codex';
-const RESUME_AGENT = 'code-reviewer';
+interface RuntimeIdentity {
+  backend: string;
+  agentName: string;
+}
+
+const DEFAULT_RUNTIME: RuntimeIdentity = {
+  backend: 'codex',
+  agentName: 'code-reviewer'
+};
 const MAX_BUFFERED_EVENTS = 200;
 
 const passthroughTypes = new Set<SessionEventEnvelope['type']>([
@@ -41,6 +51,9 @@ const passthroughTypes = new Set<SessionEventEnvelope['type']>([
   'knowledge_suggestion',
   'team_event',
   'session_done',
+  'session_resumed',
+  'session_resume_failed',
+  'session_abort_ignored',
   'auth_expired'
 ]);
 
@@ -56,11 +69,25 @@ function toText(input: unknown, fallback: string): string {
   return typeof input === 'string' && input.trim().length > 0 ? input : fallback;
 }
 
+function toNumber(input: unknown, fallback = 0): number {
+  return typeof input === 'number' && Number.isFinite(input) ? input : fallback;
+}
+
 function toSessionId(input: unknown, fallback: string): string {
   return typeof input === 'string' && input.trim().length > 0 ? input : fallback;
 }
 
-function normalizeIncomingEvent(raw: unknown, fallbackSessionId: string): SessionEventEnvelope | null {
+function buildDiagnostics(code: string, message: string, detail?: string, retryable = true) {
+  return {
+    code,
+    message,
+    ...(detail ? { detail } : {}),
+    retryable,
+    severity: retryable ? 'warning' : 'error'
+  } as const;
+}
+
+export function normalizeIncomingEvent(raw: unknown, fallbackSessionId: string): SessionEventEnvelope | null {
   const incoming = raw as RawBackendEvent;
   const type = incoming.type;
   const eventId = typeof incoming.event_id === 'number' ? incoming.event_id : NaN;
@@ -128,7 +155,59 @@ function normalizeIncomingEvent(raw: unknown, fallbackSessionId: string): Sessio
     };
   }
 
+  if (type === 'qa.abort_ignored') {
+    const nextPayload: SessionAbortIgnoredPayload = {
+      message: '当前没有正在执行的请求可中止。',
+      diagnostics: buildDiagnostics('qa_abort_ignored', '没有可中止的进行中请求', '当前会话已不处于流式执行状态。')
+    };
+    return {
+      type: 'session_abort_ignored',
+      sessionId,
+      event_id: eventId,
+      timestamp,
+      payload: nextPayload as unknown as Record<string, unknown>
+    };
+  }
+
+  if (type === 'qa.resume_ack') {
+    const nextPayload: SessionResumedPayload = {
+      replayCount: toNumber(payload.replay_count),
+      lastEventId: toNumber(payload.last_event_id)
+    };
+    return {
+      type: 'session_resumed',
+      sessionId,
+      event_id: eventId,
+      timestamp,
+      payload: nextPayload as unknown as Record<string, unknown>
+    };
+  }
+
+  if (type === 'qa.resume_failed') {
+    const lastEventId = toNumber(payload.last_event_id);
+    const latestEventId = toNumber(payload.latest_event_id);
+    const error = '事件恢复失败，请重试上一条消息或重新发起请求。';
+    const nextPayload: SessionResumeFailedPayload = {
+      lastEventId,
+      latestEventId,
+      error,
+      diagnostics: buildDiagnostics(
+        'qa_resume_failed',
+        '事件恢复失败',
+        `last_event_id=${lastEventId}，latest_event_id=${latestEventId}`
+      )
+    };
+    return {
+      type: 'session_resume_failed',
+      sessionId,
+      event_id: eventId,
+      timestamp,
+      payload: nextPayload as unknown as Record<string, unknown>
+    };
+  }
+
   if (type === 'qa.error') {
+    const error = toText(payload.reason, 'unknown_error');
     return {
       type: 'message_error',
       sessionId,
@@ -136,7 +215,8 @@ function normalizeIncomingEvent(raw: unknown, fallbackSessionId: string): Sessio
       timestamp,
       payload: {
         messageId,
-        error: toText(payload.reason, 'unknown_error')
+        error,
+        diagnostics: buildDiagnostics('qa_error', error)
       }
     };
   }
@@ -146,30 +226,19 @@ function normalizeIncomingEvent(raw: unknown, fallbackSessionId: string): Sessio
 
 export class SessionWsClient {
   private readonly wsBaseUrl: string;
-
   private readonly sessionId: string;
-
   private readonly getToken: () => string | null;
-
   private readonly onAuthExpired: () => void;
-
   private readonly subscribers = new Set<SessionEventSubscriber>();
-
   private readonly bufferedEvents: SessionEventEnvelope[] = [];
-
   private readonly outboundQueue: string[] = [];
-
   private ws: WebSocket | null = null;
-
   private lastEventId: number | undefined;
-
   private reconnectTimer: number | null = null;
-
   private reconnectAttempt = 0;
-
   private shouldReconnect = false;
-
   private isClosing = false;
+  private lastRuntime: RuntimeIdentity = { ...DEFAULT_RUNTIME };
 
   constructor(options: { wsBaseUrl: string; sessionId: string; getToken: () => string | null; onAuthExpired: () => void }) {
     this.wsBaseUrl = options.wsBaseUrl.replace(/^http/, 'ws').replace(/\/$/, '');
@@ -202,6 +271,13 @@ export class SessionWsClient {
   }
 
   sendQaMessage(message: QaClientMessage): void {
+    if (message.action === 'ask' || message.action === 'follow_up') {
+      this.lastRuntime = {
+        backend: message.backend,
+        agentName: message.agent_name
+      };
+    }
+
     const serialized = JSON.stringify(message);
     this.shouldReconnect = true;
 
@@ -214,6 +290,16 @@ export class SessionWsClient {
     if (!this.ws) {
       this.open('connecting');
     }
+  }
+
+  sendAbortMessage(): void {
+    const runtime = this.lastRuntime;
+    this.sendQaMessage({
+      action: 'abort',
+      backend: runtime.backend,
+      agent_name: runtime.agentName,
+      client_message_id: createWsMessageId('abort')
+    });
   }
 
   get hasSubscribers(): boolean {
@@ -263,8 +349,8 @@ export class SessionWsClient {
     this.ws.send(
       JSON.stringify({
         action: 'resume',
-        backend: RESUME_BACKEND,
-        agent_name: RESUME_AGENT,
+        backend: this.lastRuntime.backend,
+        agent_name: this.lastRuntime.agentName,
         client_message_id: createWsMessageId('resume'),
         last_event_id: this.lastEventId
       })
@@ -291,7 +377,6 @@ export class SessionWsClient {
     if (token) {
       params.set('token', token);
     }
-
     const suffix = params.size > 0 ? `?${params.toString()}` : '';
     const url = `${this.wsBaseUrl}/ws/qa/${this.sessionId}${suffix}`;
     this.ws = new WebSocket(url);
@@ -385,23 +470,14 @@ function normalizeTeamEvent(raw: unknown): TeamWsEvent | null {
 
 export class TeamWsClient {
   private readonly wsBaseUrl: string;
-
   private readonly teamId: string;
-
   private readonly getToken: () => string | null;
-
   private readonly onAuthExpired: () => void;
-
   private readonly subscribers = new Set<TeamSubscriber>();
-
   private ws: WebSocket | null = null;
-
   private reconnectTimer: number | null = null;
-
   private reconnectAttempt = 0;
-
   private shouldReconnect = false;
-
   private isClosing = false;
 
   constructor(options: { wsBaseUrl: string; teamId: string; getToken: () => string | null; onAuthExpired: () => void }) {
@@ -516,3 +592,4 @@ export class TeamWsClient {
     this.subscribers.forEach((item) => item.onConnectionState?.(state));
   }
 }
+

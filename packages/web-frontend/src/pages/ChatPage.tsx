@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useIO } from '../io/io-context';
 import { useChatStore } from '../state/chat-store';
 import { createClientId } from '../utils/id';
@@ -30,6 +31,31 @@ interface CapabilitySnapshot {
   runtimeBackends: RuntimeBackendHealth[];
   availableSkills: SelectableSkill[];
   availableMcpServers: SelectableMcpServer[];
+}
+
+interface DesktopFilesBridge {
+  files?: {
+    onDropped?: (listener: (paths: string[]) => void) => (() => void) | void;
+  };
+}
+
+interface DesktopFileSelectionDetail {
+  paths?: string[];
+}
+
+interface ComposerExternalDraft {
+  id: string;
+  text: string;
+}
+
+const DESKTOP_FILES_SELECTED_EVENT = 'okk:desktop-files-selected';
+
+function buildDesktopDraft(paths: string[]): string {
+  const normalized = paths.map((item) => item.trim()).filter(Boolean);
+  if (normalized.length === 0) {
+    return '';
+  }
+  return `请基于以下本地路径继续协作，并说明下一步操作：\n${normalized.map((item) => `- ${item}`).join('\n')}`;
 }
 
 const initialCapabilitySnapshot: CapabilitySnapshot = {
@@ -70,6 +96,7 @@ function toErrorMessage(error: unknown, fallback: string): string {
 }
 
 export function ChatPage() {
+  const navigate = useNavigate();
   const io = useIO();
   const { state, dispatch } = useChatStore();
   const [error, setError] = useState<string | null>(null);
@@ -81,20 +108,23 @@ export function ChatPage() {
   const [teamRunPending, setTeamRunPending] = useState(false);
   const [teamRuns, setTeamRuns] = useState<TeamRunRecord[]>([]);
   const [activeRunId, setActiveRunId] = useState<string | null>(null);
+  const [composerExternalDraft, setComposerExternalDraft] = useState<ComposerExternalDraft | null>(null);
 
   const currentSessionId = state.currentSessionId;
   const messages = state.messagesBySession[currentSessionId ?? ''] ?? [];
   const suggestions = state.suggestionsBySession[currentSessionId ?? ''] ?? [];
   const teamView = state.teamViewBySession[currentSessionId ?? ''] ?? EMPTY_TEAM_VIEW;
+  const runtimeState = state.runtimeStateBySession[currentSessionId ?? ''] ?? null;
   const isStreaming = useMemo(
     () => messages.some((item) => item.role === 'assistant' && item.status === 'streaming'),
     [messages]
   );
   const canRetry = useMemo(() => messages.some((item) => item.role === 'user'), [messages]);
-  const selectedAgentName = useMemo(
-    () => state.agents.find((agent) => agent.id === state.selectedAgentId)?.name ?? '未选择 Agent',
+  const selectedAgent = useMemo(
+    () => state.agents.find((agent) => agent.id === state.selectedAgentId) ?? null,
     [state.agents, state.selectedAgentId]
   );
+  const selectedAgentName = useMemo(() => selectedAgent?.name ?? '未选择 Agent', [selectedAgent]);
   const latestAssistantError = useMemo(
     () => [...messages].reverse().find((item) => item.role === 'assistant' && item.status === 'error') ?? null,
     [messages]
@@ -116,6 +146,19 @@ export function ChatPage() {
     }
     return teamRuns[0] ?? null;
   }, [activeRunId, teamRuns]);
+  const selectedBackendHealth = useMemo(() => {
+    if (!selectedAgent?.backend) {
+      return null;
+    }
+    return capabilitySnapshot.runtimeBackends.find((item) => item.backend === selectedAgent.backend) ?? null;
+  }, [capabilitySnapshot.runtimeBackends, selectedAgent?.backend]);
+  const sendBlockedReason = useMemo(() => {
+    if (!selectedAgent?.backend || !selectedBackendHealth || selectedBackendHealth.available) {
+      return null;
+    }
+    const detail = selectedBackendHealth.diagnostics?.message || selectedBackendHealth.reason || '请先修复桌面运行时或 CLI 环境。';
+    return `${selectedAgent.backend} 当前不可用：${detail}`;
+  }, [selectedAgent?.backend, selectedBackendHealth]);
 
   const loadBootstrap = useCallback(async (): Promise<void> => {
     setBootstrapLoading(true);
@@ -205,6 +248,39 @@ export function ChatPage() {
   }, [currentSessionId, loadTeamRuns]);
 
   useEffect(() => {
+    const applyDesktopPaths = (paths: string[]): void => {
+      const nextValue = buildDesktopDraft(paths);
+      if (!nextValue) {
+        return;
+      }
+      setComposerExternalDraft({
+        id: `${Date.now()}`,
+        text: nextValue
+      });
+    };
+
+    const desktopBridge = (window as Window & { okkDesktop?: DesktopFilesBridge }).okkDesktop;
+    const subscribe = desktopBridge?.files?.onDropped;
+    const unsubscribe = subscribe?.((paths) => {
+      applyDesktopPaths(paths);
+    });
+
+    const handleDesktopSelection = (event: Event): void => {
+      const detail = (event as CustomEvent<DesktopFileSelectionDetail>).detail;
+      applyDesktopPaths(detail?.paths ?? []);
+    };
+
+    window.addEventListener('okk:desktop-files-selected', handleDesktopSelection);
+
+    return () => {
+      if (typeof unsubscribe === 'function') {
+        unsubscribe();
+      }
+      window.removeEventListener('okk:desktop-files-selected', handleDesktopSelection);
+    };
+  }, []);
+
+  useEffect(() => {
     if (!activeTeamRun || activeTeamRun.status !== 'running') {
       return;
     }
@@ -245,7 +321,7 @@ export function ChatPage() {
       lastEventId: resumeFromEventId,
       subscriber: {
         onEvent: (event) => dispatch({ type: 'apply_event', event }),
-        onConnectionState: (status) => dispatch({ type: 'set_connection_state', state: status }),
+        onConnectionState: (status) => dispatch({ type: 'set_connection_state', sessionId: currentSessionId, state: status }),
         onError: (incoming) => setError(incoming.message)
       }
     });
@@ -523,7 +599,17 @@ export function ChatPage() {
               </button>
             </div>
           )}
-          {!error && latestAssistantError && !isStreaming && (
+          {!error && runtimeState?.message && runtimeState.phase !== 'done' && (
+            <div className={`panel-header ${runtimeState.phase === 'error' ? 'capability-warning-bar' : ''}`}>
+              <p className='small-text'>{runtimeState.message}</p>
+              {runtimeState.retryable && !isStreaming && (
+                <button type='button' className='small-button' onClick={() => void retryLast()}>
+                  重试继续
+                </button>
+              )}
+            </div>
+          )}
+          {!error && !runtimeState?.message && latestAssistantError && !isStreaming && (
             <div className='panel-header'>
               <p className='small-text'>上一条回复异常中断，可立即重试继续。</p>
               <button type='button' className='small-button' onClick={() => void retryLast()}>
@@ -534,7 +620,7 @@ export function ChatPage() {
           <MessageList
             messages={messages}
             streaming={isStreaming}
-            emptyHint={bootstrapLoading ? '正在同步中，请稍候…' : 'How can I help you today?'}
+            emptyHint={bootstrapLoading ? '正在同步中，请稍候…' : '今天想和你的赛博合伙人一起完成什么？'}
           />
           <Composer
             agents={state.agents}
@@ -551,6 +637,9 @@ export function ChatPage() {
             onSend={sendMessage}
             onStop={stopStreaming}
             onRetry={retryLast}
+            injectedDraft={composerExternalDraft}
+            onExternalDraftApplied={() => undefined}
+            sendBlockedReason={sendBlockedReason}
           />
         </section>
       }
@@ -565,6 +654,9 @@ export function ChatPage() {
           teamRunError={teamRunError}
           onStartTeamRun={() => void startTeamRun()}
           onRefreshTeamRuns={() => void (currentSessionId ? loadTeamRuns(currentSessionId) : Promise.resolve())}
+          onRefreshCapabilities={() => void loadCapabilities()}
+          onRetryLastMessage={() => void retryLast()}
+          onOpenRoute={(route) => navigate(route)}
           onSaveSuggestion={(suggestionId) => void saveSuggestion(suggestionId)}
           onIgnoreSuggestion={(suggestionId) => void ignoreSuggestion(suggestionId)}
         />
@@ -572,3 +664,9 @@ export function ChatPage() {
     />
   );
 }
+
+
+
+
+
+

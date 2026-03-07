@@ -868,3 +868,120 @@ test("REST /api/knowledge 支持 CRUD、版本与 FTS 过滤搜索", async () =>
   }
 });
 
+test("REST /api/agents/runtime/backends 返回结构化诊断信息", async () => {
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "okk-runtime-backends-"));
+  const workspaceRoot = path.join(tempDir, "workspace");
+  await fs.mkdir(workspaceRoot, { recursive: true });
+
+  const core = await createCore({
+    dbPath: path.join(tempDir, "core.db"),
+    workspaceRoot,
+    codexCommand: "__missing_codex__",
+    claudeCommand: "__missing_claude__"
+  });
+
+  const app = await createApp({
+    jwtSecret: "test-secret",
+    logger: false,
+    core
+  });
+
+  try {
+    const token = await loginToken(app);
+    const response = await app.inject({
+      method: "GET",
+      url: "/api/agents/runtime/backends",
+      headers: { Authorization: `Bearer ${token}` }
+    });
+
+    assert.equal(response.statusCode, 200, response.body);
+    const items = response.json().items as Array<{
+      backend: string;
+      available: boolean;
+      runtimeStatus?: string;
+      diagnostics?: { code?: string; detail?: string; severity?: string; retryable?: boolean };
+      actions?: Array<{ kind: string }>;
+    }>;
+    const codexRuntime = items.find((item) => item.backend === "codex");
+    assert.ok(codexRuntime);
+    assert.equal(codexRuntime?.available, false);
+    assert.equal(codexRuntime?.runtimeStatus, "unavailable");
+    assert.equal(codexRuntime?.diagnostics?.code, "command_not_found_or_not_executable");
+    assert.equal(codexRuntime?.diagnostics?.severity, "error");
+    assert.equal(codexRuntime?.diagnostics?.retryable, true);
+    assert.match(String(codexRuntime?.diagnostics?.detail ?? ""), /命令来源/);
+    assert.ok((codexRuntime?.actions ?? []).some((item) => item.kind === "refresh"));
+    assert.ok((codexRuntime?.actions ?? []).some((item) => item.kind === "copy_diagnostic"));
+  } finally {
+    await app.close();
+    core.database?.close?.();
+    await fs.rm(tempDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+  }
+});
+test("ws /qa 在无可回放事件时返回 qa.resume_failed", async () => {
+  const app = await createApp({ jwtSecret: "test-secret", logger: false, coreMode: "memory" });
+  await app.listen({ host: "127.0.0.1", port: 0 });
+
+  try {
+    const token = await loginToken(app);
+    const { port } = app.server.address() as AddressInfo;
+
+    const socket = new WebSocket(`ws://127.0.0.1:${port}/ws/qa/session-resume-failed`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    await once(socket, "open");
+
+    socket.send(
+      JSON.stringify({
+        action: "resume",
+        backend: "codex",
+        agent_name: "code-reviewer",
+        client_message_id: "resume-001",
+        last_event_id: 99,
+      }),
+    );
+
+    const event = await waitForQaEvent(socket, "qa.resume_failed");
+    assert.equal(event.payload.last_event_id, 99);
+    assert.equal(typeof event.payload.latest_event_id, "number");
+
+    socket.close();
+  } finally {
+    await app.close();
+  }
+});
+
+test("ws /qa 在没有进行中请求时返回 qa.abort_ignored", async () => {
+  const app = await createApp({ jwtSecret: "test-secret", logger: false, coreMode: "memory" });
+  await app.listen({ host: "127.0.0.1", port: 0 });
+
+  try {
+    const token = await loginToken(app);
+    const { port } = app.server.address() as AddressInfo;
+
+    const socket = new WebSocket(`ws://127.0.0.1:${port}/ws/qa/session-abort-ignored`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    await once(socket, "open");
+
+    socket.send(
+      JSON.stringify({
+        action: "abort",
+        backend: "codex",
+        agent_name: "code-reviewer",
+        client_message_id: "abort-001",
+      }),
+    );
+
+    const event = await waitForQaEvent(socket, "qa.abort_ignored");
+    assert.equal(event.payload.client_message_id, "abort-001");
+
+    socket.close();
+  } finally {
+    await app.close();
+  }
+});

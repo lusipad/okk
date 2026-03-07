@@ -1,5 +1,9 @@
 import type {
   AgentInfo,
+  CollaborationAction,
+  CollaborationDiagnostics,
+  CollaborationRunStatus,
+  CollaborationSourceType,
   KnowledgeSuggestion,
   LoginResult,
   SessionInfo,
@@ -228,6 +232,89 @@ function createClientMessageId(prefix: string): string {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
+function asBoolean(input: unknown): boolean | undefined {
+  return typeof input === 'boolean' ? input : undefined;
+}
+
+function asSeverity(input: unknown): CollaborationDiagnostics['severity'] | undefined {
+  return input === 'info' || input === 'warning' || input === 'error' ? input : undefined;
+}
+
+function asActionKind(input: unknown): CollaborationAction['kind'] | null {
+  return input === 'retry' || input === 'refresh' || input === 'copy_diagnostic' || input === 'open_route' ? input : null;
+}
+
+function asSourceType(input: unknown): CollaborationSourceType | undefined {
+  return input === 'team' || input === 'agent' || input === 'skill' || input === 'mcp' || input === 'backend' || input === 'tool'
+    ? input
+    : undefined;
+}
+
+function asRunStatus(input: unknown): CollaborationRunStatus | undefined {
+  return input === 'queued' ||
+    input === 'running' ||
+    input === 'completed' ||
+    input === 'failed' ||
+    input === 'aborted' ||
+    input === 'ready' ||
+    input === 'unavailable'
+    ? input
+    : undefined;
+}
+
+function mapCollaborationDiagnostics(input: unknown): CollaborationDiagnostics | undefined {
+  if (!isObject(input)) {
+    return undefined;
+  }
+
+  const message = asNullableString(input.message) ?? asNullableString(input.reason) ?? asNullableString(input.detail);
+  if (!message) {
+    return undefined;
+  }
+
+  return {
+    ...(asNullableString(input.code) ? { code: asNullableString(input.code) ?? undefined } : {}),
+    message,
+    ...(asNullableString(input.detail) ? { detail: asNullableString(input.detail) ?? undefined } : {}),
+    ...(asBoolean(input.retryable) !== undefined ? { retryable: asBoolean(input.retryable) } : {}),
+    ...(asSeverity(input.severity) ? { severity: asSeverity(input.severity) } : {})
+  };
+}
+
+function mapCollaborationActions(input: unknown): CollaborationAction[] | undefined {
+  if (!Array.isArray(input)) {
+    return undefined;
+  }
+
+  const items = input
+    .map((item): CollaborationAction | null => {
+      if (!isObject(item)) {
+        return null;
+      }
+
+      const kind = asActionKind(item.kind);
+      if (!kind) {
+        return null;
+      }
+
+      const label =
+        asNullableString(item.label) ??
+        (kind === 'retry'
+          ? '重试消息'
+          : kind === 'refresh'
+            ? '刷新状态'
+            : kind === 'open_route'
+              ? '打开配置'
+              : '复制诊断');
+      const route = asNullableString(item.route) ?? undefined;
+
+      return route ? { kind, label, route } : { kind, label };
+    })
+    .filter((item): item is CollaborationAction => item !== null);
+
+  return items.length > 0 ? items : undefined;
+}
+
 function toRiskLevel(input: unknown): SkillInfo['riskLevel'] {
   return input === 'high' || input === 'medium' || input === 'low' ? input : 'low';
 }
@@ -336,11 +423,26 @@ function mapSkillRiskIssue(record: unknown): SkillRiskIssue | null {
 
 function mapRuntimeBackend(record: unknown, index: number): RuntimeBackendHealth {
   const source = isObject(record) ? record : {};
+  const available = Boolean(source.available);
+  const reason = asNullableString(source.reason) ?? undefined;
+  const diagnostics = mapCollaborationDiagnostics(source.diagnostics) ??
+    (!available && reason
+      ? {
+          message: reason,
+          detail: asNullableString(source.command) ? `命令 ${asNullableString(source.command)}` : undefined,
+          retryable: true,
+          severity: 'error'
+        }
+      : undefined);
   return {
     backend: asString(source.backend, `backend-${index + 1}`),
     command: asString(source.command, ''),
-    available: Boolean(source.available),
-    reason: asNullableString(source.reason) ?? undefined
+    available,
+    reason,
+    sourceType: asSourceType(source.sourceType) ?? 'backend',
+    runtimeStatus: asRunStatus(source.runtimeStatus) ?? (available ? 'ready' : 'unavailable'),
+    diagnostics,
+    actions: mapCollaborationActions(source.actions)
   };
 }
 
@@ -350,6 +452,15 @@ function mapTeamRunRecord(record: unknown): TeamRunRecord {
   const statusRaw = source.status;
   const status: TeamRunRecord['status'] =
     statusRaw === 'running' || statusRaw === 'done' || statusRaw === 'error' ? statusRaw : 'running';
+  const summary = asNullableString(source.summary) ?? undefined;
+  const diagnostics = mapCollaborationDiagnostics(source.diagnostics) ??
+    (status === 'error' && summary
+      ? {
+          message: summary,
+          retryable: true,
+          severity: 'error'
+        }
+      : undefined);
 
   return {
     id: asString(source.id, createClientMessageId('team-run')),
@@ -361,11 +472,23 @@ function mapTeamRunRecord(record: unknown): TeamRunRecord {
     startedAt: asString(source.startedAt, ''),
     updatedAt: asString(source.updatedAt, ''),
     endedAt: asNullableString(source.endedAt) ?? undefined,
-    summary: asNullableString(source.summary) ?? undefined,
+    summary,
+    sourceType: asSourceType(source.sourceType) ?? 'team',
+    runtimeStatus: asRunStatus(source.runtimeStatus) ?? (status === 'running' ? 'running' : status === 'done' ? 'completed' : 'failed'),
+    diagnostics,
+    actions: mapCollaborationActions(source.actions),
     members: members.map((item, index) => {
       const member = isObject(item) ? item : {};
       const memberStatusRaw = member.status;
       const memberStatus: 'done' | 'error' = memberStatusRaw === 'done' ? 'done' : 'error';
+      const memberDiagnostics = mapCollaborationDiagnostics(member.diagnostics) ??
+        (asNullableString(member.error)
+          ? {
+              message: asNullableString(member.error) ?? '成员执行失败',
+              retryable: true,
+              severity: 'error'
+            }
+          : undefined);
 
       return {
         memberId: asString(member.memberId, `member-${index + 1}`),
@@ -375,7 +498,11 @@ function mapTeamRunRecord(record: unknown): TeamRunRecord {
         startedAt: asString(member.startedAt, ''),
         updatedAt: asString(member.updatedAt, ''),
         output: asNullableString(member.output) ?? undefined,
-        error: asNullableString(member.error) ?? undefined
+        error: asNullableString(member.error) ?? undefined,
+        sourceType: asSourceType(member.sourceType) ?? 'agent',
+        runtimeStatus: asRunStatus(member.runtimeStatus) ?? (memberStatus === 'done' ? 'completed' : 'failed'),
+        diagnostics: memberDiagnostics,
+        actions: mapCollaborationActions(member.actions)
       };
     })
   };
@@ -453,12 +580,7 @@ export class HttpWsIOProvider implements IOProvider {
   }
 
   async abortSession(sessionId: string): Promise<void> {
-    this.getOrCreateWsClient(sessionId).sendQaMessage({
-      action: 'abort',
-      backend: 'codex',
-      agent_name: 'code-reviewer',
-      client_message_id: createClientMessageId('abort')
-    });
+    this.getOrCreateWsClient(sessionId).sendAbortMessage();
   }
 
   subscribeSession(input: SubscribeSessionInput): () => void {
@@ -770,3 +892,5 @@ export class HttpWsIOProvider implements IOProvider {
     };
   }
 }
+
+

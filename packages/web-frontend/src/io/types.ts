@@ -1,5 +1,9 @@
 import type {
   AgentInfo,
+  CollaborationAction,
+  CollaborationDiagnostics,
+  CollaborationRunStatus,
+  CollaborationSourceType,
   KnowledgeSuggestion,
   LoginResult,
   McpServerInfo,
@@ -24,6 +28,9 @@ export type SessionEventType =
   | "knowledge_suggestion"
   | "team_event"
   | "session_done"
+  | "session_resumed"
+  | "session_resume_failed"
+  | "session_abort_ignored"
   | "auth_expired";
 
 export interface SessionEventEnvelope {
@@ -250,6 +257,24 @@ export interface MessageAbortedPayload {
 export interface MessageErrorPayload {
   messageId: string;
   error: string;
+  diagnostics?: CollaborationDiagnostics;
+}
+
+export interface SessionResumedPayload {
+  replayCount: number;
+  lastEventId: number;
+}
+
+export interface SessionResumeFailedPayload {
+  lastEventId: number;
+  latestEventId: number;
+  error: string;
+  diagnostics?: CollaborationDiagnostics;
+}
+
+export interface SessionAbortIgnoredPayload {
+  message: string;
+  diagnostics?: CollaborationDiagnostics;
 }
 
 export interface ToolCallPayload {
@@ -271,6 +296,7 @@ export type TeamEventType =
   | "team_member_update"
   | "team_task_update"
   | "team_message"
+  | "capability_status"
   | "team_end"
   | "auth_expired";
 
@@ -307,6 +333,10 @@ export interface RuntimeBackendHealth {
   command: string;
   available: boolean;
   reason?: string;
+  sourceType?: CollaborationSourceType;
+  runtimeStatus?: CollaborationRunStatus;
+  diagnostics?: CollaborationDiagnostics;
+  actions?: CollaborationAction[];
 }
 
 export interface TeamRunMemberInput {
@@ -334,6 +364,10 @@ export interface TeamRunMemberResult {
   updatedAt: string;
   output?: string;
   error?: string;
+  sourceType?: CollaborationSourceType;
+  runtimeStatus?: CollaborationRunStatus;
+  diagnostics?: CollaborationDiagnostics;
+  actions?: CollaborationAction[];
 }
 
 export interface TeamRunRecord {
@@ -348,4 +382,8 @@ export interface TeamRunRecord {
   endedAt?: string;
   summary?: string;
   members: TeamRunMemberResult[];
+  sourceType?: CollaborationSourceType;
+  runtimeStatus?: CollaborationRunStatus;
+  diagnostics?: CollaborationDiagnostics;
+  actions?: CollaborationAction[];
 }

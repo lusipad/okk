@@ -3,8 +3,13 @@ import type { Dispatch, ReactNode } from 'react';
 import type {
   AgentInfo,
   ChatMessage,
+  CollaborationAction,
+  CollaborationDiagnostics,
+  CollaborationRunStatus,
+  CollaborationSourceType,
   KnowledgeSuggestion,
   SessionInfo,
+  SessionRuntimeState,
   TeamMemberStatus,
   TeamPanelState,
   ToolCall
@@ -16,7 +21,10 @@ import type {
   MessageDonePayload,
   MessageErrorPayload,
   MessageStartedPayload,
+  SessionAbortIgnoredPayload,
   SessionEventEnvelope,
+  SessionResumeFailedPayload,
+  SessionResumedPayload,
   TeamWsEvent,
   ToolCallPayload,
   WsConnectionState
@@ -33,6 +41,7 @@ interface ChatState {
   messagesBySession: Record<string, ChatMessage[]>;
   suggestionsBySession: Record<string, KnowledgeSuggestion[]>;
   teamViewBySession: Record<string, TeamPanelState>;
+  runtimeStateBySession: Record<string, SessionRuntimeState>;
   lastEventIdBySession: Record<string, number>;
   seenEventIdsBySession: Record<string, number[]>;
 }
@@ -45,7 +54,7 @@ type ChatAction =
   | { type: 'set_selected_agent'; agentId: string | null }
   | { type: 'set_selected_skills'; skillIds: string[] }
   | { type: 'set_selected_mcp_servers'; serverIds: string[] }
-  | { type: 'set_connection_state'; state: WsConnectionState }
+  | { type: 'set_connection_state'; sessionId?: string | null; state: WsConnectionState }
   | {
       type: 'append_user_message';
       sessionId: string;
@@ -78,10 +87,70 @@ const initialState: ChatState = {
   messagesBySession: {},
   suggestionsBySession: {},
   teamViewBySession: {},
+  runtimeStateBySession: {},
   lastEventIdBySession: {},
   seenEventIdsBySession: {}
 };
 
+
+function createRuntimeState(input: Partial<SessionRuntimeState> = {}): SessionRuntimeState {
+  return {
+    phase: input.phase ?? 'idle',
+    ...(input.message ? { message: input.message } : {}),
+    ...(input.diagnostics ? { diagnostics: input.diagnostics } : {}),
+    ...(input.retryable !== undefined ? { retryable: input.retryable } : {}),
+    updatedAt: input.updatedAt ?? new Date().toISOString()
+  };
+}
+
+function toRuntimeStateForConnection(
+  current: SessionRuntimeState | undefined,
+  state: WsConnectionState
+): SessionRuntimeState | undefined {
+  if (state === 'reconnecting') {
+    return createRuntimeState({
+      phase: 'recovering',
+      message: '连接断开，正在恢复事件流…',
+      diagnostics: {
+        code: 'ws_reconnecting',
+        message: '连接断开，正在恢复事件流…',
+        retryable: true,
+        severity: 'warning'
+      },
+      retryable: true
+    });
+  }
+
+  if (state === 'connected' && current?.phase === 'recovering') {
+    return createRuntimeState({
+      phase: 'recovering',
+      message: '已重新连接，正在等待恢复确认…',
+      diagnostics: {
+        code: 'ws_connected_wait_resume',
+        message: '已重新连接，正在等待恢复确认…',
+        retryable: true,
+        severity: 'info'
+      },
+      retryable: true
+    });
+  }
+
+  if (state === 'disconnected' && (current?.phase === 'streaming' || current?.phase === 'sending' || current?.phase === 'recovering')) {
+    return createRuntimeState({
+      phase: 'error',
+      message: '连接已断开，当前会话未完成。',
+      diagnostics: {
+        code: 'ws_disconnected',
+        message: '连接已断开，当前会话未完成。',
+        retryable: true,
+        severity: 'error'
+      },
+      retryable: true
+    });
+  }
+
+  return current;
+}
 function updateMessageById(
   messages: ChatMessage[],
   messageId: string,
@@ -167,6 +236,119 @@ function toMemberStatus(value: unknown): TeamMemberStatus {
   return 'pending';
 }
 
+function toSourceType(value: unknown): CollaborationSourceType | undefined {
+  return value === 'team' || value === 'agent' || value === 'skill' || value === 'mcp' || value === 'backend' || value === 'tool'
+    ? value
+    : undefined;
+}
+
+function toRunStatus(value: unknown): CollaborationRunStatus | undefined {
+  return value === 'queued' ||
+    value === 'running' ||
+    value === 'completed' ||
+    value === 'failed' ||
+    value === 'aborted' ||
+    value === 'ready' ||
+    value === 'unavailable'
+    ? value
+    : undefined;
+}
+
+function toSeverity(value: unknown): CollaborationDiagnostics['severity'] | undefined {
+  return value === 'info' || value === 'warning' || value === 'error' ? value : undefined;
+}
+
+function toDiagnostics(value: unknown): CollaborationDiagnostics | undefined {
+  if (typeof value !== 'object' || value === null) {
+    return undefined;
+  }
+
+  const diagnostics = value as Record<string, unknown>;
+  const message = toText(diagnostics.message) || toText(diagnostics.reason) || toText(diagnostics.detail);
+  if (!message) {
+    return undefined;
+  }
+
+  return {
+    code: toText(diagnostics.code) || undefined,
+    message,
+    detail: toText(diagnostics.detail) || undefined,
+    retryable: typeof diagnostics.retryable === 'boolean' ? diagnostics.retryable : undefined,
+    severity: toSeverity(diagnostics.severity)
+  };
+}
+
+function toActions(value: unknown): CollaborationAction[] | undefined {
+  if (!Array.isArray(value)) {
+    return undefined;
+  }
+
+  const actions = value
+    .map((item): CollaborationAction | null => {
+      if (typeof item !== 'object' || item === null) {
+        return null;
+      }
+
+      const action = item as Record<string, unknown>;
+      const kind = action.kind;
+      if (kind !== 'retry' && kind !== 'refresh' && kind !== 'copy_diagnostic' && kind !== 'open_route') {
+        return null;
+      }
+
+      const label =
+        toText(action.label) ||
+        (kind === 'retry'
+          ? '重试消息'
+          : kind === 'refresh'
+            ? '刷新状态'
+            : kind === 'open_route'
+              ? '打开配置'
+              : '复制诊断');
+      const route = toText(action.route) || undefined;
+
+      return route ? { kind, label, route } : { kind, label };
+    })
+    .filter((item): item is CollaborationAction => item !== null);
+
+  return actions.length > 0 ? actions : undefined;
+}
+
+function deriveEventStatus(event: TeamWsEvent, payload: Record<string, unknown>): CollaborationRunStatus | undefined {
+  const explicit = toRunStatus(payload.runtime_status);
+  if (explicit) {
+    return explicit;
+  }
+
+  if (event.type === 'team_start' || event.type === 'team_message') {
+    return 'running';
+  }
+  if (event.type === 'capability_status') {
+    return 'ready';
+  }
+  if (event.type === 'team_member_add' || event.type === 'team_member_update' || event.type === 'team_task_update') {
+    const status = toMemberStatus(payload.status);
+    return status === 'done' ? 'completed' : status === 'error' ? 'failed' : status === 'running' ? 'running' : 'queued';
+  }
+  if (event.type === 'team_end') {
+    return payload.status === 'done' ? 'completed' : 'failed';
+  }
+  return undefined;
+}
+
+function deriveSourceType(event: TeamWsEvent, payload: Record<string, unknown>): CollaborationSourceType | undefined {
+  const explicit = toSourceType(payload.source_type);
+  if (explicit) {
+    return explicit;
+  }
+  if (event.type === 'team_member_add' || event.type === 'team_member_update' || event.type === 'team_message') {
+    return 'agent';
+  }
+  if (event.type === 'capability_status') {
+    return toSourceType(payload.source_type) ?? 'tool';
+  }
+  return 'team';
+}
+
 function describeTeamEvent(event: TeamWsEvent, payload: Record<string, unknown>): string {
   if (event.type === 'team_start') {
     return `团队启动：${toText(payload.team_name) || '未命名团队'}`;
@@ -179,6 +361,9 @@ function describeTeamEvent(event: TeamWsEvent, payload: Record<string, unknown>)
   }
   if (event.type === 'team_message') {
     return toText(payload.content) || '成员消息';
+  }
+  if (event.type === 'capability_status') {
+    return toText(payload.summary) || toText(payload.capability_name) || '能力状态更新';
   }
   if (event.type === 'team_end') {
     return `团队结束：${toTeamStatus(payload.status)}`;
@@ -200,13 +385,19 @@ function upsertById<T extends { [key in K]: string }, K extends string>(
 
 function applyTeamEvent(panel: TeamPanelState, event: TeamWsEvent): TeamPanelState {
   const payload = (event.payload ?? {}) as Record<string, unknown>;
+  const diagnostics = toDiagnostics(payload.diagnostics);
   const eventFeed = [
     ...panel.eventFeed,
     {
       id: `${event.teamId}:${event.event_id}`,
       type: event.type,
       createdAt: event.timestamp,
-      summary: describeTeamEvent(event, payload)
+      summary: describeTeamEvent(event, payload),
+      runId: toText(payload.run_id) || event.teamId,
+      sourceType: deriveSourceType(event, payload),
+      status: deriveEventStatus(event, payload),
+      diagnostics,
+      actions: toActions(payload.actions)
     }
   ].slice(-200);
 
@@ -434,9 +625,21 @@ function reducer(state: ChatState, action: ChatAction): ChatState {
   }
 
   if (action.type === 'set_connection_state') {
+    const sessionId = action.sessionId ?? state.currentSessionId;
+    const runtimeState = sessionId
+      ? toRuntimeStateForConnection(state.runtimeStateBySession[sessionId], action.state)
+      : undefined;
+
     return {
       ...state,
-      connectionState: action.state
+      connectionState: action.state,
+      runtimeStateBySession:
+        sessionId && runtimeState
+          ? {
+              ...state.runtimeStateBySession,
+              [sessionId]: runtimeState
+            }
+          : state.runtimeStateBySession
     };
   }
 
@@ -502,3 +705,6 @@ export function useChatStore(): ChatStoreContextValue {
   }
   return value;
 }
+
+
+

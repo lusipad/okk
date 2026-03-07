@@ -37,6 +37,43 @@ export interface KnowledgeSuggestion {
   status: "pending" | "saved" | "ignored";
 }
 
+export type CollaborationSourceType = 'team' | 'agent' | 'skill' | 'mcp' | 'backend' | 'tool';
+
+export type CollaborationRunStatus = 'queued' | 'running' | 'completed' | 'failed' | 'aborted' | 'ready' | 'unavailable';
+
+export type CollaborationActionKind = 'retry' | 'refresh' | 'copy_diagnostic' | 'open_route';
+
+export interface CollaborationAction {
+  kind: CollaborationActionKind;
+  label: string;
+  route?: string;
+}
+
+export interface CollaborationDiagnostics {
+  code?: string;
+  message: string;
+  detail?: string;
+  retryable?: boolean;
+  severity?: 'info' | 'warning' | 'error';
+}
+
+export type SessionExecutionPhase =
+  | 'idle'
+  | 'sending'
+  | 'streaming'
+  | 'recovering'
+  | 'done'
+  | 'aborted'
+  | 'error';
+
+export interface SessionRuntimeState {
+  phase: SessionExecutionPhase;
+  message?: string;
+  diagnostics?: CollaborationDiagnostics;
+  retryable?: boolean;
+  updatedAt?: string;
+}
+
 export interface AgentInfo {
   id: string;
   name: string;
@@ -76,6 +113,11 @@ export interface TeamMemberEvent {
   type: string;
   createdAt: string;
   summary: string;
+  runId?: string;
+  sourceType?: CollaborationSourceType;
+  status?: CollaborationRunStatus;
+  diagnostics?: CollaborationDiagnostics;
+  actions?: CollaborationAction[];
 }
 
 export interface TeamPanelState {
