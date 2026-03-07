@@ -9,6 +9,9 @@ import type {
   McpServerInfo,
   RepoContextRecord,
   RepoContinueRecord,
+  MemoryEntry,
+  MemoryStatus,
+  MemoryType,
   SessionInfo,
   SessionReferenceRecord,
   SkillInfo,
@@ -253,6 +256,10 @@ export interface IOProvider {
   installSkill(skillId: string): Promise<SkillInfo>;
   listSkillMarket(query?: string): Promise<SkillMarketItem[]>;
   installSkillFromMarket(input: InstallSkillFromMarketInput): Promise<SkillInfo>;
+  listMemoryEntries(input?: { repoId?: string; memoryType?: MemoryType; status?: MemoryStatus }): Promise<MemoryEntry[]>;
+  createMemoryEntry(input: Omit<MemoryEntry, "id" | "createdAt" | "updatedAt" | "userId">): Promise<MemoryEntry>;
+  updateMemoryEntry(memoryId: string, input: Partial<Pick<MemoryEntry, "title" | "content" | "summary" | "confidence" | "status">>): Promise<MemoryEntry>;
+  syncMemoryRepo(repoId: string): Promise<{ imported: number }>;
 }
 
 export interface MessageStartedPayload {
@@ -405,4 +412,5 @@ export interface TeamRunRecord {
   diagnostics?: CollaborationDiagnostics;
   actions?: CollaborationAction[];
 }
+
 

@@ -20,6 +20,8 @@ import type {
   CollaborationRunStatus,
   CollaborationSourceType,
   KnowledgeStatus,
+  MemoryEntry,
+  MemoryType,
   Repository,
   Session,
   UserRole
@@ -214,6 +216,12 @@ export interface CoreApi {
     archive(sessionId: string): Promise<CoreSessionRecord | null>;
     restore(sessionId: string): Promise<CoreSessionRecord | null>;
     listReferences(sessionId: string, query?: string): Promise<CoreSessionReferenceRecord[]>;
+  };
+  memory: {
+    list(input?: { repoId?: string | null; memoryType?: MemoryType; status?: MemoryEntry["status"] }): Promise<MemoryEntry[]>;
+    upsert(input: Omit<MemoryEntry, "id" | "createdAt" | "updatedAt">): Promise<MemoryEntry>;
+    update(memoryId: string, input: Partial<Pick<MemoryEntry, "title" | "content" | "summary" | "confidence" | "status">>): Promise<MemoryEntry | null>;
+    syncRepo(repoId: string): Promise<{ imported: number }>;
   };
   knowledge: {
     list(): Promise<CoreKnowledgeRecord[]>;
@@ -1078,6 +1086,48 @@ export async function createCore(options: CreateCoreOptions = {}): Promise<CoreA
         return toKnowledgeRecord(created);
       }
     },
+    memory: {
+      async list(input) {
+        return database.memory.list({
+          userId: DEFAULT_ADMIN_ID,
+          ...(input?.repoId !== undefined ? { repoId: input.repoId } : {}),
+          ...(input?.memoryType ? { memoryType: input.memoryType } : {}),
+          ...(input?.status ? { status: input.status } : {}),
+          limit: 50
+        });
+      },
+      async upsert(input) {
+        return database.memory.upsert(input);
+      },
+      async update(memoryId, input) {
+        return database.memory.update(memoryId, input);
+      },
+      async syncRepo(repoId) {
+        const repository = database.repositories.getById(repoId);
+        if (!repository) {
+          return { imported: 0 };
+        }
+        const claudePath = path.join(repository.path, 'CLAUDE.md');
+        if (!fs.existsSync(claudePath)) {
+          return { imported: 0 };
+        }
+        const content = await fs.promises.readFile(claudePath, 'utf-8');
+        database.memory.upsert({
+          userId: DEFAULT_ADMIN_ID,
+          repoId,
+          memoryType: 'project',
+          title: 'CLAUDE.md',
+          content,
+          summary: summarizeContent(content),
+          confidence: 0.8,
+          status: 'active',
+          sourceKind: 'claude-md',
+          sourceRef: claudePath,
+          metadata: {}
+        });
+        return { imported: 1 };
+      }
+    },
     agents: {
       async list() {
         return knownAgents;
@@ -1468,6 +1518,7 @@ ${assistantContent}`);
 }
 
 export const createOkkCore = createCore;
+
 
 
 

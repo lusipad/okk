@@ -1,24 +1,21 @@
-import fs from "node:fs";
-import path from "node:path";
-import BetterSqlite3 from "better-sqlite3";
 import { runMigrations } from "./migrations.js";
 import {
   InstalledSkillsDao,
   KnowledgeDao,
   MessagesDao,
+  MemoryDao,
   RepositoriesDao,
   RunsDao,
   SessionsDao,
   UsersDao
 } from "./dao/index.js";
+import {
+  openSqliteConnection,
+  type SqliteConnection,
+  type SqliteConnectionOptions
+} from "./sqlite-adapter.js";
 
-export type SqliteConnection = InstanceType<typeof BetterSqlite3>;
-
-export interface SqliteDatabaseOptions {
-  dbPath: string;
-  readonly?: boolean;
-  fileMustExist?: boolean;
-}
+export interface SqliteDatabaseOptions extends SqliteConnectionOptions {}
 
 export class SqliteDatabase {
   readonly connection: SqliteConnection;
@@ -26,19 +23,13 @@ export class SqliteDatabase {
   readonly repositories: RepositoriesDao;
   readonly sessions: SessionsDao;
   readonly messages: MessagesDao;
+  readonly memory: MemoryDao;
   readonly knowledge: KnowledgeDao;
   readonly runs: RunsDao;
   readonly installedSkills: InstalledSkillsDao;
 
   constructor(options: SqliteDatabaseOptions) {
-    const resolvedPath = path.resolve(options.dbPath);
-    const parentDir = path.dirname(resolvedPath);
-    fs.mkdirSync(parentDir, { recursive: true });
-
-    this.connection = new BetterSqlite3(resolvedPath, {
-      readonly: options.readonly ?? false,
-      fileMustExist: options.fileMustExist ?? false
-    });
+    this.connection = openSqliteConnection(options);
 
     runMigrations(this.connection);
 
@@ -46,6 +37,7 @@ export class SqliteDatabase {
     this.repositories = new RepositoriesDao(this.connection);
     this.sessions = new SessionsDao(this.connection);
     this.messages = new MessagesDao(this.connection);
+    this.memory = new MemoryDao(this.connection);
     this.knowledge = new KnowledgeDao(this.connection);
     this.runs = new RunsDao(this.connection);
     this.installedSkills = new InstalledSkillsDao(this.connection);

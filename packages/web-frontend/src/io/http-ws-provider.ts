@@ -8,6 +8,9 @@ import type {
   LoginResult,
   RepoContextRecord,
   RepoContinueRecord,
+  MemoryEntry,
+  MemoryStatus,
+  MemoryType,
   SessionInfo,
   SessionReferenceRecord,
   SkillInfo
@@ -589,6 +592,36 @@ export class HttpWsIOProvider implements IOProvider {
     return this.http.post<RepoContinueRecord>(`/api/repos/${encodeURIComponent(repoId)}/continue`, {});
   }
 
+  async listMemoryEntries(input?: { repoId?: string; memoryType?: MemoryType; status?: MemoryStatus }): Promise<MemoryEntry[]> {
+    const params = new URLSearchParams();
+    if (input?.repoId) {
+      params.set('repoId', input.repoId);
+    }
+    if (input?.memoryType) {
+      params.set('memoryType', input.memoryType);
+    }
+    if (input?.status) {
+      params.set('status', input.status);
+    }
+    const suffix = params.size > 0 ? `?${params.toString()}` : '';
+    const payload = await this.http.get<MemoryEntry[] | ListPayload<MemoryEntry>>(`/api/memory${suffix}`);
+    return unwrapItems(payload);
+  }
+
+  async createMemoryEntry(input: Omit<MemoryEntry, "id" | "createdAt" | "updatedAt" | "userId">): Promise<MemoryEntry> {
+    const payload = await this.http.post<{ item: MemoryEntry }>('/api/memory', input);
+    return payload.item;
+  }
+
+  async updateMemoryEntry(memoryId: string, input: Partial<Pick<MemoryEntry, "title" | "content" | "summary" | "confidence" | "status">>): Promise<MemoryEntry> {
+    const payload = await this.http.patch<{ item: MemoryEntry }>(`/api/memory/${encodeURIComponent(memoryId)}`, input);
+    return payload.item;
+  }
+
+  async syncMemoryRepo(repoId: string): Promise<{ imported: number }> {
+    return this.http.post<{ imported: number }>('/api/memory/sync', { repoId });
+  }
+
   async listRuntimeBackends(): Promise<RuntimeBackendHealth[]> {
     const payload = await this.http.get<
       BackendRuntimeHealthRecord[] | ListPayload<BackendRuntimeHealthRecord>
@@ -948,6 +981,8 @@ export class HttpWsIOProvider implements IOProvider {
     };
   }
 }
+
+
 
 
 

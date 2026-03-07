@@ -9,6 +9,7 @@ import type {
   RepoContinueRecord,
   RepoRecord,
   SessionRecord,
+  MemoryEntry,
   SkillRecord,
   TeamRunRecord,
   TeamRunRequest,
@@ -24,6 +25,7 @@ export function createInMemoryCore(): OkkCore {
   const repos: RepoRecord[] = [];
   const sessions: SessionRecord[] = [];
   const knowledge: KnowledgeRecord[] = [];
+  const memories: MemoryEntry[] = [];
   const repoContexts = new Map<string, RepoContextRecord>();
   const agents: AgentRecord[] = [
     {
@@ -264,6 +266,63 @@ export function createInMemoryCore(): OkkCore {
         };
         knowledge.push(record);
         return record;
+      },
+    },
+    memory: {
+      async list(input) {
+        return memories.filter((item) => {
+          if (input?.repoId !== undefined && item.repoId !== input.repoId) {
+            return false;
+          }
+          if (input?.memoryType && item.memoryType !== input.memoryType) {
+            return false;
+          }
+          if (input?.status && item.status !== input.status) {
+            return false;
+          }
+          return true;
+        });
+      },
+      async upsert(input) {
+        const existingIndex = memories.findIndex((item) => item.userId === input.userId && item.repoId === (input.repoId ?? null) && item.memoryType === input.memoryType && item.title === input.title);
+        if (existingIndex >= 0) {
+          memories[existingIndex] = { ...memories[existingIndex], ...input, updatedAt: now() };
+          return memories[existingIndex];
+        }
+        const record = { ...input, id: randomUUID(), createdAt: now(), updatedAt: now() };
+        memories.unshift(record);
+        return record;
+      },
+      async update(memoryId, input) {
+        const index = memories.findIndex((item) => item.id === memoryId);
+        if (index < 0) {
+          return null;
+        }
+        memories[index] = { ...memories[index], ...input, updatedAt: now() };
+        return memories[index];
+      },
+      async syncRepo(repoId) {
+        const existing = memories.find((item) => item.repoId === repoId && item.sourceKind === 'manual');
+        if (!existing) {
+          memories.unshift({
+            id: randomUUID(),
+            userId: 'u-admin',
+            repoId,
+            memoryType: 'project',
+            title: 'repo-sync',
+            content: 'memory sync seed',
+            summary: '已同步仓库上下文',
+            confidence: 0.5,
+            status: 'active',
+            sourceKind: 'manual',
+            sourceRef: null,
+            metadata: {},
+            createdAt: now(),
+            updatedAt: now(),
+          });
+          return { imported: 1 };
+        }
+        return { imported: 0 };
       },
     },
     agents: {

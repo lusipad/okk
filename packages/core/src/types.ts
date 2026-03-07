@@ -253,6 +253,34 @@ export interface KnowledgeVersion {
   createdAt: string;
 }
 
+export type MemoryType = "preference" | "project" | "relationship" | "process" | "event";
+export type MemoryStatus = "active" | "stale" | "archived";
+
+export interface MemoryEntry {
+  id: string;
+  userId: string;
+  repoId: string | null;
+  memoryType: MemoryType;
+  title: string;
+  content: string;
+  summary: string;
+  confidence: number;
+  status: MemoryStatus;
+  sourceKind: "conversation" | "claude-md" | "knowledge" | "manual";
+  sourceRef: string | null;
+  metadata: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface MemoryAccessLog {
+  id: string;
+  memoryId: string;
+  sessionId: string | null;
+  accessKind: "injected" | "viewed" | "edited" | "confirmed";
+  createdAt: string;
+}
+
 export interface KnowledgeTag {
   entryId: string;
   tag: string;

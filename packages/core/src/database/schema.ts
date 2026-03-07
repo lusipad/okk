@@ -221,4 +221,39 @@ CREATE TABLE IF NOT EXISTS installed_skills (
   installed_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS memory_entries (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  repo_id TEXT,
+  memory_type TEXT NOT NULL,
+  title TEXT NOT NULL,
+  content TEXT NOT NULL,
+  summary TEXT NOT NULL,
+  confidence REAL NOT NULL DEFAULT 0.5,
+  status TEXT NOT NULL DEFAULT 'active',
+  source_kind TEXT NOT NULL DEFAULT 'conversation',
+  source_ref TEXT,
+  metadata TEXT NOT NULL DEFAULT '{}',
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  FOREIGN KEY (user_id) REFERENCES users(id),
+  FOREIGN KEY (repo_id) REFERENCES repositories(id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_memory_entries_scope
+ON memory_entries(user_id, repo_id, memory_type, status, updated_at DESC);
+
+CREATE TABLE IF NOT EXISTS memory_access_log (
+  id TEXT PRIMARY KEY,
+  memory_id TEXT NOT NULL,
+  session_id TEXT,
+  access_kind TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  FOREIGN KEY (memory_id) REFERENCES memory_entries(id),
+  FOREIGN KEY (session_id) REFERENCES sessions(id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_memory_access_log_memory
+ON memory_access_log(memory_id, created_at DESC);
 `;

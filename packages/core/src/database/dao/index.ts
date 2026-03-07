@@ -21,3 +21,6 @@ export {
   InstalledSkillsDao,
   type UpsertInstalledSkillInput
 } from "./installed-skills-dao.js";
+
+export { MemoryDao, type UpsertMemoryInput, type ListMemoryInput, type LogMemoryAccessInput } from './memory-dao.js';
+

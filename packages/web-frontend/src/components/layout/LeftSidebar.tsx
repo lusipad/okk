@@ -151,6 +151,7 @@ export function LeftSidebar({
     () => [
       { id: 'chat', label: 'Chats', to: '/', active: inChat },
       { id: 'mcp', label: 'MCP', to: '/settings/mcp', active: location.pathname === '/settings/mcp' },
+      { id: 'memory', label: 'Memory', to: '/memory', active: location.pathname === '/memory' },
       { id: 'skills', label: 'Skills', to: '/skills', active: location.pathname === '/skills' }
     ],
     [inChat, location.pathname]
@@ -346,3 +347,4 @@ export function LeftSidebar({
     </section>
   );
 }
+

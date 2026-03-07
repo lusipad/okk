@@ -1,6 +1,9 @@
 import type { TeamEvent } from "../types/contracts.js";
-import type { CoreApi, CreateCoreOptions } from "@okk/core";
+import type { CoreApi, CreateCoreOptions, MemoryEntry as CoreMemoryEntry, MemoryStatus as CoreMemoryStatus, MemoryType as CoreMemoryType } from "@okk/core";
 
+export type MemoryEntry = CoreMemoryEntry;
+export type MemoryStatus = CoreMemoryStatus;
+export type MemoryType = CoreMemoryType;
 export interface AuthUser {
   id: string;
   username: string;
@@ -211,6 +214,12 @@ export interface OkkCore {
     list(): Promise<KnowledgeRecord[]>;
     create(input: Omit<KnowledgeRecord, "id" | "updatedAt">): Promise<KnowledgeRecord>;
   };
+  memory: {
+    list(input?: { repoId?: string | null; memoryType?: MemoryType; status?: MemoryStatus }): Promise<MemoryEntry[]>;
+    upsert(input: Omit<MemoryEntry, "id" | "createdAt" | "updatedAt">): Promise<MemoryEntry>;
+    update(memoryId: string, input: Partial<Pick<MemoryEntry, "title" | "content" | "summary" | "confidence" | "status">>): Promise<MemoryEntry | null>;
+    syncRepo(repoId: string): Promise<{ imported: number }>;
+  };
   agents: {
     list(): Promise<AgentRecord[]>;
   };
@@ -247,6 +256,7 @@ export interface LoadCoreOptions {
 }
 
 type _CoreApiIsCompatible = CoreApi extends OkkCore ? true : never;
+
 
 
 

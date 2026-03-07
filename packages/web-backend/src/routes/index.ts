@@ -4,6 +4,7 @@ import { authRoutes } from "./auth.js";
 import { knowledgeRoutes } from "./knowledge.js";
 import { knowledgeSuggestionsRoutes } from "./knowledge-suggestions.js";
 import { mcpRoutes } from "./mcp.js";
+import { memoryRoutes } from "./memory.js";
 import { reposRoutes } from "./repos.js";
 import { sessionsRoutes } from "./sessions.js";
 import { skillsRoutes } from "./skills.js";
@@ -16,5 +17,6 @@ export const apiRoutes: FastifyPluginAsync = async (app) => {
   await app.register(knowledgeSuggestionsRoutes, { prefix: "/knowledge/suggestions" });
   await app.register(agentsRoutes, { prefix: "/agents" });
   await app.register(mcpRoutes, { prefix: "/mcp" });
+  await app.register(memoryRoutes, { prefix: "/memory" });
   await app.register(skillsRoutes, { prefix: "/skills" });
 };

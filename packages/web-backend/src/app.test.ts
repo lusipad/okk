@@ -1187,3 +1187,69 @@ Use scripts/example.ts
     await app.close();
   }
 });
+
+test("REST /api/memory 支持列出、创建、更新和 sync", async () => {
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "okk-memory-api-"));
+  const workspaceRoot = path.join(tempDir, "workspace");
+  await fs.mkdir(workspaceRoot, { recursive: true });
+  await fs.writeFile(path.join(workspaceRoot, "CLAUDE.md"), "# repo memory\nremember this repo", "utf-8");
+
+  const core = await createCore({
+    dbPath: path.join(tempDir, "core.db"),
+    workspaceRoot,
+  });
+
+  const app = await createApp({ jwtSecret: "test-secret", logger: false, core });
+  await app.listen({ host: "127.0.0.1", port: 0 });
+
+  try {
+    const token = await loginToken(app);
+    const headers = { Authorization: `Bearer ${token}` };
+    const repos = await app.inject({ method: "GET", url: "/api/repos", headers });
+    const repoId = (repos.json().items as Array<{ id: string }>)[0]?.id;
+
+    const createResponse = await app.inject({
+      method: "POST",
+      url: "/api/memory",
+      headers,
+      payload: {
+        repoId,
+        memoryType: "project",
+        title: "repo-rule",
+        content: "use npm test before push",
+        summary: "测试优先",
+      }
+    });
+    assert.equal(createResponse.statusCode, 201, createResponse.body);
+    const created = createResponse.json().item as { id: string };
+
+    const listResponse = await app.inject({
+      method: "GET",
+      url: `/api/memory?repoId=${repoId}`,
+      headers,
+    });
+    assert.equal(listResponse.statusCode, 200, listResponse.body);
+    const items = listResponse.json().items as Array<{ id: string }>;
+    assert.ok(items.some((item) => item.id === created.id));
+
+    const updateResponse = await app.inject({
+      method: "PATCH",
+      url: `/api/memory/${created.id}`,
+      headers,
+      payload: { summary: "测试优先（更新）", confidence: 0.9 }
+    });
+    assert.equal(updateResponse.statusCode, 200, updateResponse.body);
+    assert.equal(updateResponse.json().item.summary, "测试优先（更新）");
+
+    const syncResponse = await app.inject({
+      method: "POST",
+      url: "/api/memory/sync",
+      headers,
+      payload: { repoId }
+    });
+    assert.equal(syncResponse.statusCode, 200, syncResponse.body);
+    assert.equal(typeof syncResponse.json().imported, "number");
+  } finally {
+    await app.close();
+  }
+});
