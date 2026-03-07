@@ -144,6 +144,38 @@ const ensureSessionSearchSchema = (db: SqliteConnection): void => {
   db.exec("INSERT INTO messages_fts(message_id, session_id, content) SELECT id, session_id, content FROM messages;");
 };
 
+
+const ensureInstalledSkillsLifecycleColumns = (db: SqliteConnection): void => {
+  const tableInfo = db.prepare("PRAGMA table_info(installed_skills)").all() as Array<{ name: string }>;
+  const hasSourceType = tableInfo.some((column) => column.name === "source_type");
+  const hasEnabled = tableInfo.some((column) => column.name === "enabled");
+  const hasStatus = tableInfo.some((column) => column.name === "status");
+  const hasDependencyErrors = tableInfo.some((column) => column.name === "dependency_errors_json");
+  const hasUpdatedAt = tableInfo.some((column) => column.name === "updated_at");
+
+  if (!hasSourceType) {
+    db.exec("ALTER TABLE installed_skills ADD COLUMN source_type TEXT NOT NULL DEFAULT 'local';");
+  }
+  if (!hasEnabled) {
+    db.exec("ALTER TABLE installed_skills ADD COLUMN enabled INTEGER NOT NULL DEFAULT 1;");
+  }
+  if (!hasStatus) {
+    db.exec("ALTER TABLE installed_skills ADD COLUMN status TEXT NOT NULL DEFAULT 'installed';");
+  }
+  if (!hasDependencyErrors) {
+    db.exec("ALTER TABLE installed_skills ADD COLUMN dependency_errors_json TEXT NOT NULL DEFAULT '[]';");
+  }
+  if (!hasUpdatedAt) {
+    db.exec("ALTER TABLE installed_skills ADD COLUMN updated_at TEXT NOT NULL DEFAULT ''; ");
+  }
+
+  db.prepare("UPDATE installed_skills SET source_type = 'local' WHERE source_type IS NULL OR source_type = ''; ").run();
+  db.prepare("UPDATE installed_skills SET enabled = 1 WHERE enabled IS NULL;").run();
+  db.prepare("UPDATE installed_skills SET status = 'installed' WHERE status IS NULL OR status = ''; ").run();
+  db.prepare("UPDATE installed_skills SET dependency_errors_json = '[]' WHERE dependency_errors_json IS NULL OR dependency_errors_json = ''; ").run();
+  db.prepare("UPDATE installed_skills SET updated_at = installed_at WHERE updated_at IS NULL OR updated_at = ''; ").run();
+};
+
 const migrations: Migration[] = [
   {
     version: 1,
@@ -167,6 +199,12 @@ const migrations: Migration[] = [
     version: 4,
     run: (db) => {
       ensureSessionSearchSchema(db);
+    }
+  },
+  {
+    version: 5,
+    run: (db) => {
+      ensureInstalledSkillsLifecycleColumns(db);
     }
   }
 ];

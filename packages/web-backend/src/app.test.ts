@@ -1118,3 +1118,72 @@ test("REST /api/sessions 支持搜索、归档、恢复和引用片段", async (
   }
 });
 
+
+test("REST /api/skills 支持启用切换与诊断", async () => {
+  const app = await createApp({ jwtSecret: "test-secret", logger: false, coreMode: "memory" });
+  await app.listen({ host: "127.0.0.1", port: 0 });
+
+  const importDir = await fs.mkdtemp(path.join(os.tmpdir(), "okk-skill-diagnose-"));
+  const importedSkillFolder = path.join(importDir, "diagnose-skill");
+  await fs.mkdir(importedSkillFolder, { recursive: true });
+  await fs.writeFile(
+    path.join(importedSkillFolder, "SKILL.md"),
+    `---
+name: diagnose-skill
+description: diagnose skill
+version: 1.0.0
+compatibility: codex, claude-code
+---
+# diagnose
+Use scripts/example.ts
+`,
+    "utf-8",
+  );
+
+  try {
+    const token = await loginToken(app);
+    const headers = { Authorization: `Bearer ${token}` };
+
+    const imported = await app.inject({
+      method: "POST",
+      url: "/api/skills/import-folder",
+      headers,
+      payload: {
+        folderPath: importedSkillFolder,
+        targetName: "diagnose-skill-test",
+        overwrite: true,
+      },
+    });
+    assert.equal(imported.statusCode, 201, imported.body);
+
+    const installResponse = await app.inject({
+      method: "POST",
+      url: "/api/skills/diagnose-skill-test/install",
+      headers,
+    });
+    assert.equal(installResponse.statusCode, 200, installResponse.body);
+
+    const disableResponse = await app.inject({
+      method: "PATCH",
+      url: "/api/skills/diagnose-skill-test/enabled",
+      headers,
+      payload: { enabled: false },
+    });
+    assert.equal(disableResponse.statusCode, 200, disableResponse.body);
+    assert.equal(disableResponse.json().item.enabled, false);
+    assert.equal(disableResponse.json().item.status, "disabled");
+
+    const diagnoseResponse = await app.inject({
+      method: "POST",
+      url: "/api/skills/diagnose-skill-test/diagnose",
+      headers,
+      payload: {},
+    });
+    assert.equal(diagnoseResponse.statusCode, 200, diagnoseResponse.body);
+    assert.deepEqual(diagnoseResponse.json().diagnosis.compatibility, ["codex", "claude-code"]);
+    assert.ok(Array.isArray(diagnoseResponse.json().diagnosis.dependencyErrors));
+  } finally {
+    await fs.rm(importDir, { recursive: true, force: true });
+    await app.close();
+  }
+});

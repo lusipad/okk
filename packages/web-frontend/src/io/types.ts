@@ -117,6 +117,13 @@ export interface SkillRiskScanResult {
   issues: SkillRiskIssue[];
 }
 
+export interface SkillDiagnosisResult {
+  compatibility: string[];
+  dependencyErrors: string[];
+  status: "installed" | "disabled" | "error";
+  riskSummary: SkillRiskSummary;
+}
+
 export interface ImportSkillFolderInput {
   folderPath: string;
   targetName?: string;
@@ -239,6 +246,8 @@ export interface IOProvider {
   readSkill(skillId: string): Promise<SkillDetail>;
   listSkillFiles(skillId: string): Promise<SkillFileInfo[]>;
   scanSkillRisk(skillId: string): Promise<SkillRiskScanResult>;
+  diagnoseSkill(skillId: string): Promise<SkillDiagnosisResult>;
+  setSkillEnabled(skillId: string, enabled: boolean): Promise<SkillInfo>;
   deleteSkill(skillId: string): Promise<void>;
   importSkillFolder(input: ImportSkillFolderInput): Promise<SkillInfo>;
   installSkill(skillId: string): Promise<SkillInfo>;

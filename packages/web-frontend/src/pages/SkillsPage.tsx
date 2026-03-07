@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useIO } from '../io/io-context';
-import type { SkillDetail, SkillFileInfo, SkillMarketItem, SkillRiskScanResult } from '../io/types';
+import type { SkillDetail, SkillDiagnosisResult, SkillFileInfo, SkillMarketItem, SkillRiskScanResult } from '../io/types';
 import { useChatStore } from '../state/chat-store';
 import type { SkillInfo, TeamPanelState } from '../types/domain';
 import { ShellLayout } from '../components/layout/ShellLayout';
@@ -27,6 +27,7 @@ export function SkillsPage() {
   const [selectedSkill, setSelectedSkill] = useState<SkillDetail | null>(null);
   const [skillFiles, setSkillFiles] = useState<SkillFileInfo[]>([]);
   const [skillRisk, setSkillRisk] = useState<SkillRiskScanResult | null>(null);
+  const [skillDiagnosis, setSkillDiagnosis] = useState<SkillDiagnosisResult | null>(null);
 
   const [importFolderPath, setImportFolderPath] = useState('');
   const [importTargetName, setImportTargetName] = useState('');
@@ -144,6 +145,7 @@ export function SkillsPage() {
         setSelectedSkill(null);
         setSkillFiles([]);
         setSkillRisk(null);
+        setSkillDiagnosis(null);
       }
       setMarketItems((current) =>
         current.map((item) => (item.id === skillId ? { ...item, installed: false } : item))
@@ -187,6 +189,22 @@ export function SkillsPage() {
       setError(incoming instanceof Error ? incoming.message : '导入失败');
     } finally {
       setImporting(false);
+    }
+  };
+
+  const toggleSkillEnabled = async (skill: SkillInfo): Promise<void> => {
+    setBusySkillId(skill.id);
+    setError(null);
+    try {
+      const updated = await io.setSkillEnabled(skill.id, !(skill.enabled ?? true));
+      setSkills((current) => current.map((item) => (item.id === updated.id ? updated : item)));
+      if (selectedSkill?.id === skill.id) {
+        await refreshDetail(skill.id);
+      }
+    } catch (incoming) {
+      setError(incoming instanceof Error ? incoming.message : '切换 Skill 状态失败');
+    } finally {
+      setBusySkillId(null);
     }
   };
 
@@ -252,7 +270,7 @@ export function SkillsPage() {
             </button>
           </header>
 
-          <p className='empty-hint'>统一管理本地 Skill、市场安装与风险扫描，支持与多 Agent 协作组合使用。</p>
+          <p className='empty-hint'>统一管理你的本地 Skill、市场安装与风险扫描，让赛博合伙人在本地与协作模式下都能安全调用能力。</p>
 
           <div className='panel'>
             <div className='panel-header'>
@@ -352,7 +370,7 @@ export function SkillsPage() {
           {loading ? (
             <p>加载中...</p>
           ) : skills.length === 0 ? (
-            <p className='empty-hint'>暂无可用 Skill。</p>
+            <p className='empty-hint'>暂无可用 Skill，先为你的赛博合伙人安装能力。</p>
           ) : (
             <ul className='settings-list' data-testid='skill-list'>
               {skills.map((skill) => (
@@ -361,6 +379,10 @@ export function SkillsPage() {
                     <strong>{skill.name}</strong>
                     <p>{skill.description || '无描述'}</p>
                     <span className={`pill ${riskClass(skill.riskLevel)}`}>风险: {skill.riskLevel}</span>
+                    <p className='small-text'>状态: {skill.status || (skill.installed ? 'installed' : 'disabled')}</p>
+                    {skill.dependencyErrors && skill.dependencyErrors.length > 0 && (
+                      <p className='small-text error-text'>依赖异常: {skill.dependencyErrors.join('；')}</p>
+                    )}
                   </div>
                   <div className='row-actions'>
                     <button
@@ -435,3 +457,5 @@ export function SkillsPage() {
     />
   );
 }
+
+

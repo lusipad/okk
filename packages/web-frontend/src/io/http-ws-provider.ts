@@ -29,6 +29,7 @@ import type {
   RetryQuestionInput,
   SaveKnowledgeInput,
   SkillDetail,
+  SkillDiagnosisResult,
   SkillFileInfo,
   SkillMarketItem,
   SkillRiskIssue,
@@ -844,20 +845,33 @@ export class HttpWsIOProvider implements IOProvider {
     });
   }
 
+
   async scanSkillRisk(skillId: string): Promise<SkillRiskScanResult> {
     const payload = await this.http.get<BackendSkillRiskPayload>(`/api/skills/${skillId}/risk-scan`);
     const summary = toRiskSummary(payload.summary, 'low');
     const issuesRaw = Array.isArray(payload.issues) ? payload.issues : [];
-
     return {
       summary,
-      issues: issuesRaw.map((item) => mapSkillRiskIssue(item)).filter((item): item is SkillRiskIssue => item !== null)
+      issues: issuesRaw
+        .map((item) => mapSkillRiskIssue(item))
+        .filter((item): item is SkillRiskIssue => item !== null)
     };
+  }
+
+  async diagnoseSkill(skillId: string): Promise<SkillDiagnosisResult> {
+    const payload = await this.http.post<{ diagnosis: SkillDiagnosisResult }>(`/api/skills/${encodeURIComponent(skillId)}/diagnose`, {});
+    return payload.diagnosis;
+  }
+
+  async setSkillEnabled(skillId: string, enabled: boolean): Promise<SkillInfo> {
+    const payload = await this.http.patch<{ item: SkillInfo }>(`/api/skills/${encodeURIComponent(skillId)}/enabled`, { enabled });
+    return payload.item;
   }
 
   async deleteSkill(skillId: string): Promise<void> {
     await this.http.delete<void>(`/api/skills/${skillId}`);
   }
+
 
   async importSkillFolder(input: ImportSkillFolderInput): Promise<SkillInfo> {
     const payload = await this.http.post<{ item?: BackendSkillRecord }>('/api/skills/import-folder', input);
@@ -934,6 +948,7 @@ export class HttpWsIOProvider implements IOProvider {
     };
   }
 }
+
 
 
 

@@ -35,6 +35,10 @@ interface SkillInfo {
   riskSummary: SkillRiskSummary;
   installed: boolean;
   installedAt: string | null;
+  enabled: boolean;
+  status: "installed" | "disabled" | "error";
+  dependencyErrors: string[];
+  compatibility: string[];
 }
 
 interface SkillDetail extends SkillInfo {
@@ -57,6 +61,7 @@ interface LocalSkillRecord {
   description: string;
   version: string;
   source: string;
+  compatibility: string[];
   content: string;
 }
 
@@ -64,8 +69,13 @@ interface InstalledSkillRow {
   name: string;
   description: string;
   source: string;
+  sourceType?: "local" | "market" | "imported";
   version: string;
+  enabled?: boolean;
+  status?: "installed" | "disabled" | "error";
+  dependencyErrors?: string[];
   installedAt?: string;
+  updatedAt?: string;
 }
 
 interface InstalledSkillsDaoLike {
@@ -74,8 +84,15 @@ interface InstalledSkillsDaoLike {
     name: string;
     description: string;
     source: string;
+    sourceType?: "local" | "market" | "imported";
     version: string;
+    enabled?: boolean;
+    status?: "installed" | "disabled" | "error";
+    dependencyErrors?: string[];
   }): InstalledSkillRow;
+  remove(name: string): void;
+  setEnabled(name: string, enabled: boolean): InstalledSkillRow | null;
+  updateStatus(name: string, status: "installed" | "disabled" | "error", dependencyErrors?: string[]): InstalledSkillRow | null;
 }
 
 interface ScanRule {
@@ -280,13 +297,19 @@ function asInstalledSkillsDao(value: unknown): InstalledSkillsDaoLike | null {
 
   const list = value.list;
   const upsert = value.upsert;
-  if (typeof list !== "function" || typeof upsert !== "function") {
+  const remove = value.remove;
+  const setEnabled = value.setEnabled;
+  const updateStatus = value.updateStatus;
+  if (typeof list !== "function" || typeof upsert !== "function" || typeof remove !== "function" || typeof setEnabled !== "function" || typeof updateStatus !== "function") {
     return null;
   }
 
   return {
     list: () => list.call(value) as InstalledSkillRow[],
-    upsert: (input) => upsert.call(value, input) as InstalledSkillRow
+    upsert: (input) => upsert.call(value, input) as InstalledSkillRow,
+    remove: (name) => remove.call(value, name),
+    setEnabled: (name, enabled) => setEnabled.call(value, name, enabled) as InstalledSkillRow | null,
+    updateStatus: (name, status, dependencyErrors) => updateStatus.call(value, name, status, dependencyErrors) as InstalledSkillRow | null
   };
 }
 
@@ -362,7 +385,7 @@ async function getInstalledSkillRows(app: FastifyInstance): Promise<InstalledSki
 
 async function upsertInstalledSkill(
   app: FastifyInstance,
-  input: { name: string; description: string; source: string; version: string }
+  input: { name: string; description: string; source: string; sourceType?: "local" | "market" | "imported"; version: string; enabled?: boolean; status?: "installed" | "disabled" | "error"; dependencyErrors?: string[] }
 ): Promise<InstalledSkillRow> {
   const coreDao = resolveInstalledSkillsDaoFromCore(app);
   if (coreDao) {
@@ -376,7 +399,12 @@ async function upsertInstalledSkill(
 
   const row: InstalledSkillRow = {
     ...input,
-    installedAt: new Date().toISOString()
+    sourceType: input.sourceType ?? "local",
+    enabled: input.enabled ?? true,
+    status: input.status ?? "installed",
+    dependencyErrors: input.dependencyErrors ?? [],
+    installedAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
   };
   installedSkillsFallback.set(toSkillId(input.name), row);
   return row;
@@ -414,6 +442,25 @@ function parseFrontmatter(raw: string): { attrs: Record<string, string>; body: s
   return {
     attrs,
     body: lines.slice(endIndex + 1).join("\n")
+  };
+}
+
+function parseCsvList(value: string | undefined): string[] {
+  if (!value) {
+    return [];
+  }
+  return value.split(',').map((item) => item.trim()).filter(Boolean);
+}
+
+async function diagnoseSkillStructure(skill: LocalSkillRecord): Promise<{ compatibility: string[]; dependencyErrors: string[]; status: "installed" | "disabled" | "error" }> {
+  const dependencyErrors: string[] = [];
+  if (skill.content.includes('scripts/') && !fs.existsSync(path.join(skill.rootPath, 'scripts'))) {
+    dependencyErrors.push('Skill 内容引用了 scripts/，但目录不存在');
+  }
+  return {
+    compatibility: skill.compatibility,
+    dependencyErrors,
+    status: dependencyErrors.length > 0 ? 'error' : 'installed'
   };
 }
 
@@ -460,6 +507,7 @@ async function listLocalSkills(skillsRootDir: string): Promise<LocalSkillRecord[
       description,
       version,
       source: `local:${entry.name}`,
+      compatibility: parseCsvList(parsed.attrs.compatibility),
       content
     });
   }
@@ -614,7 +662,9 @@ function toSkillInfo(
   skill: LocalSkillRecord,
   installed: boolean,
   installedAt: string | null,
-  riskSummary: SkillRiskSummary
+  riskSummary: SkillRiskSummary,
+  installedRow?: InstalledSkillRow | null,
+  dependencyErrors: string[] = []
 ): SkillInfo {
   return {
     id: skill.id,
@@ -625,7 +675,11 @@ function toSkillInfo(
     riskLevel: riskSummary.level,
     riskSummary,
     installed,
-    installedAt
+    installedAt,
+    enabled: installedRow?.enabled ?? true,
+    status: installedRow?.status ?? (installed ? 'installed' : 'disabled'),
+    dependencyErrors: installedRow?.dependencyErrors ?? dependencyErrors,
+    compatibility: skill.compatibility
   };
 }
 
@@ -648,8 +702,18 @@ async function buildSkillInfoList(app: FastifyInstance, skillsRootDir: string): 
   for (const skill of skills) {
     const risk = await scanSkillRisk(skill.rootPath);
     const installedRow = installedByName.get(skill.name) ?? installedById.get(skill.id);
+    const diagnosis = await diagnoseSkillStructure(skill);
 
-    items.push(toSkillInfo(skill, Boolean(installedRow), installedRow?.installedAt ?? null, risk.summary));
+    items.push(
+      toSkillInfo(
+        skill,
+        Boolean(installedRow),
+        installedRow?.installedAt ?? null,
+        risk.summary,
+        installedRow,
+        diagnosis.dependencyErrors
+      )
+    );
   }
 
   return items;
@@ -941,9 +1005,10 @@ export const skillsRoutes: FastifyPluginAsync = async (app) => {
         return reply.code(404).send({ message: "Skill 不存在" });
       }
 
-      const [installedRows, risk] = await Promise.all([
+      const [installedRows, risk, diagnosis] = await Promise.all([
         getInstalledSkillRows(app),
-        scanSkillRisk(skill.rootPath)
+        scanSkillRisk(skill.rootPath),
+        diagnoseSkillStructure(skill)
       ]);
 
       const installedRow =
@@ -952,7 +1017,14 @@ export const skillsRoutes: FastifyPluginAsync = async (app) => {
         null;
 
       const detail: SkillDetail = {
-        ...toSkillInfo(skill, Boolean(installedRow), installedRow?.installedAt ?? null, risk.summary),
+        ...toSkillInfo(
+          skill,
+          Boolean(installedRow),
+          installedRow?.installedAt ?? null,
+          risk.summary,
+          installedRow,
+          diagnosis.dependencyErrors
+        ),
         rootPath: normalizePathForResponse(path.relative(pickWorkspaceRoot(), skill.rootPath)),
         content: skill.content
       };
@@ -1018,17 +1090,22 @@ export const skillsRoutes: FastifyPluginAsync = async (app) => {
         return reply.code(404).send({ message: "Skill 不存在" });
       }
 
+      const diagnosis = await diagnoseSkillStructure(skill);
       const installed = await upsertInstalledSkill(app, {
         name: skill.name,
         description: skill.description,
         source: skill.source,
-        version: skill.version
+        sourceType: 'local',
+        version: skill.version,
+        enabled: true,
+        status: diagnosis.status,
+        dependencyErrors: diagnosis.dependencyErrors
       });
 
       const risk = await scanSkillRisk(skill.rootPath);
 
       return reply.send(
-        toSkillInfo(skill, true, installed.installedAt ?? new Date().toISOString(), risk.summary)
+        toSkillInfo(skill, true, installed.installedAt ?? new Date().toISOString(), risk.summary, installed, diagnosis.dependencyErrors)
       );
     }
   );
@@ -1077,10 +1154,74 @@ export const skillsRoutes: FastifyPluginAsync = async (app) => {
         return reply.code(500).send({ message: "导入后读取 Skill 失败" });
       }
 
-      const risk = await scanSkillRisk(created.rootPath);
+      const [risk, diagnosis] = await Promise.all([
+        scanSkillRisk(created.rootPath),
+        diagnoseSkillStructure(created)
+      ]);
 
       return reply.code(201).send({
-        item: toSkillInfo(created, false, null, risk.summary)
+        item: toSkillInfo(created, false, null, risk.summary, null, diagnosis.dependencyErrors)
+      });
+    }
+  );
+
+
+  app.patch<{ Params: { skillId: string }; Body: { enabled?: boolean } }>(
+    "/:skillId/enabled",
+    { preHandler: [app.authenticate] },
+    async (request, reply) => {
+      const skill = await resolveSkillById(skillsRootDir, request.params.skillId);
+      if (!skill) {
+        return reply.code(404).send({ message: "Skill 不存在" });
+      }
+      if (typeof request.body?.enabled !== "boolean") {
+        return reply.code(400).send({ message: "enabled 必须是布尔值" });
+      }
+
+      const diagnosis = await diagnoseSkillStructure(skill);
+      const installed = await upsertInstalledSkill(app, {
+        name: skill.name,
+        description: skill.description,
+        source: skill.source,
+        sourceType: 'local',
+        version: skill.version,
+        enabled: request.body.enabled,
+        status: request.body.enabled ? diagnosis.status : 'disabled',
+        dependencyErrors: diagnosis.dependencyErrors
+      });
+      const risk = await scanSkillRisk(skill.rootPath);
+      return reply.send({
+        item: toSkillInfo(skill, true, installed.installedAt ?? null, risk.summary, installed, diagnosis.dependencyErrors)
+      });
+    }
+  );
+
+  app.post<{ Params: { skillId: string } }>(
+    "/:skillId/diagnose",
+    { preHandler: [app.authenticate] },
+    async (request, reply) => {
+      const skill = await resolveSkillById(skillsRootDir, request.params.skillId);
+      if (!skill) {
+        return reply.code(404).send({ message: "Skill 不存在" });
+      }
+      const [risk, diagnosis, installedRows] = await Promise.all([
+        scanSkillRisk(skill.rootPath),
+        diagnoseSkillStructure(skill),
+        getInstalledSkillRows(app)
+      ]);
+      const installedRow =
+        installedRows.find((row) => row.name === skill.name) ??
+        installedRows.find((row) => toSkillId(row.name) === skill.id) ??
+        null;
+
+      return reply.send({
+        item: toSkillInfo(skill, Boolean(installedRow), installedRow?.installedAt ?? null, risk.summary, installedRow, diagnosis.dependencyErrors),
+        diagnosis: {
+          compatibility: diagnosis.compatibility,
+          dependencyErrors: diagnosis.dependencyErrors,
+          status: diagnosis.status,
+          riskSummary: risk.summary
+        }
       });
     }
   );
@@ -1099,3 +1240,4 @@ export const skillsRoutes: FastifyPluginAsync = async (app) => {
     }
   );
 };
+

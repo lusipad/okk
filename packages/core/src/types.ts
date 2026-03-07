@@ -282,12 +282,19 @@ export interface TeamRun {
   updatedAt: string;
 }
 
+export type SkillLifecycleStatus = "installed" | "disabled" | "error";
+
 export interface InstalledSkill {
   name: string;
   description: string;
   source: string;
+  sourceType: "local" | "market" | "imported";
   version: string;
+  enabled: boolean;
+  status: SkillLifecycleStatus;
+  dependencyErrors: string[];
   installedAt: string;
+  updatedAt: string;
 }
 
 export interface AgentDefinition {
@@ -332,6 +339,7 @@ export interface SkillInfo {
   name: string;
   description: string;
   compatibility?: string[];
+  dependencyErrors?: string[];
   content: string;
   workingDirectory: string;
   rootDirectory: string;

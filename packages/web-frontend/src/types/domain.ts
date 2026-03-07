@@ -196,6 +196,10 @@ export interface SkillInfo {
   description: string;
   riskLevel: "low" | "medium" | "high";
   installed: boolean;
+  enabled?: boolean;
+  status?: "installed" | "disabled" | "error";
+  dependencyErrors?: string[];
+  compatibility?: string[];
 }
 
 export interface UserProfile {

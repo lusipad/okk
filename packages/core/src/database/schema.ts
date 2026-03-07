@@ -213,7 +213,12 @@ CREATE TABLE IF NOT EXISTS installed_skills (
   name TEXT PRIMARY KEY,
   description TEXT NOT NULL,
   source TEXT NOT NULL,
+  source_type TEXT NOT NULL DEFAULT 'local',
   version TEXT NOT NULL,
-  installed_at TEXT NOT NULL
+  enabled INTEGER NOT NULL DEFAULT 1,
+  status TEXT NOT NULL DEFAULT 'installed',
+  dependency_errors_json TEXT NOT NULL DEFAULT '[]',
+  installed_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
 );
 `;
