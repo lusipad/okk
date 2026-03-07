@@ -1,5 +1,5 @@
 import type { User, UserRole } from "../../types.js";
-import type { SqliteConnection } from "../sqlite-database.js";
+import type { SqliteConnection } from "../sqlite-adapter.js";
 import { generateId, nowIso } from "../../utils/id.js";
 
 interface UserRow {
@@ -71,4 +71,5 @@ export class UsersDao {
     return rows.map(toUser);
   }
 }
+
 

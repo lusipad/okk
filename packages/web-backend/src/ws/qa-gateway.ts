@@ -1,7 +1,15 @@
 import type { WebSocket } from "ws";
 import { randomUUID } from "node:crypto";
 import type { OkkCore } from "../core/types.js";
-import type { BackendEventEnvelope, QaAskMessage, QaClientMessage, QaResumeMessage } from "../types/contracts.js";
+import type {
+  BackendEventEnvelope,
+  CollaborationAction,
+  CollaborationDiagnostics,
+  CollaborationRunStatus,
+  QaAskMessage,
+  QaClientMessage,
+  QaResumeMessage
+} from "../types/contracts.js";
 import { parseQaClientMessage } from "../types/contracts.js";
 import { QaEventStore, type KnowledgeSuggestionSnapshot } from "./qa-event-store.js";
 
@@ -44,6 +52,58 @@ function toSuggestionView(input: KnowledgeSuggestionSnapshot): SuggestionView {
     category: input.category,
     tags: [...input.tags],
     status: input.status
+  };
+}
+
+function buildDiagnostics(message: string, options?: { code?: string; detail?: string; retryable?: boolean }): CollaborationDiagnostics {
+  return {
+    message,
+    ...(options?.code ? { code: options.code } : {}),
+    ...(options?.detail ? { detail: options.detail } : {}),
+    ...(options?.retryable !== undefined ? { retryable: options.retryable } : {}),
+    severity: "error"
+  };
+}
+
+function buildActions(...kinds: Array<CollaborationAction["kind"]>): CollaborationAction[] | undefined {
+  if (kinds.length === 0) {
+    return undefined;
+  }
+
+  return kinds.map((kind) => ({
+    kind,
+    label:
+      kind === "retry"
+        ? "重试消息"
+        : kind === "refresh"
+          ? "刷新状态"
+          : kind === "open_route"
+            ? "打开配置"
+            : "复制诊断"
+  }));
+}
+
+function buildRouteAction(label: string, route: string): CollaborationAction {
+  return {
+    kind: "open_route",
+    label,
+    route
+  };
+}
+
+function buildRuntimeMeta(input: {
+  runId: string;
+  sourceType: "team" | "agent" | "skill" | "mcp" | "backend" | "tool";
+  runtimeStatus: CollaborationRunStatus;
+  diagnostics?: CollaborationDiagnostics;
+  actions?: CollaborationAction[];
+}) {
+  return {
+    run_id: input.runId,
+    source_type: input.sourceType,
+    runtime_status: input.runtimeStatus,
+    ...(input.diagnostics ? { diagnostics: input.diagnostics } : {}),
+    ...(input.actions ? { actions: input.actions } : {})
   };
 }
 
@@ -127,13 +187,42 @@ export class QaGateway {
       emittedEvents.push(event);
       sendJson(socket, event);
     };
+    const publishCapabilityStatus = (input: {
+      capabilityId: string;
+      capabilityName: string;
+      sourceType: "skill" | "mcp";
+      summary: string;
+      route: string;
+    }) => {
+      this.core.team.publish({
+        teamId,
+        type: "capability_status",
+        payload: {
+          capability_id: input.capabilityId,
+          capability_name: input.capabilityName,
+          summary: input.summary,
+          configured: true,
+          ...buildRuntimeMeta({
+            runId: `${taskId}:${input.sourceType}:${input.capabilityId}`,
+            sourceType: input.sourceType,
+            runtimeStatus: "ready",
+            actions: [buildRouteAction(input.sourceType === "skill" ? "打开 Skills" : "打开 MCP 配置", input.route)]
+          })
+        }
+      });
+    };
 
     this.core.team.publish({
       teamId,
       type: "team_start",
       payload: {
         team_name: "Q&A Team",
-        member_count: 1
+        member_count: 1,
+        ...buildRuntimeMeta({
+          runId: taskId,
+          sourceType: "team",
+          runtimeStatus: "running"
+        })
       }
     });
     this.core.team.publish({
@@ -146,7 +235,12 @@ export class QaGateway {
         current_task: `${message.action}: ${summarize(message.content, 48)}`,
         backend: message.backend,
         started_at: startedAt,
-        updated_at: startedAt
+        updated_at: startedAt,
+        ...buildRuntimeMeta({
+          runId: taskId,
+          sourceType: "agent",
+          runtimeStatus: "running"
+        })
       }
     });
     this.core.team.publish({
@@ -157,7 +251,12 @@ export class QaGateway {
         title: `处理消息 ${message.client_message_id}`,
         status: "running",
         depends_on: [],
-        owner_member_id: memberId
+        owner_member_id: memberId,
+        ...buildRuntimeMeta({
+          runId: taskId,
+          sourceType: "team",
+          runtimeStatus: "running"
+        })
       }
     });
     this.core.team.publish({
@@ -167,9 +266,32 @@ export class QaGateway {
         message_id: `${taskId}:start`,
         member_id: memberId,
         content: "开始处理请求",
-        created_at: startedAt
+        created_at: startedAt,
+        ...buildRuntimeMeta({
+          runId: taskId,
+          sourceType: "agent",
+          runtimeStatus: "running"
+        })
       }
     });
+    for (const skillId of message.skill_ids ?? []) {
+      publishCapabilityStatus({
+        capabilityId: skillId,
+        capabilityName: skillId,
+        sourceType: "skill",
+        summary: `Skill ${skillId} 已加入当前请求`,
+        route: "/skills"
+      });
+    }
+    for (const serverId of message.mcp_server_ids ?? []) {
+      publishCapabilityStatus({
+        capabilityId: serverId,
+        capabilityName: serverId,
+        sourceType: "mcp",
+        summary: `MCP ${serverId} 已加入当前请求`,
+        route: "/settings/mcp"
+      });
+    }
 
     appendAndSend("qa.accepted", {
       action: message.action,
@@ -222,7 +344,14 @@ export class QaGateway {
             current_task: "用户中止",
             backend: message.backend,
             started_at: startedAt,
-            updated_at: updatedAt
+            updated_at: updatedAt,
+            ...buildRuntimeMeta({
+              runId: taskId,
+              sourceType: "agent",
+              runtimeStatus: "aborted",
+              diagnostics: buildDiagnostics("请求已中止", { code: "qa_aborted", retryable: true }),
+              actions: buildActions("retry", "copy_diagnostic")
+            })
           }
         });
         this.core.team.publish({
@@ -233,7 +362,14 @@ export class QaGateway {
             title: `处理消息 ${message.client_message_id}`,
             status: "error",
             depends_on: [],
-            owner_member_id: memberId
+            owner_member_id: memberId,
+            ...buildRuntimeMeta({
+              runId: taskId,
+              sourceType: "team",
+              runtimeStatus: "aborted",
+              diagnostics: buildDiagnostics("请求已中止", { code: "qa_aborted", retryable: true }),
+              actions: buildActions("retry", "copy_diagnostic")
+            })
           }
         });
         this.core.team.publish({
@@ -241,7 +377,14 @@ export class QaGateway {
           type: "team_end",
           payload: {
             status: "error",
-            summary: "请求已中止"
+            summary: "请求已中止",
+            ...buildRuntimeMeta({
+              runId: taskId,
+              sourceType: "team",
+              runtimeStatus: "aborted",
+              diagnostics: buildDiagnostics("请求已中止", { code: "qa_aborted", retryable: true }),
+              actions: buildActions("retry", "copy_diagnostic")
+            })
           }
         });
       } else {
@@ -267,7 +410,12 @@ export class QaGateway {
             current_task: "处理完成",
             backend: message.backend,
             started_at: startedAt,
-            updated_at: updatedAt
+            updated_at: updatedAt,
+            ...buildRuntimeMeta({
+              runId: taskId,
+              sourceType: "agent",
+              runtimeStatus: "completed"
+            })
           }
         });
         this.core.team.publish({
@@ -278,7 +426,12 @@ export class QaGateway {
             title: `处理消息 ${message.client_message_id}`,
             status: "done",
             depends_on: [],
-            owner_member_id: memberId
+            owner_member_id: memberId,
+            ...buildRuntimeMeta({
+              runId: taskId,
+              sourceType: "team",
+              runtimeStatus: "completed"
+            })
           }
         });
         this.core.team.publish({
@@ -288,7 +441,12 @@ export class QaGateway {
             message_id: `${taskId}:done`,
             member_id: memberId,
             content: "请求处理完成",
-            created_at: updatedAt
+            created_at: updatedAt,
+            ...buildRuntimeMeta({
+              runId: taskId,
+              sourceType: "agent",
+              runtimeStatus: "completed"
+            })
           }
         });
         this.core.team.publish({
@@ -296,7 +454,12 @@ export class QaGateway {
           type: "team_end",
           payload: {
             status: "done",
-            summary: "请求处理完成"
+            summary: "请求处理完成",
+            ...buildRuntimeMeta({
+              runId: taskId,
+              sourceType: "team",
+              runtimeStatus: "completed"
+            })
           }
         });
       }
@@ -305,6 +468,7 @@ export class QaGateway {
         client_message_id: message.client_message_id,
         reason: error instanceof Error ? error.message : "unknown_error",
       });
+      const errorMessage = error instanceof Error ? error.message : "unknown_error";
       const updatedAt = new Date().toISOString();
       this.core.team.publish({
         teamId,
@@ -312,32 +476,53 @@ export class QaGateway {
         payload: {
           member_id: memberId,
           agent_name: message.agent_name,
-          status: "error",
-          current_task: "执行失败",
-          backend: message.backend,
-          started_at: startedAt,
-          updated_at: updatedAt
-        }
-      });
+            status: "error",
+            current_task: "执行失败",
+            backend: message.backend,
+            started_at: startedAt,
+            updated_at: updatedAt,
+            ...buildRuntimeMeta({
+              runId: taskId,
+              sourceType: "agent",
+              runtimeStatus: "failed",
+              diagnostics: buildDiagnostics(errorMessage, { code: "qa_error", retryable: true }),
+              actions: buildActions("retry", "copy_diagnostic")
+            })
+          }
+        });
       this.core.team.publish({
         teamId,
         type: "team_task_update",
         payload: {
-          task_id: taskId,
-          title: `处理消息 ${message.client_message_id}`,
-          status: "error",
-          depends_on: [],
-          owner_member_id: memberId
-        }
-      });
-      this.core.team.publish({
-        teamId,
-        type: "team_end",
-        payload: {
-          status: "error",
-          summary: "请求处理失败"
-        }
-      });
+            task_id: taskId,
+            title: `处理消息 ${message.client_message_id}`,
+            status: "error",
+            depends_on: [],
+            owner_member_id: memberId,
+            ...buildRuntimeMeta({
+              runId: taskId,
+              sourceType: "team",
+              runtimeStatus: "failed",
+              diagnostics: buildDiagnostics(errorMessage, { code: "qa_error", retryable: true }),
+              actions: buildActions("retry", "copy_diagnostic")
+            })
+          }
+        });
+        this.core.team.publish({
+          teamId,
+          type: "team_end",
+          payload: {
+            status: "error",
+            summary: "请求处理失败",
+            ...buildRuntimeMeta({
+              runId: taskId,
+              sourceType: "team",
+              runtimeStatus: "failed",
+              diagnostics: buildDiagnostics(errorMessage, { code: "qa_error", retryable: true }),
+              actions: buildActions("retry", "copy_diagnostic")
+            })
+          }
+        });
     } finally {
       if (this.inflight.get(sessionId) === state) {
         this.inflight.delete(sessionId);

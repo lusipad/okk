@@ -39,11 +39,40 @@ export type StandardTeamEventType =
   | "team_member_update"
   | "team_task_update"
   | "team_message"
+  | "capability_status"
   | "team_end";
 
 export type TeamEventType = StandardTeamEventType | (string & {});
 
-export interface TeamMemberPayload {
+export type CollaborationSourceType = "team" | "agent" | "skill" | "mcp" | "backend" | "tool";
+
+export type CollaborationRunStatus = "queued" | "running" | "completed" | "failed" | "aborted" | "ready" | "unavailable";
+
+export type CollaborationActionKind = "retry" | "refresh" | "copy_diagnostic" | "open_route";
+
+export interface CollaborationAction {
+  kind: CollaborationActionKind;
+  label: string;
+  route?: string;
+}
+
+export interface CollaborationDiagnostics {
+  code?: string;
+  message: string;
+  detail?: string;
+  retryable?: boolean;
+  severity?: "info" | "warning" | "error";
+}
+
+export interface CollaborationPayloadMeta {
+  run_id?: string;
+  source_type?: CollaborationSourceType;
+  runtime_status?: CollaborationRunStatus;
+  diagnostics?: CollaborationDiagnostics;
+  actions?: CollaborationAction[];
+}
+
+export interface TeamMemberPayload extends CollaborationPayloadMeta {
   member_id: string;
   agent_name: string;
   status: "pending" | "running" | "done" | "error";
@@ -53,7 +82,7 @@ export interface TeamMemberPayload {
   updated_at: string;
 }
 
-export interface TeamTaskPayload {
+export interface TeamTaskPayload extends CollaborationPayloadMeta {
   task_id: string;
   title: string;
   status: "pending" | "running" | "done" | "error";
@@ -61,20 +90,28 @@ export interface TeamTaskPayload {
   owner_member_id?: string;
 }
 
-export interface TeamMessagePayload {
+export interface TeamMessagePayload extends CollaborationPayloadMeta {
   message_id: string;
   member_id: string;
   content: string;
   created_at: string;
 }
 
+export interface CapabilityStatusPayload extends CollaborationPayloadMeta {
+  capability_id: string;
+  capability_name: string;
+  summary: string;
+  configured?: boolean;
+}
+
 export interface TeamEventPayloadMap {
-  team_start: { team_name: string; member_count: number };
+  team_start: CollaborationPayloadMeta & { team_name: string; member_count: number };
   team_member_add: TeamMemberPayload;
   team_member_update: TeamMemberPayload;
   team_task_update: TeamTaskPayload;
   team_message: TeamMessagePayload;
-  team_end: { status: "done" | "error"; summary?: string };
+  capability_status: CapabilityStatusPayload;
+  team_end: CollaborationPayloadMeta & { status: "done" | "error"; summary?: string };
 }
 
 export interface TeamEvent<TType extends TeamEventType = TeamEventType> {

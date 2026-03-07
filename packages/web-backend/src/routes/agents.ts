@@ -1,7 +1,11 @@
 import type { FastifyPluginAsync } from "fastify";
 import type {
+  CollaborationAction,
+  CollaborationDiagnostics,
+  CollaborationRunStatus,
   TeamEventType
 } from "../types/contracts.js";
+import type { RuntimeBackendHealth, TeamRunMemberResult, TeamRunRecord } from "../core/types.js";
 
 interface PublishTeamEventBody {
   type: TeamEventType;
@@ -81,6 +85,14 @@ function validateStandardTeamPayload(
       typeof payload.member_id === "string" &&
       typeof payload.content === "string" &&
       typeof payload.created_at === "string"
+    );
+  }
+
+  if (type === "capability_status") {
+    return (
+      typeof payload.capability_id === "string" &&
+      typeof payload.capability_name === "string" &&
+      typeof payload.summary === "string"
     );
   }
 
@@ -171,6 +183,88 @@ function parseTeamRunBody(input: unknown) {
   };
 }
 
+function buildDiagnostics(message: string, options?: { code?: string; detail?: string; retryable?: boolean }): CollaborationDiagnostics {
+  return {
+    message,
+    ...(options?.code ? { code: options.code } : {}),
+    ...(options?.detail ? { detail: options.detail } : {}),
+    ...(options?.retryable !== undefined ? { retryable: options.retryable } : {}),
+    severity: "error"
+  };
+}
+
+function mapRuntimeStatus(status: TeamRunRecord["status"]): CollaborationRunStatus {
+  if (status === "done") {
+    return "completed";
+  }
+  if (status === "error") {
+    return "failed";
+  }
+  return "running";
+}
+
+function mapTeamRunMember(member: TeamRunMemberResult): TeamRunMemberResult {
+  const diagnostics = member.error ? buildDiagnostics(member.error, { code: "team_member_error", retryable: true }) : undefined;
+  const actions: CollaborationAction[] | undefined = diagnostics
+    ? [
+        { kind: "retry", label: "重试消息" },
+        { kind: "copy_diagnostic", label: "复制诊断" }
+      ]
+    : undefined;
+
+  return {
+    ...member,
+    sourceType: member.sourceType ?? "agent",
+    runtimeStatus: member.runtimeStatus ?? (member.status === "done" ? "completed" : "failed"),
+    ...(diagnostics ? { diagnostics } : {}),
+    ...(actions ? { actions } : {})
+  };
+}
+
+function mapTeamRunRecord(item: TeamRunRecord): TeamRunRecord {
+  const runtimeStatus = item.runtimeStatus ?? mapRuntimeStatus(item.status);
+  const diagnostics = item.diagnostics ?? (item.status === "error" ? buildDiagnostics(item.summary ?? "团队运行失败", { code: "team_run_failed", retryable: true }) : undefined);
+  const actions = item.actions ?? (item.status === "error"
+    ? [
+        { kind: "retry", label: "重试消息" },
+        { kind: "copy_diagnostic", label: "复制诊断" }
+      ]
+    : undefined);
+
+  return {
+    ...item,
+    sourceType: item.sourceType ?? "team",
+    runtimeStatus,
+    ...(diagnostics ? { diagnostics } : {}),
+    ...(actions ? { actions } : {}),
+    members: item.members.map((member) => mapTeamRunMember(member))
+  };
+}
+
+function mapRuntimeBackend(item: RuntimeBackendHealth): RuntimeBackendHealth {
+  const diagnostics = item.diagnostics ?? (!item.available
+    ? buildDiagnostics(item.reason ?? `${item.backend} 不可用`, {
+        code: "backend_unavailable",
+        detail: item.command ? `命令 ${item.command}` : undefined,
+        retryable: true
+      })
+    : undefined);
+  const actions = item.actions ?? (!item.available
+    ? [
+        { kind: "refresh", label: "重试探测" },
+        { kind: "copy_diagnostic", label: "复制诊断" }
+      ]
+    : undefined);
+
+  return {
+    ...item,
+    sourceType: item.sourceType ?? "backend",
+    runtimeStatus: item.runtimeStatus ?? (item.available ? "ready" : "unavailable"),
+    ...(diagnostics ? { diagnostics } : {}),
+    ...(actions ? { actions } : {})
+  };
+}
+
 export const agentsRoutes: FastifyPluginAsync = async (app) => {
   app.get("/", { preHandler: [app.authenticate] }, async (_request, reply) => {
     const records = await app.core.agents.list();
@@ -185,7 +279,7 @@ export const agentsRoutes: FastifyPluginAsync = async (app) => {
   });
 
   app.get("/runtime/backends", { preHandler: [app.authenticate] }, async (_request, reply) => {
-    const items = await app.core.runtime.listBackendHealth();
+    const items = (await app.core.runtime.listBackendHealth()).map((item) => mapRuntimeBackend(item));
     return reply.send({ items });
   });
 
@@ -200,7 +294,7 @@ export const agentsRoutes: FastifyPluginAsync = async (app) => {
     async (request, reply) => {
       try {
         const created = await app.core.team.run(parseTeamRunBody(request.body ?? {}));
-        return reply.code(202).send(created);
+        return reply.code(202).send(mapTeamRunRecord(created));
       } catch (error) {
         return reply.code(400).send({
           message: error instanceof Error ? error.message : String(error)
@@ -221,7 +315,7 @@ export const agentsRoutes: FastifyPluginAsync = async (app) => {
       if (!item) {
         return reply.code(404).send({ message: "team run 不存在" });
       }
-      return reply.send({ item });
+      return reply.send({ item: mapTeamRunRecord(item) });
     }
   );
 
@@ -233,7 +327,7 @@ export const agentsRoutes: FastifyPluginAsync = async (app) => {
       if (!sessionId) {
         return reply.code(400).send({ message: "sessionId 必填" });
       }
-      const items = await app.core.team.listRuns(sessionId);
+      const items = (await app.core.team.listRuns(sessionId)).map((item) => mapTeamRunRecord(item));
       return reply.send({ items });
     }
   );

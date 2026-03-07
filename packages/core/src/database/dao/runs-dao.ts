@@ -1,5 +1,5 @@
 import type { AgentRun, TeamRun } from "../../types.js";
-import type { SqliteConnection } from "../sqlite-database.js";
+import type { SqliteConnection } from "../sqlite-adapter.js";
 import { generateId, nowIso } from "../../utils/id.js";
 
 interface AgentRunRow {
@@ -177,3 +177,4 @@ export class RunsDao {
     return this.getTeamRunById(id);
   }
 }
+

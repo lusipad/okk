@@ -3,7 +3,7 @@ import type {
   KnowledgeStatus,
   KnowledgeVersion
 } from "../../types.js";
-import type { SqliteConnection } from "../sqlite-database.js";
+import type { SqliteConnection } from "../sqlite-adapter.js";
 import { generateId, nowIso } from "../../utils/id.js";
 
 const DEFAULT_CATEGORY = "general";
@@ -566,3 +566,4 @@ export class KnowledgeDao {
     return rows.map((row) => row.tag);
   }
 }
+
