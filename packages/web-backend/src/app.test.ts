@@ -994,9 +994,14 @@ test("REST /api/repos/context 支持读取、更新和继续工作摘要", async
     const token = await loginToken(app);
     const headers = { Authorization: `Bearer ${token}` };
 
-    const reposResponse = await app.inject({ method: "GET", url: "/api/repos", headers });
-    assert.equal(reposResponse.statusCode, 200);
-    const repoId = (reposResponse.json().items as Array<{ id: string }>)[0]?.id;
+    const createRepoResponse = await app.inject({
+      method: "POST",
+      url: "/api/repos",
+      headers,
+      payload: { name: "okclaw", path: process.cwd() }
+    });
+    assert.equal(createRepoResponse.statusCode, 201, createRepoResponse.body);
+    const repoId = createRepoResponse.json().id as string;
     assert.equal(typeof repoId, "string");
 
     const getResponse = await app.inject({ method: "GET", url: `/api/repos/${repoId}/context`, headers });
@@ -1023,6 +1028,91 @@ test("REST /api/repos/context 支持读取、更新和继续工作摘要", async
     assert.equal(continueResponse.statusCode, 200, continueResponse.body);
     assert.equal(continueResponse.json().repoId, repoId);
     assert.equal(typeof continueResponse.json().prompt, "string");
+  } finally {
+    await app.close();
+  }
+});
+
+
+test("REST /api/sessions 支持搜索、归档、恢复和引用片段", async () => {
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "okk-session-search-"));
+  const workspaceRoot = path.join(tempDir, "workspace");
+  await fs.mkdir(workspaceRoot, { recursive: true });
+
+  const core = await createCore({
+    dbPath: path.join(tempDir, "core.db"),
+    workspaceRoot,
+  });
+
+  const app = await createApp({ jwtSecret: "test-secret", logger: false, core });
+  await app.listen({ host: "127.0.0.1", port: 0 });
+
+  try {
+    const token = await loginToken(app);
+    const headers = { Authorization: `Bearer ${token}` };
+    const createSessionResponse = await app.inject({
+      method: "POST",
+      url: "/api/sessions",
+      headers,
+      payload: { title: "登录排查" }
+    });
+    assert.equal(createSessionResponse.statusCode, 201, createSessionResponse.body);
+    const session = createSessionResponse.json() as { id: string };
+
+    core.database.messages.create({
+      sessionId: session.id,
+      role: "user",
+      content: "请处理 login callback 失败问题",
+    });
+    core.database.messages.create({
+      sessionId: session.id,
+      role: "assistant",
+      content: "建议先检查 login callback 的重定向参数与 token 处理。",
+    });
+    core.database.sessions.updateSummary(session.id, "处理 login callback 失败问题");
+
+    const searchResponse = await app.inject({
+      method: "GET",
+      url: "/api/sessions?q=login",
+      headers,
+    });
+    assert.equal(searchResponse.statusCode, 200, searchResponse.body);
+    const searchItems = searchResponse.json().items as Array<{ id: string; summary: string }>;
+    assert.equal(searchItems.length, 1);
+    assert.equal(searchItems[0]?.id, session.id);
+
+    const refsResponse = await app.inject({
+      method: "GET",
+      url: `/api/sessions/${session.id}/references?q=callback`,
+      headers,
+    });
+    assert.equal(refsResponse.statusCode, 200, refsResponse.body);
+    const refs = refsResponse.json().items as Array<{ snippet: string }>;
+    assert.ok(refs.length > 0);
+
+    const archiveResponse = await app.inject({
+      method: "POST",
+      url: `/api/sessions/${session.id}/archive`,
+      headers,
+    });
+    assert.equal(archiveResponse.statusCode, 200, archiveResponse.body);
+    assert.ok(archiveResponse.json().archivedAt);
+
+    const archivedList = await app.inject({
+      method: "GET",
+      url: "/api/sessions?archived=true",
+      headers,
+    });
+    assert.equal(archivedList.statusCode, 200, archivedList.body);
+    assert.equal((archivedList.json().items as Array<{ id: string }>).length, 1);
+
+    const restoreResponse = await app.inject({
+      method: "POST",
+      url: `/api/sessions/${session.id}/restore`,
+      headers,
+    });
+    assert.equal(restoreResponse.statusCode, 200, restoreResponse.body);
+    assert.equal(restoreResponse.json().archivedAt, null);
   } finally {
     await app.close();
   }

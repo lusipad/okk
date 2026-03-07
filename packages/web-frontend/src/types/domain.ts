@@ -133,7 +133,16 @@ export interface SessionInfo {
   id: string;
   title: string;
   repoId?: string;
+  summary?: string;
+  tags?: string[];
+  archivedAt?: string | null;
   updatedAt: string;
+}
+
+export interface SessionReferenceRecord {
+  messageId: string;
+  snippet: string;
+  createdAt: string;
 }
 
 export interface RepoContextSnapshot {

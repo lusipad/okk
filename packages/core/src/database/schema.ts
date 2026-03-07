@@ -1,4 +1,4 @@
-export const CURRENT_SCHEMA_VERSION = 3;
+export const CURRENT_SCHEMA_VERSION = 4;
 
 export const createBaseSchemaSql = `
 CREATE TABLE IF NOT EXISTS schema_migrations (
@@ -45,15 +45,39 @@ CREATE TABLE IF NOT EXISTS sessions (
   user_id TEXT NOT NULL,
   repo_id TEXT NOT NULL,
   title TEXT NOT NULL,
+  summary TEXT NOT NULL DEFAULT '',
+  tags_json TEXT NOT NULL DEFAULT '[]',
   backend TEXT NOT NULL,
   backend_session_id TEXT,
   mode TEXT NOT NULL DEFAULT 'ask',
   status TEXT NOT NULL DEFAULT 'active',
+  archived_at TEXT,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
   FOREIGN KEY (user_id) REFERENCES users(id),
   FOREIGN KEY (repo_id) REFERENCES repositories(id)
 );
+
+CREATE VIRTUAL TABLE IF NOT EXISTS session_fts
+USING fts5(session_id UNINDEXED, title, summary);
+
+CREATE TRIGGER IF NOT EXISTS sessions_ai
+AFTER INSERT ON sessions BEGIN
+  INSERT INTO session_fts(session_id, title, summary)
+  VALUES (new.id, new.title, new.summary);
+END;
+
+CREATE TRIGGER IF NOT EXISTS sessions_au
+AFTER UPDATE ON sessions BEGIN
+  DELETE FROM session_fts WHERE session_id = old.id;
+  INSERT INTO session_fts(session_id, title, summary)
+  VALUES (new.id, new.title, new.summary);
+END;
+
+CREATE TRIGGER IF NOT EXISTS sessions_ad
+AFTER DELETE ON sessions BEGIN
+  DELETE FROM session_fts WHERE session_id = old.id;
+END;
 
 CREATE TABLE IF NOT EXISTS messages (
   id TEXT PRIMARY KEY,
@@ -68,6 +92,27 @@ CREATE TABLE IF NOT EXISTS messages (
 
 CREATE INDEX IF NOT EXISTS idx_messages_session_created
 ON messages(session_id, created_at, id);
+
+CREATE VIRTUAL TABLE IF NOT EXISTS messages_fts
+USING fts5(message_id UNINDEXED, session_id UNINDEXED, content);
+
+CREATE TRIGGER IF NOT EXISTS messages_ai_fts
+AFTER INSERT ON messages BEGIN
+  INSERT INTO messages_fts(message_id, session_id, content)
+  VALUES (new.id, new.session_id, new.content);
+END;
+
+CREATE TRIGGER IF NOT EXISTS messages_au_fts
+AFTER UPDATE ON messages BEGIN
+  DELETE FROM messages_fts WHERE message_id = old.id;
+  INSERT INTO messages_fts(message_id, session_id, content)
+  VALUES (new.id, new.session_id, new.content);
+END;
+
+CREATE TRIGGER IF NOT EXISTS messages_ad_fts
+AFTER DELETE ON messages BEGIN
+  DELETE FROM messages_fts WHERE message_id = old.id;
+END;
 
 CREATE TABLE IF NOT EXISTS knowledge_entries (
   id TEXT PRIMARY KEY,

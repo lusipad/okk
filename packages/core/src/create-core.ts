@@ -83,8 +83,17 @@ export interface CoreSessionRecord {
   id: string;
   title: string;
   repoId: string;
+  summary: string;
+  tags: string[];
+  archivedAt: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface CoreSessionReferenceRecord {
+  messageId: string;
+  snippet: string;
+  createdAt: string;
 }
 
 export interface CoreKnowledgeRecord {
@@ -200,8 +209,11 @@ export interface CoreApi {
     continue(repoId: string): Promise<CoreRepoContinueRecord>;
   };
   sessions: {
-    list(): Promise<CoreSessionRecord[]>;
+    list(input?: { archived?: boolean; q?: string; tag?: string }): Promise<CoreSessionRecord[]>;
     create(input: Pick<CoreSessionRecord, "title" | "repoId">): Promise<CoreSessionRecord>;
+    archive(sessionId: string): Promise<CoreSessionRecord | null>;
+    restore(sessionId: string): Promise<CoreSessionRecord | null>;
+    listReferences(sessionId: string, query?: string): Promise<CoreSessionReferenceRecord[]>;
   };
   knowledge: {
     list(): Promise<CoreKnowledgeRecord[]>;
@@ -507,6 +519,9 @@ function toSessionRecord(record: Session): CoreSessionRecord {
     id: record.id,
     title: record.title,
     repoId: record.repoId,
+    summary: record.summary,
+    tags: record.tags,
+    archivedAt: record.archivedAt,
     createdAt: record.createdAt,
     updatedAt: record.updatedAt
   };
@@ -993,8 +1008,12 @@ export async function createCore(options: CreateCoreOptions = {}): Promise<CoreA
       }
     },
     sessions: {
-      async list() {
-        return database.sessions.listByUserId(DEFAULT_ADMIN_ID).map(toSessionRecord);
+      async list(input) {
+        const options = input ?? {};
+        const items = options.q
+          ? database.sessions.searchByUserId(DEFAULT_ADMIN_ID, options).map((item) => item.session)
+          : database.sessions.listByUserId(DEFAULT_ADMIN_ID, options);
+        return items.map(toSessionRecord);
       },
       async create(input) {
         const repository =
@@ -1020,6 +1039,17 @@ export async function createCore(options: CreateCoreOptions = {}): Promise<CoreA
         });
 
         return toSessionRecord(created);
+      },
+      async archive(sessionId) {
+        const archived = database.sessions.archive(sessionId);
+        return archived ? toSessionRecord(archived) : null;
+      },
+      async restore(sessionId) {
+        const restored = database.sessions.restore(sessionId);
+        return restored ? toSessionRecord(restored) : null;
+      },
+      async listReferences(sessionId, query) {
+        return database.sessions.listReferenceSnippets(sessionId, query);
       }
     },
     knowledge: {
@@ -1207,6 +1237,7 @@ export async function createCore(options: CreateCoreOptions = {}): Promise<CoreA
             const activitySummary = summarizeContent(`${request.content}
 ${assistantContent}`);
             const continuePrompt = `请继续仓库 ${persistedSession.repoId} 上的工作，优先延续：${summarizeContent(request.content)}`;
+            database.sessions.updateSummary(persistedSession.id, summarizeContent(assistantContent));
             database.repositories.updateContextSnapshot(persistedSession.repoId, {
               preferredAgentName: request.agentName,
               preferredBackend: request.backend,

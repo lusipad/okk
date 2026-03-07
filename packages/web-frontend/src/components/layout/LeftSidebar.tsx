@@ -18,6 +18,9 @@ interface LeftSidebarProps {
   projectContext?: ProjectContextSummary | null;
   onSelectSession: (sessionId: string) => void;
   onCreateSession: () => void;
+  onArchiveSession?: (sessionId: string) => void;
+  onRestoreSession?: (sessionId: string) => void;
+  onReferenceSession?: (sessionId: string) => void;
   onContinueProjectContext?: () => void;
   onSaveProjectContext?: () => void;
   onRefreshProjectContext?: () => void;
@@ -77,23 +80,33 @@ export function LeftSidebar({
   projectContext = null,
   onSelectSession,
   onCreateSession,
+  onArchiveSession,
+  onRestoreSession,
+  onReferenceSession,
   onContinueProjectContext,
   onSaveProjectContext,
   onRefreshProjectContext
 }: LeftSidebarProps) {
   const [sessionQuery, setSessionQuery] = useState('');
+  const [showArchived, setShowArchived] = useState(false);
   const location = useLocation();
   const inChat = location.pathname === '/';
   const normalizedSessionQuery = sessionQuery.trim().toLowerCase();
   const filteredSessions = useMemo(() => {
+    const scopedSessions = sessions.filter((session) =>
+      showArchived ? Boolean(session.archivedAt) : !session.archivedAt
+    );
     if (!normalizedSessionQuery) {
-      return sessions;
+      return scopedSessions;
     }
-    return sessions.filter((session) => {
+    return scopedSessions.filter((session) => {
       const title = session.title || '未命名会话';
-      return title.toLowerCase().includes(normalizedSessionQuery);
+      const summary = session.summary || '';
+      const tags = (session.tags ?? []).join(' ');
+      const haystack = [title, summary, tags].join(' ').toLowerCase();
+      return haystack.includes(normalizedSessionQuery);
     });
-  }, [normalizedSessionQuery, sessions]);
+  }, [normalizedSessionQuery, sessions, showArchived]);
   const groupedSessions = useMemo(() => {
     const now = new Date();
     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
@@ -182,6 +195,14 @@ export function LeftSidebar({
           />
         </label>
         <p className='sidebar-section-hint'>快速筛选历史会话，保持当前工作台上下文不跳转。</p>
+        <button
+          type='button'
+          className='ghost-button small-button'
+          data-testid='sidebar-archived-toggle'
+          onClick={() => setShowArchived((value) => !value)}
+        >
+          {showArchived ? '查看活跃会话' : '查看归档会话'}
+        </button>
       </div>
 
       <div className='sidebar-section'>
@@ -258,24 +279,62 @@ export function LeftSidebar({
 
                   return (
                     <li key={session.id}>
-                      <button
-                        type='button'
-                        className={`session-item ${isActive ? 'active' : ''}`}
-                        onClick={() => onSelectSession(session.id)}
-                        aria-pressed={isActive}
-                      >
-                        <span className='session-title-row'>
-                          <span className='session-title'>{session.title || '未命名会话'}</span>
-                        </span>
-                        <time
-                          className='timestamp'
-                          dateTime={session.updatedAt}
-                          title={absoluteUpdatedAt}
-                          aria-label={`最近更新 ${relativeUpdatedAt}，具体时间 ${absoluteUpdatedAt}`}
+                      <div className={`session-item ${isActive ? 'active' : ''}`}>
+                        <button
+                          type='button'
+                          className='session-item-main'
+                          onClick={() => onSelectSession(session.id)}
+                          aria-pressed={isActive}
                         >
-                          {relativeUpdatedAt}
-                        </time>
-                      </button>
+                          <span className='session-title-row'>
+                            <span className='session-title'>{session.title || '未命名会话'}</span>
+                          </span>
+                          {session.summary ? <span className='small-text'>{session.summary}</span> : null}
+                          <time
+                            className='timestamp'
+                            dateTime={session.updatedAt}
+                            title={absoluteUpdatedAt}
+                            aria-label={`最近更新 ${relativeUpdatedAt}，具体时间 ${absoluteUpdatedAt}`}
+                          >
+                            {relativeUpdatedAt}
+                          </time>
+                        </button>
+                        <div className='row-actions'>
+                          {onReferenceSession && !showArchived && (
+                            <button
+                              type='button'
+                              className='ghost-button small-button'
+                              data-testid={`session-reference-${session.id}`}
+                              onClick={() => onReferenceSession(session.id)}
+                            >
+                              引用
+                            </button>
+                          )}
+                          {showArchived ? (
+                            onRestoreSession && (
+                              <button
+                                type='button'
+                                className='ghost-button small-button'
+                                data-testid={`session-restore-${session.id}`}
+                                onClick={() => onRestoreSession(session.id)}
+                              >
+                                恢复
+                              </button>
+                            )
+                          ) : (
+                            onArchiveSession && (
+                              <button
+                                type='button'
+                                className='ghost-button small-button'
+                                data-testid={`session-archive-${session.id}`}
+                                onClick={() => onArchiveSession(session.id)}
+                              >
+                                归档
+                              </button>
+                            )
+                          )}
+                        </div>
+                      </div>
                     </li>
                   );
                 })}

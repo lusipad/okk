@@ -10,6 +10,7 @@ import type {
   RepoContextRecord,
   RepoContinueRecord,
   SessionInfo,
+  SessionReferenceRecord,
   SkillInfo,
   TeamMemberEvent,
   ToolCall,
@@ -203,8 +204,11 @@ export interface UpdateMcpServerInput {
 
 export interface IOProvider {
   login(username: string, password: string): Promise<LoginResult>;
-  listSessions(): Promise<SessionInfo[]>;
+  listSessions(input?: { archived?: boolean; q?: string; tag?: string }): Promise<SessionInfo[]>;
   createSession(title?: string): Promise<SessionInfo>;
+  archiveSession(sessionId: string): Promise<SessionInfo>;
+  restoreSession(sessionId: string): Promise<SessionInfo>;
+  listSessionReferences(sessionId: string, query?: string): Promise<SessionReferenceRecord[]>;
   getRepoContext(repoId: string): Promise<RepoContextRecord>;
   updateRepoContext(repoId: string, input: Partial<RepoContextRecord['snapshot']>): Promise<RepoContextRecord>;
   continueRepoContext(repoId: string): Promise<RepoContinueRecord>;

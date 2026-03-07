@@ -213,8 +213,9 @@ export function createInMemoryCore(): OkkCore {
       },
     },
     sessions: {
-      async list() {
-        return sessions;
+      async list(input) {
+        const archived = input?.archived === true;
+        return sessions.filter((item) => archived ? Boolean(item.archivedAt) : !item.archivedAt);
       },
       async create(input) {
         const timestamp = now();
@@ -222,11 +223,33 @@ export function createInMemoryCore(): OkkCore {
           id: randomUUID(),
           title: input.title,
           repoId: input.repoId,
+          summary: "",
+          tags: [],
+          archivedAt: null,
           createdAt: timestamp,
           updatedAt: timestamp,
         };
         sessions.push(record);
         return record;
+      },
+      async archive(sessionId) {
+        const index = sessions.findIndex((item) => item.id === sessionId);
+        if (index < 0) {
+          return null;
+        }
+        sessions[index] = { ...sessions[index], archivedAt: now(), updatedAt: now() };
+        return sessions[index];
+      },
+      async restore(sessionId) {
+        const index = sessions.findIndex((item) => item.id === sessionId);
+        if (index < 0) {
+          return null;
+        }
+        sessions[index] = { ...sessions[index], archivedAt: null, updatedAt: now() };
+        return sessions[index];
+      },
+      async listReferences() {
+        return [];
       },
     },
     knowledge: {
@@ -338,3 +361,4 @@ export function createInMemoryCore(): OkkCore {
     },
   };
 }
+

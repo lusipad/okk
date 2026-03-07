@@ -599,6 +599,40 @@ export function ChatPage() {
     }
   };
 
+  const archiveSession = async (sessionId: string): Promise<void> => {
+    try {
+      await io.archiveSession(sessionId);
+      await loadBootstrap();
+    } catch (incoming) {
+      setError(toErrorMessage(incoming, '归档会话失败'));
+    }
+  };
+
+  const restoreSession = async (sessionId: string): Promise<void> => {
+    try {
+      await io.restoreSession(sessionId);
+      await loadBootstrap();
+    } catch (incoming) {
+      setError(toErrorMessage(incoming, '恢复会话失败'));
+    }
+  };
+
+  const referenceSession = async (sessionId: string): Promise<void> => {
+    try {
+      const items = await io.listSessionReferences(sessionId);
+      const first = items[0];
+      if (!first) {
+        return;
+      }
+      setComposerExternalDraft({
+        id: `session-ref-${Date.now()}`,
+        text: `请参考以下历史会话片段继续当前工作：\n> ${first.snippet.replace(/<[^>]+>/g, '')}`
+      });
+    } catch (incoming) {
+      setError(toErrorMessage(incoming, '引用历史会话失败'));
+    }
+  };
+
   const ignoreSuggestion = async (suggestionId: string): Promise<void> => {
     if (!currentSessionId) {
       return;

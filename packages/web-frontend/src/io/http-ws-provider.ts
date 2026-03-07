@@ -9,6 +9,7 @@ import type {
   RepoContextRecord,
   RepoContinueRecord,
   SessionInfo,
+  SessionReferenceRecord,
   SkillInfo
 } from '../types/domain';
 import { HttpClient } from './http-client';
@@ -538,8 +539,19 @@ export class HttpWsIOProvider implements IOProvider {
     return this.http.post<LoginResult>('/api/auth/login', { username, password });
   }
 
-  async listSessions(): Promise<SessionInfo[]> {
-    const payload = await this.http.get<SessionInfo[] | ListPayload<SessionInfo>>('/api/sessions');
+  async listSessions(input?: { archived?: boolean; q?: string; tag?: string }): Promise<SessionInfo[]> {
+    const params = new URLSearchParams();
+    if (input?.q) {
+      params.set('q', input.q);
+    }
+    if (input?.tag) {
+      params.set('tag', input.tag);
+    }
+    if (input?.archived) {
+      params.set('archived', 'true');
+    }
+    const suffix = params.size > 0 ? `?${params.toString()}` : '';
+    const payload = await this.http.get<SessionInfo[] | ListPayload<SessionInfo>>(`/api/sessions${suffix}`);
     return unwrapItems(payload);
   }
 
@@ -548,6 +560,22 @@ export class HttpWsIOProvider implements IOProvider {
     return this.http.post<SessionInfo>('/api/sessions', { title: resolvedTitle });
   }
 
+
+  async archiveSession(sessionId: string): Promise<SessionInfo> {
+    return this.http.post<SessionInfo>(`/api/sessions/${encodeURIComponent(sessionId)}/archive`, {});
+  }
+
+  async restoreSession(sessionId: string): Promise<SessionInfo> {
+    return this.http.post<SessionInfo>(`/api/sessions/${encodeURIComponent(sessionId)}/restore`, {});
+  }
+
+  async listSessionReferences(sessionId: string, query?: string): Promise<SessionReferenceRecord[]> {
+    const suffix = query && query.trim().length > 0 ? `?q=${encodeURIComponent(query.trim())}` : "";
+    const payload = await this.http.get<SessionReferenceRecord[] | ListPayload<SessionReferenceRecord>>(
+      `/api/sessions/${encodeURIComponent(sessionId)}/references${suffix}`
+    );
+    return unwrapItems(payload);
+  }
   async getRepoContext(repoId: string): Promise<RepoContextRecord> {
     return this.http.get<RepoContextRecord>(`/api/repos/${encodeURIComponent(repoId)}/context`);
   }
@@ -906,6 +934,8 @@ export class HttpWsIOProvider implements IOProvider {
     };
   }
 }
+
+
 
 
 

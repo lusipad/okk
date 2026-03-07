@@ -56,10 +56,18 @@ export interface SessionRecord {
   id: string;
   title: string;
   repoId: string;
+  summary: string;
+  tags: string[];
+  archivedAt: string | null;
   createdAt: string;
   updatedAt: string;
 }
 
+export interface SessionReferenceRecord {
+  messageId: string;
+  snippet: string;
+  createdAt: string;
+}
 export interface KnowledgeRecord {
   id: string;
   title: string;
@@ -193,8 +201,11 @@ export interface OkkCore {
     continue(repoId: string): Promise<RepoContinueRecord>;
   };
   sessions: {
-    list(): Promise<SessionRecord[]>;
+    list(input?: { archived?: boolean; q?: string; tag?: string }): Promise<SessionRecord[]>;
     create(input: Pick<SessionRecord, "title" | "repoId">): Promise<SessionRecord>;
+    archive(sessionId: string): Promise<SessionRecord | null>;
+    restore(sessionId: string): Promise<SessionRecord | null>;
+    listReferences(sessionId: string, query?: string): Promise<SessionReferenceRecord[]>;
   };
   knowledge: {
     list(): Promise<KnowledgeRecord[]>;
@@ -236,6 +247,7 @@ export interface LoadCoreOptions {
 }
 
 type _CoreApiIsCompatible = CoreApi extends OkkCore ? true : never;
+
 
 
 

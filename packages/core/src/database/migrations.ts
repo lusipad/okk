@@ -66,6 +66,84 @@ const ensureRepositoryContextColumns = (db: SqliteConnection): void => {
   );
 };
 
+const ensureSessionSearchSchema = (db: SqliteConnection): void => {
+  const tableInfo = db.prepare("PRAGMA table_info(sessions)").all() as Array<{ name: string }>;
+  const hasSummary = tableInfo.some((column) => column.name === "summary");
+  const hasTagsJson = tableInfo.some((column) => column.name === "tags_json");
+  const hasArchivedAt = tableInfo.some((column) => column.name === "archived_at");
+
+  if (!hasSummary) {
+    db.exec("ALTER TABLE sessions ADD COLUMN summary TEXT NOT NULL DEFAULT ''; ");
+  }
+  if (!hasTagsJson) {
+    db.exec("ALTER TABLE sessions ADD COLUMN tags_json TEXT NOT NULL DEFAULT '[]';");
+  }
+  if (!hasArchivedAt) {
+    db.exec("ALTER TABLE sessions ADD COLUMN archived_at TEXT;");
+  }
+
+  db.prepare("UPDATE sessions SET summary = '' WHERE summary IS NULL;").run();
+  db.prepare("UPDATE sessions SET tags_json = '[]' WHERE tags_json IS NULL OR tags_json = '';").run();
+
+  db.exec("CREATE VIRTUAL TABLE IF NOT EXISTS session_fts USING fts5(session_id UNINDEXED, title, summary);");
+  db.exec("CREATE VIRTUAL TABLE IF NOT EXISTS messages_fts USING fts5(message_id UNINDEXED, session_id UNINDEXED, content);");
+
+  db.exec("DROP TRIGGER IF EXISTS sessions_ai;");
+  db.exec("DROP TRIGGER IF EXISTS sessions_au;");
+  db.exec("DROP TRIGGER IF EXISTS sessions_ad;");
+  db.exec("DROP TRIGGER IF EXISTS messages_ai_fts;");
+  db.exec("DROP TRIGGER IF EXISTS messages_au_fts;");
+  db.exec("DROP TRIGGER IF EXISTS messages_ad_fts;");
+
+  db.exec(`
+    CREATE TRIGGER IF NOT EXISTS sessions_ai
+    AFTER INSERT ON sessions BEGIN
+      INSERT INTO session_fts(session_id, title, summary)
+      VALUES (new.id, new.title, new.summary);
+    END;
+  `);
+  db.exec(`
+    CREATE TRIGGER IF NOT EXISTS sessions_au
+    AFTER UPDATE ON sessions BEGIN
+      DELETE FROM session_fts WHERE session_id = old.id;
+      INSERT INTO session_fts(session_id, title, summary)
+      VALUES (new.id, new.title, new.summary);
+    END;
+  `);
+  db.exec(`
+    CREATE TRIGGER IF NOT EXISTS sessions_ad
+    AFTER DELETE ON sessions BEGIN
+      DELETE FROM session_fts WHERE session_id = old.id;
+    END;
+  `);
+  db.exec(`
+    CREATE TRIGGER IF NOT EXISTS messages_ai_fts
+    AFTER INSERT ON messages BEGIN
+      INSERT INTO messages_fts(message_id, session_id, content)
+      VALUES (new.id, new.session_id, new.content);
+    END;
+  `);
+  db.exec(`
+    CREATE TRIGGER IF NOT EXISTS messages_au_fts
+    AFTER UPDATE ON messages BEGIN
+      DELETE FROM messages_fts WHERE message_id = old.id;
+      INSERT INTO messages_fts(message_id, session_id, content)
+      VALUES (new.id, new.session_id, new.content);
+    END;
+  `);
+  db.exec(`
+    CREATE TRIGGER IF NOT EXISTS messages_ad_fts
+    AFTER DELETE ON messages BEGIN
+      DELETE FROM messages_fts WHERE message_id = old.id;
+    END;
+  `);
+
+  db.exec("DELETE FROM session_fts;");
+  db.exec("INSERT INTO session_fts(session_id, title, summary) SELECT id, title, summary FROM sessions;");
+  db.exec("DELETE FROM messages_fts;");
+  db.exec("INSERT INTO messages_fts(message_id, session_id, content) SELECT id, session_id, content FROM messages;");
+};
+
 const migrations: Migration[] = [
   {
     version: 1,
@@ -83,6 +161,12 @@ const migrations: Migration[] = [
     version: 3,
     run: (db) => {
       ensureRepositoryContextColumns(db);
+    }
+  },
+  {
+    version: 4,
+    run: (db) => {
+      ensureSessionSearchSchema(db);
     }
   }
 ];
@@ -132,4 +216,3 @@ export const runMigrations = (db: SqliteConnection): void => {
     );
   }
 };
-

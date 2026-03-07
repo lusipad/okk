@@ -136,3 +136,38 @@ describe('LeftSidebar', () => {
     expect(onSave).toHaveBeenCalledTimes(1);
   });
 });
+
+it('支持归档视图切换与引用动作', async () => {
+  const user = userEvent.setup();
+  const onArchive = vi.fn();
+  const onRestore = vi.fn();
+  const onReference = vi.fn();
+
+  render(
+    <MemoryRouter initialEntries={['/']}>
+      <LeftSidebar
+        sessions={[
+          { id: 'session-1', title: '活跃会话', summary: '处理登录问题', tags: ['login'], updatedAt: '2026-02-01T00:00:00.000Z' },
+          { id: 'session-2', title: '已归档会话', summary: '旧排查记录', tags: ['archive'], archivedAt: '2026-02-02T00:00:00.000Z', updatedAt: '2026-02-02T00:00:00.000Z' }
+        ]}
+        currentSessionId='session-1'
+        onSelectSession={() => undefined}
+        onCreateSession={() => undefined}
+        onArchiveSession={onArchive}
+        onRestoreSession={onRestore}
+        onReferenceSession={onReference}
+      />
+    </MemoryRouter>
+  );
+
+  expect(screen.getByText('活跃会话')).toBeInTheDocument();
+  await user.click(screen.getByTestId('session-archive-session-1'));
+  await user.click(screen.getByTestId('session-reference-session-1'));
+  expect(onArchive).toHaveBeenCalledWith('session-1');
+  expect(onReference).toHaveBeenCalledWith('session-1');
+
+  await user.click(screen.getByTestId('sidebar-archived-toggle'));
+  expect(screen.getByText('已归档会话')).toBeInTheDocument();
+  await user.click(screen.getByTestId('session-restore-session-2'));
+  expect(onRestore).toHaveBeenCalledWith('session-2');
+});
