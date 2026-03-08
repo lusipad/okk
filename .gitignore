@@ -17,3 +17,6 @@ output/
 .okk/
 preview.err
 preview.log
+.tmp-debug-backend.mjs
+noop.md
+.codex/skills/diagnose-skill-test/
