@@ -5,7 +5,6 @@ import { MessageItem } from './MessageItem';
 interface MessageListProps {
   messages: ChatMessage[];
   streaming: boolean;
-  emptyHint?: string;
 }
 
 function isNearBottom(element: HTMLElement): boolean {
@@ -16,8 +15,7 @@ function isNearBottom(element: HTMLElement): boolean {
 
 export function MessageList({
   messages,
-  streaming,
-  emptyHint = '从一个问题开始。'
+  streaming
 }: MessageListProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [autoFollow, setAutoFollow] = useState(true);
@@ -34,7 +32,11 @@ export function MessageList({
     if (!autoFollow) {
       return;
     }
-    node.scrollTo({ top: node.scrollHeight, behavior: 'smooth' });
+    if (typeof node.scrollTo === 'function') {
+      node.scrollTo({ top: node.scrollHeight, behavior: 'smooth' });
+    } else {
+      node.scrollTop = node.scrollHeight;
+    }
     setUnreadCount(0);
   }, [messages, autoFollow]);
 
@@ -63,7 +65,11 @@ export function MessageList({
     if (!node) {
       return;
     }
-    node.scrollTo({ top: node.scrollHeight, behavior: 'smooth' });
+    if (typeof node.scrollTo === 'function') {
+      node.scrollTo({ top: node.scrollHeight, behavior: 'smooth' });
+    } else {
+      node.scrollTop = node.scrollHeight;
+    }
     setAutoFollow(true);
     setUnreadCount(0);
   };
@@ -84,11 +90,6 @@ export function MessageList({
         aria-relevant='additions text'
         aria-busy={streaming}
       >
-        {!hasMessages && (
-          <p className='message-empty-state' aria-label='会话空状态引导'>
-            {emptyHint}
-          </p>
-        )}
         {hasMessages && (
           <>
             {messages.map((message) => (

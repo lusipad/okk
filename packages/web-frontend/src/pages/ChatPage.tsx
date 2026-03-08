@@ -9,7 +9,8 @@ import { ShellLayout } from '../components/layout/ShellLayout';
 import { ConnectionBanner } from '../components/common/ConnectionBanner';
 import { MessageList } from '../components/chat/MessageList';
 import { Composer } from '../components/chat/Composer';
-import type { AgentTraceEvent, ChatMessage, RepoContextRecord, TeamPanelState } from '../types/domain';
+import { PartnerHomeView } from '../components/home/PartnerHomeView';
+import type { AgentTraceEvent, ChatMessage, IdentityProfile, RepoContextRecord, TeamPanelState } from '../types/domain';
 
 type LoadedRepoContext = RepoContextRecord & { repoName: string };
 type LoadedRepoContinue = { repoId?: string; repoName: string; prompt: string; summary: string; snapshot: RepoContextRecord['snapshot']; recentActivities: RepoContextRecord['recentActivities'] };
@@ -120,6 +121,7 @@ export function ChatPage() {
   const [projectContext, setProjectContext] = useState<LoadedRepoContext | null>(null);
   const [projectContextLoading, setProjectContextLoading] = useState(false);
   const [projectContextError, setProjectContextError] = useState<string | null>(null);
+  const [activeIdentity, setActiveIdentity] = useState<IdentityProfile | null>(null);
 
   const currentSessionId = state.currentSessionId;
   const currentSession = useMemo(() => state.sessions.find((item) => item.id === currentSessionId) ?? null, [currentSessionId, state.sessions]);
@@ -172,6 +174,55 @@ export function ChatPage() {
     const detail = selectedBackendHealth.diagnostics?.message || selectedBackendHealth.reason || '请先修复桌面运行时或 CLI 环境。';
     return `${selectedAgent.backend} 当前不可用：${detail}`;
   }, [selectedAgent?.backend, selectedBackendHealth]);
+
+  const recentSessions = useMemo(
+    () => state.sessions.filter((session) => !session.archivedAt && session.id !== currentSessionId).slice(0, 3),
+    [currentSessionId, state.sessions]
+  );
+  const partnerHomeContinueCard = useMemo(() => {
+    if (!currentRepoId) {
+      return null;
+    }
+    return {
+      repoName: projectContext?.repoName ?? currentRepoId,
+      summary: projectContext?.snapshot.lastActivitySummary ?? projectContext?.recentActivities[0]?.summary ?? null,
+      loading: projectContextLoading,
+      error: projectContextError
+    };
+  }, [currentRepoId, projectContext, projectContextError, projectContextLoading]);
+  const partnerHomeQuickActions = useMemo(
+    () => [
+      {
+        id: 'next-step',
+        label: '梳理下一步',
+        description: projectContext?.snapshot.lastActivitySummary
+          ? '基于最近活动整理最重要的下一步'
+          : '快速梳理当前工作台上最值得开始的任务',
+        prompt: projectContext?.snapshot.lastActivitySummary
+          ? `请基于以下最近活动，帮我梳理最值得优先推进的下一步：\n- ${projectContext.snapshot.lastActivitySummary}`
+          : '请根据当前工作台状态，帮我梳理最值得开始的下一步。'
+      },
+      {
+        id: 'review-sessions',
+        label: '回顾最近工作',
+        description:
+          recentSessions.length > 0 ? `回顾最近 ${recentSessions.length} 条会话并提炼待办` : '总结当前上下文并给出继续建议',
+        prompt:
+          recentSessions.length > 0
+            ? `请先回顾我最近的工作重点，并给出继续推进建议：\n${recentSessions
+                .map((session) => `- ${session.title || '未命名会话'}${session.summary ? `：${session.summary}` : ''}`)
+                .join('\n')}`
+            : '请根据当前工作台状态总结我应该优先做什么。'
+      },
+      {
+        id: 'capabilities',
+        label: '检查能力配置',
+        description: `当前可用 ${capabilitySnapshot.skillsInstalled}/${capabilitySnapshot.skillsTotal} Skills · ${capabilitySnapshot.mcpEnabled}/${capabilitySnapshot.mcpTotal} MCP`,
+        prompt: `请结合当前 Agent、Skills 和 MCP 配置，建议我应该从什么任务开始，并说明原因。当前 Agent：${selectedAgentName}。`
+      }
+    ],
+    [capabilitySnapshot.mcpEnabled, capabilitySnapshot.mcpTotal, capabilitySnapshot.skillsInstalled, capabilitySnapshot.skillsTotal, projectContext?.snapshot.lastActivitySummary, recentSessions, selectedAgentName]
+  );
 
   const loadBootstrap = useCallback(async (): Promise<void> => {
     setBootstrapLoading(true);
@@ -232,6 +283,26 @@ export function ChatPage() {
   useEffect(() => {
     void loadCapabilities();
   }, [loadCapabilities]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void io
+      .getActiveIdentity()
+      .then((item) => {
+        if (!cancelled) {
+          setActiveIdentity(item);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setActiveIdentity(null);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [io]);
 
   const loadTeamRuns = useCallback(
     async (sessionId: string): Promise<void> => {
@@ -742,13 +813,6 @@ export function ChatPage() {
               <p className='small-text'>正在同步会话与 Agent 列表，请稍候...</p>
             </div>
           )}
-          {bootstrapLoading && messages.length === 0 && (
-            <div className='chat-skeleton' aria-hidden='true'>
-              <span className='skeleton-line skeleton-line-lg' />
-              <span className='skeleton-line skeleton-line-md' />
-              <span className='skeleton-line skeleton-line-sm' />
-            </div>
-          )}
           {bootstrapError && (
             <div className='chat-alert' role='alert'>
               <span>{bootstrapError}</span>
@@ -830,11 +894,25 @@ export function ChatPage() {
               )}
             </div>
           )}
-          <MessageList
-            messages={messages}
-            streaming={isStreaming}
-            emptyHint={bootstrapLoading ? '正在同步中，请稍候…' : '今天想和你的赛博合伙人一起完成什么？'}
-          />
+          {messages.length === 0 ? (
+            <PartnerHomeView
+              partnerName={activeIdentity?.name ?? '赛博合伙人'}
+              loading={bootstrapLoading}
+              recentSessions={recentSessions}
+              continueCard={partnerHomeContinueCard}
+              quickActions={partnerHomeQuickActions}
+              onSelectSession={(sessionId) => dispatch({ type: 'set_current_session', sessionId })}
+              onContinueWork={() => void continueProjectContext()}
+              onApplyQuickAction={(prompt) =>
+                setComposerExternalDraft({
+                  id: `partner-home-${Date.now()}`,
+                  text: prompt
+                })
+              }
+            />
+          ) : (
+            <MessageList messages={messages} streaming={isStreaming} />
+          )}
           <Composer
             agents={state.agents}
             selectedAgentId={state.selectedAgentId}
