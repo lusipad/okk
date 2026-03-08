@@ -188,6 +188,20 @@ export interface TeamRunRecord {
   actions?: CollaborationAction[];
 }
 
+export interface PartnerMemorySummaryRecord {
+  id: string;
+  title: string;
+  summary: string;
+  memoryType: MemoryType;
+}
+
+export interface PartnerSummaryRecord {
+  identity: { id: string; name: string; summary: string | null; isActive: boolean } | null;
+  memoryCount: number;
+  recentMemories: PartnerMemorySummaryRecord[];
+  activeRepoName: string | null;
+}
+
 export interface OkkCore {
   runtime: {
     listBackendHealth(): Promise<RuntimeBackendHealth[]>;
@@ -219,6 +233,9 @@ export interface OkkCore {
     upsert(input: Omit<MemoryEntry, "id" | "createdAt" | "updatedAt">): Promise<MemoryEntry>;
     update(memoryId: string, input: Partial<Pick<MemoryEntry, "title" | "content" | "summary" | "confidence" | "status">>): Promise<MemoryEntry | null>;
     syncRepo(repoId: string): Promise<{ imported: number }>;
+  };
+  partner: {
+    getSummary(): Promise<PartnerSummaryRecord>;
   };
   agents: {
     list(): Promise<AgentRecord[]>;

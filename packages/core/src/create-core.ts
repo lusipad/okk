@@ -121,6 +121,20 @@ export interface CoreSkillRecord {
   version: string;
 }
 
+export interface CorePartnerMemoryRecord {
+  id: string;
+  title: string;
+  summary: string;
+  memoryType: MemoryType;
+}
+
+export interface CorePartnerSummaryRecord {
+  identity: { id: string; name: string; summary: string | null; isActive: boolean } | null;
+  memoryCount: number;
+  recentMemories: CorePartnerMemoryRecord[];
+  activeRepoName: string | null;
+}
+
 export interface CoreQaStreamChunk {
   content: string;
 }
@@ -940,6 +954,51 @@ export async function createCore(options: CreateCoreOptions = {}): Promise<CoreA
     updatedAt: entry.updatedAt
   });
 
+  const toPartnerIdentity = (identity: IdentityProfile | null): CorePartnerSummaryRecord["identity"] => {
+    if (!identity) {
+      return null;
+    }
+
+    const profileSummary =
+      typeof identity.profileJson.summary === "string" && identity.profileJson.summary.trim().length > 0
+        ? identity.profileJson.summary.trim()
+        : null;
+    const systemPromptSummary = identity.systemPrompt.trim().slice(0, 96) || null;
+
+    return {
+      id: identity.id,
+      name: identity.name,
+      summary: profileSummary ?? systemPromptSummary,
+      isActive: identity.isActive
+    };
+  };
+
+  const toPartnerMemoryRecord = (entry: MemoryEntry): CorePartnerMemoryRecord => ({
+    id: entry.id,
+    title: entry.title,
+    summary: entry.summary,
+    memoryType: entry.memoryType
+  });
+
+  const resolveActiveRepoName = (): string | null => {
+    const repositories = database.repositories.list();
+    if (repositories.length === 0) {
+      return null;
+    }
+
+    return repositories
+      .map((repository) => {
+        const snapshot = database.repositories.getContextSnapshot(repository.id);
+        const latestActivity = database.repositories.listRecentActivities(repository.id, 1)[0]?.createdAt ?? null;
+        const lastTouchedAt = latestActivity ?? snapshot.lastUpdatedAt ?? repository.createdAt;
+        return {
+          name: repository.name,
+          lastTouchedAt: Number.isNaN(Date.parse(lastTouchedAt)) ? repository.createdAt : lastTouchedAt
+        };
+      })
+      .sort((a, b) => Date.parse(b.lastTouchedAt) - Date.parse(a.lastTouchedAt))[0]?.name ?? null;
+  };
+
   const resolveActiveBackend = (): BackendName => {
     if (availableBackends.has("codex")) {
       return "codex";
@@ -1190,6 +1249,23 @@ export async function createCore(options: CreateCoreOptions = {}): Promise<CoreA
           metadata: {}
         });
         return { imported: 1 };
+      }
+    },
+    partner: {
+      async getSummary() {
+        const identity = toPartnerIdentity(database.identity.getActive());
+        const allMemories = database.memory.list({ userId: DEFAULT_ADMIN_ID });
+        const recentMemories = [...allMemories]
+          .sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt))
+          .slice(0, 3)
+          .map(toPartnerMemoryRecord);
+
+        return {
+          identity,
+          memoryCount: allMemories.length,
+          recentMemories,
+          activeRepoName: resolveActiveRepoName()
+        };
       }
     },
     identity: {

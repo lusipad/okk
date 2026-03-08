@@ -10,7 +10,7 @@ import { ConnectionBanner } from '../components/common/ConnectionBanner';
 import { MessageList } from '../components/chat/MessageList';
 import { Composer } from '../components/chat/Composer';
 import { PartnerHomeView } from '../components/home/PartnerHomeView';
-import type { AgentTraceEvent, ChatMessage, IdentityProfile, RepoContextRecord, TeamPanelState } from '../types/domain';
+import type { AgentTraceEvent, ChatMessage, IdentityProfile, PartnerSummaryRecord, RepoContextRecord, TeamPanelState } from '../types/domain';
 
 type LoadedRepoContext = RepoContextRecord & { repoName: string };
 type LoadedRepoContinue = { repoId?: string; repoName: string; prompt: string; summary: string; snapshot: RepoContextRecord['snapshot']; recentActivities: RepoContextRecord['recentActivities'] };

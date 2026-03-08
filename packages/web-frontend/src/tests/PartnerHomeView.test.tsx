@@ -32,6 +32,27 @@ describe('PartnerHomeView', () => {
           repoName: 'okk',
           summary: '继续修复登录流程'
         }}
+        summaryCard={{
+          loading: false,
+          item: {
+            identity: {
+              id: 'identity-1',
+              name: 'OKK Copilot',
+              summary: '熟悉你的仓库偏好与协作方式',
+              isActive: true
+            },
+            memoryCount: 2,
+            recentMemories: [
+              {
+                id: 'memory-1',
+                title: '测试优先',
+                summary: '提交前先跑测试',
+                memoryType: 'process'
+              }
+            ],
+            activeRepoName: 'okk'
+          }
+        }}
         quickActions={[
           {
             id: 'next-step',
@@ -48,6 +69,8 @@ describe('PartnerHomeView', () => {
 
     expect(screen.getByText('欢迎回来，OKK Copilot')).toBeInTheDocument();
     expect(screen.getByText('修复登录问题')).toBeInTheDocument();
+    expect(screen.getByTestId('partner-home-summary-card')).toBeInTheDocument();
+    expect(screen.getByText('测试优先')).toBeInTheDocument();
     expect(screen.getByTestId('partner-home-continue-card')).toBeInTheDocument();
     expect(screen.getByText('梳理下一步')).toBeInTheDocument();
 
@@ -66,6 +89,10 @@ describe('PartnerHomeView', () => {
         partnerName='OKK Copilot'
         loading
         recentSessions={[]}
+        summaryCard={{
+          loading: false,
+          error: '加载首页摘要失败，已切换到降级显示。'
+        }}
         quickActions={[
           {
             id: 'capabilities',
@@ -81,5 +108,6 @@ describe('PartnerHomeView', () => {
 
     expect(screen.getByText('正在整理最近会话、项目上下文与可用能力…')).toBeInTheDocument();
     expect(screen.getByText('还没有可回看的最近会话，发出第一条消息后这里会展示你的协作历史。')).toBeInTheDocument();
+    expect(screen.getByText('加载首页摘要失败，已切换到降级显示。')).toBeInTheDocument();
   });
 });

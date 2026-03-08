@@ -20,6 +20,7 @@ import type {
   MemoryEntry,
   MemoryStatus,
   MemoryType,
+  PartnerSummaryRecord,
   SessionInfo,
   SessionReferenceRecord,
   SkillInfo,
@@ -286,6 +287,7 @@ export interface IOProvider {
   getRepoContext(repoId: string): Promise<RepoContextRecord>;
   updateRepoContext(repoId: string, input: Partial<RepoContextRecord['snapshot']>): Promise<RepoContextRecord>;
   continueRepoContext(repoId: string): Promise<RepoContinueRecord>;
+  getPartnerSummary(): Promise<PartnerSummaryRecord>;
   listRuntimeBackends(): Promise<RuntimeBackendHealth[]>;
   askQuestion(input: AskQuestionInput): Promise<void>;
   retryQuestion(input: RetryQuestionInput): Promise<void>;

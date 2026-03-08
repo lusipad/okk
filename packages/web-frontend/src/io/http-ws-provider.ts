@@ -13,6 +13,7 @@ import type {
   MemoryStatus,
   IdentityProfile,
   MemoryType,
+  PartnerSummaryRecord,
   SessionInfo,
   SessionReferenceRecord,
   SkillInfo
@@ -640,6 +641,11 @@ export class HttpWsIOProvider implements IOProvider {
 
   async continueRepoContext(repoId: string): Promise<RepoContinueRecord> {
     return this.http.post<RepoContinueRecord>(`/api/repos/${encodeURIComponent(repoId)}/continue`, {});
+  }
+
+  async getPartnerSummary(): Promise<PartnerSummaryRecord> {
+    const payload = await this.http.get<{ item: PartnerSummaryRecord }>('/api/partner/summary');
+    return payload.item;
   }
 
   async listWorkspaces() {

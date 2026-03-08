@@ -10,6 +10,7 @@ import type {
   RepoRecord,
   SessionRecord,
   MemoryEntry,
+  PartnerSummaryRecord,
   SkillRecord,
   TeamRunRecord,
   TeamRunRequest,
@@ -323,6 +324,21 @@ export function createInMemoryCore(): OkkCore {
           return { imported: 1 };
         }
         return { imported: 0 };
+      },
+    },
+    partner: {
+      async getSummary(): Promise<PartnerSummaryRecord> {
+        return {
+          identity: null,
+          memoryCount: memories.length,
+          recentMemories: memories.slice(0, 3).map((item) => ({
+            id: item.id,
+            title: item.title,
+            summary: item.summary,
+            memoryType: item.memoryType,
+          })),
+          activeRepoName: repos[0]?.name ?? null,
+        };
       },
     },
     agents: {

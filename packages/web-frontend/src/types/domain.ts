@@ -238,6 +238,20 @@ export interface IdentityProfile {
   updatedAt: string;
 }
 
+export interface PartnerMemorySummary {
+  id: string;
+  title: string;
+  summary: string;
+  memoryType: MemoryType;
+}
+
+export interface PartnerSummaryRecord {
+  identity: { id: string; name: string; summary: string | null; isActive: boolean } | null;
+  memoryCount: number;
+  recentMemories: PartnerMemorySummary[];
+  activeRepoName: string | null;
+}
+
 
 export interface AgentTraceEvent {
   id: string;

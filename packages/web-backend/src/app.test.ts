@@ -1289,6 +1289,78 @@ test("REST /api/identity 支持列出、创建与激活", async () => {
   }
 });
 
+test("REST /api/partner/summary 支持返回聚合摘要并在空数据时降级", async () => {
+  const core = await createCore({ dbPath: ":memory:", workspaceRoot: process.cwd() });
+  const app = await createApp({ jwtSecret: "test-secret", logger: false, core });
+  await app.listen({ host: "127.0.0.1", port: 0 });
+
+  try {
+    const token = await loginToken(app);
+    const headers = { Authorization: `Bearer ${token}` };
+    const repoId = (await core.repos.list())[0]?.id;
+    assert.ok(repoId);
+
+    await core.identity.upsert({
+      name: "OKK Copilot",
+      systemPrompt: "请记住当前用户的协作偏好。",
+      profileJson: { summary: "熟悉你的仓库偏好与协作方式" },
+      isActive: true
+    });
+    await core.memory.upsert({
+      userId: "u-admin",
+      repoId,
+      memoryType: "process",
+      title: "测试优先",
+      content: "提交前先运行测试",
+      summary: "提交前先运行测试",
+      confidence: 0.9,
+      status: "active",
+      sourceKind: "manual",
+      sourceRef: null,
+      metadata: {}
+    });
+    await core.memory.upsert({
+      userId: "u-admin",
+      repoId: null,
+      memoryType: "preference",
+      title: "中文回复",
+      content: "默认使用中文简体回复",
+      summary: "默认中文简体",
+      confidence: 0.8,
+      status: "active",
+      sourceKind: "manual",
+      sourceRef: null,
+      metadata: {}
+    });
+
+    const summaryResponse = await app.inject({ method: "GET", url: "/api/partner/summary", headers });
+    assert.equal(summaryResponse.statusCode, 200, summaryResponse.body);
+    assert.equal(summaryResponse.json().item.identity.name, "OKK Copilot");
+    assert.equal(summaryResponse.json().item.memoryCount, 2);
+    assert.ok(Array.isArray(summaryResponse.json().item.recentMemories));
+    assert.ok(summaryResponse.json().item.recentMemories.length <= 3);
+  } finally {
+    await app.close();
+  }
+});
+
+test("REST /api/partner/summary 在 memory core 下返回可降级摘要", async () => {
+  const app = await createApp({ jwtSecret: "test-secret", logger: false, coreMode: "memory" });
+  await app.listen({ host: "127.0.0.1", port: 0 });
+
+  try {
+    const token = await loginToken(app);
+    const headers = { Authorization: `Bearer ${token}` };
+    const summaryResponse = await app.inject({ method: "GET", url: "/api/partner/summary", headers });
+    assert.equal(summaryResponse.statusCode, 200, summaryResponse.body);
+    assert.equal(summaryResponse.json().item.identity, null);
+    assert.equal(summaryResponse.json().item.memoryCount, 0);
+    assert.deepEqual(summaryResponse.json().item.recentMemories, []);
+  } finally {
+    await app.close();
+  }
+});
+
 test("REST 新增工作区/治理/导入/工作流/共享/Trace 接口可联通", async () => {
   const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "okk-ops-api-"));
   const workspaceRoot = path.join(tempDir, "workspace-a");

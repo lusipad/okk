@@ -1,4 +1,4 @@
-import type { SessionInfo } from '../../types/domain';
+import type { PartnerSummaryRecord, SessionInfo } from '../../types/domain';
 
 interface PartnerHomeQuickAction {
   id: string;
@@ -14,11 +14,18 @@ interface PartnerHomeContinueCard {
   error?: string | null;
 }
 
+interface PartnerHomeSummaryCard {
+  loading: boolean;
+  error?: string | null;
+  item?: PartnerSummaryRecord | null;
+}
+
 interface PartnerHomeViewProps {
   partnerName: string;
   loading: boolean;
   recentSessions: SessionInfo[];
   continueCard?: PartnerHomeContinueCard | null;
+  summaryCard?: PartnerHomeSummaryCard;
   quickActions: PartnerHomeQuickAction[];
   onSelectSession: (sessionId: string) => void;
   onContinueWork?: () => void;
@@ -44,6 +51,7 @@ export function PartnerHomeView({
   loading,
   recentSessions,
   continueCard = null,
+  summaryCard,
   quickActions,
   onSelectSession,
   onContinueWork,
@@ -60,6 +68,46 @@ export function PartnerHomeView({
             : '我已经准备好基于你最近的上下文继续协作。你可以直接继续工作、切回最近会话，或先用一个快捷动作开始。'}
         </p>
       </div>
+
+      <section className='partner-home-section' aria-labelledby='partner-home-summary-title'>
+        <div className='partner-home-section-head'>
+          <h3 id='partner-home-summary-title'>认识你</h3>
+          <span className='partner-home-section-meta'>身份与记忆联动摘要</span>
+        </div>
+        {summaryCard?.loading ? (
+          <p className='small-text'>正在加载身份与记忆摘要…</p>
+        ) : summaryCard?.error ? (
+          <p className='small-text'>{summaryCard.error}</p>
+        ) : summaryCard?.item ? (
+          <div className='partner-home-summary-card' data-testid='partner-home-summary-card'>
+            <div className='partner-home-summary-topline'>
+              <div>
+                <p className='partner-home-summary-name'>{summaryCard.item.identity?.name ?? '尚未设置活跃身份'}</p>
+                <p className='partner-home-summary-copy'>
+                  {summaryCard.item.identity?.summary || '完善 Identity 后，这里会显示你的合伙人画像摘要。'}
+                </p>
+              </div>
+              <div className='partner-home-summary-kpis'>
+                <span className='partner-home-summary-kpi'>记忆 {summaryCard.item.memoryCount}</span>
+                <span className='partner-home-summary-kpi'>仓库 {summaryCard.item.activeRepoName ?? '未激活'}</span>
+              </div>
+            </div>
+            <div className='partner-home-memory-list'>
+              {summaryCard.item.recentMemories.length > 0 ? (
+                summaryCard.item.recentMemories.map((memory) => (
+                  <span key={memory.id} className='partner-home-memory-chip'>
+                    {memory.title}
+                  </span>
+                ))
+              ) : (
+                <span className='small-text'>还没有近期记忆，后续协作会逐步沉淀到这里。</span>
+              )}
+            </div>
+          </div>
+        ) : (
+          <p className='small-text'>身份与记忆摘要暂不可用，但你仍然可以继续当前工作。</p>
+        )}
+      </section>
 
       <div className='partner-home-grid'>
         <section className='partner-home-section' aria-labelledby='partner-home-recent-title'>
