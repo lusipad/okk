@@ -20,6 +20,7 @@ import type {
   CollaborationRunStatus,
   CollaborationSourceType,
   KnowledgeStatus,
+  IdentityProfile,
   MemoryEntry,
   MemoryType,
   Repository,
@@ -222,6 +223,12 @@ export interface CoreApi {
     upsert(input: Omit<MemoryEntry, "id" | "createdAt" | "updatedAt">): Promise<MemoryEntry>;
     update(memoryId: string, input: Partial<Pick<MemoryEntry, "title" | "content" | "summary" | "confidence" | "status">>): Promise<MemoryEntry | null>;
     syncRepo(repoId: string): Promise<{ imported: number }>;
+  };
+  identity: {
+    list(): Promise<IdentityProfile[]>;
+    getActive(): Promise<IdentityProfile | null>;
+    upsert(input: Omit<IdentityProfile, "id" | "createdAt" | "updatedAt">): Promise<IdentityProfile>;
+    activate(identityId: string): Promise<IdentityProfile | null>;
   };
   knowledge: {
     list(): Promise<CoreKnowledgeRecord[]>;
@@ -644,6 +651,18 @@ function joinPromptSections(sections: Array<string | undefined>): string | undef
     return undefined;
   }
   return normalized.join("\n\n");
+}
+
+function buildIdentityPrompt(identity: IdentityProfile | null): string | undefined {
+  if (!identity) {
+    return undefined;
+  }
+
+  return [
+    "## Active Identity",
+    `Name: ${identity.name}`,
+    identity.systemPrompt
+  ].join("\n");
 }
 
 function buildCodexPrompt(content: string, systemPrompt: string | undefined): string {
@@ -1096,7 +1115,7 @@ export async function createCore(options: CreateCoreOptions = {}): Promise<CoreA
           limit: 50
         });
       },
-      async upsert(input) {
+      async upsert(input: Omit<MemoryEntry, "id" | "createdAt" | "updatedAt">) {
         return database.memory.upsert(input);
       },
       async update(memoryId, input) {
@@ -1126,6 +1145,25 @@ export async function createCore(options: CreateCoreOptions = {}): Promise<CoreA
           metadata: {}
         });
         return { imported: 1 };
+      }
+    },
+    identity: {
+      async list() {
+        return database.identity.list();
+      },
+      async getActive() {
+        return database.identity.getActive();
+      },
+      async upsert(input: Omit<IdentityProfile, "id" | "createdAt" | "updatedAt">) {
+        return database.identity.upsert({
+          name: input.name,
+          systemPrompt: input.systemPrompt,
+          profileJson: input.profileJson,
+          isActive: input.isActive
+        });
+      },
+      async activate(identityId: string) {
+        return database.identity.activate(identityId);
       }
     },
     agents: {
@@ -1180,7 +1218,9 @@ export async function createCore(options: CreateCoreOptions = {}): Promise<CoreA
         const mcpPrompt = requestedMcpServerIds.length
           ? `## Enabled MCP Servers\n${requestedMcpServerIds.map((item) => `- ${item}`).join("\n")}`
           : undefined;
-        const effectiveSystemPrompt = joinPromptSections([context.systemPrompt, skillPrompt, mcpPrompt]);
+        const activeIdentity = database.identity.getActive();
+        const identityPrompt = buildIdentityPrompt(activeIdentity);
+        const effectiveSystemPrompt = joinPromptSections([identityPrompt, context.systemPrompt, skillPrompt, mcpPrompt]);
         const storedBackendSession = qaSessionToBackendSession.get(request.sessionId);
         const storedBackendSessionId =
           storedBackendSession && storedBackendSession.backend === request.backend
@@ -1518,6 +1558,7 @@ ${assistantContent}`);
 }
 
 export const createOkkCore = createCore;
+
 
 
 

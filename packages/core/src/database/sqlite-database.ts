@@ -1,5 +1,6 @@
 import { runMigrations } from "./migrations.js";
 import {
+  IdentityDao,
   InstalledSkillsDao,
   KnowledgeDao,
   MessagesDao,
@@ -23,6 +24,7 @@ export class SqliteDatabase {
   readonly repositories: RepositoriesDao;
   readonly sessions: SessionsDao;
   readonly messages: MessagesDao;
+  readonly identity: IdentityDao;
   readonly memory: MemoryDao;
   readonly knowledge: KnowledgeDao;
   readonly runs: RunsDao;
@@ -37,6 +39,7 @@ export class SqliteDatabase {
     this.repositories = new RepositoriesDao(this.connection);
     this.sessions = new SessionsDao(this.connection);
     this.messages = new MessagesDao(this.connection);
+    this.identity = new IdentityDao(this.connection);
     this.memory = new MemoryDao(this.connection);
     this.knowledge = new KnowledgeDao(this.connection);
     this.runs = new RunsDao(this.connection);
@@ -47,4 +50,3 @@ export class SqliteDatabase {
     this.connection.close();
   }
 }
-

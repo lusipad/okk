@@ -10,6 +10,7 @@ import type {
   RepoContinueRecord,
   MemoryEntry,
   MemoryStatus,
+  IdentityProfile,
   MemoryType,
   SessionInfo,
   SessionReferenceRecord,
@@ -588,6 +589,26 @@ export class HttpWsIOProvider implements IOProvider {
     return this.http.patch<RepoContextRecord>(`/api/repos/${encodeURIComponent(repoId)}/context`, input);
   }
 
+
+  async listIdentityProfiles(): Promise<IdentityProfile[]> {
+    const payload = await this.http.get<IdentityProfile[] | ListPayload<IdentityProfile>>("/api/identity");
+    return unwrapItems(payload);
+  }
+
+  async getActiveIdentity(): Promise<IdentityProfile | null> {
+    const payload = await this.http.get<{ item?: IdentityProfile | null }>("/api/identity/active");
+    return payload.item ?? null;
+  }
+
+  async upsertIdentity(input: Omit<IdentityProfile, "id" | "createdAt" | "updatedAt">): Promise<IdentityProfile> {
+    const payload = await this.http.post<{ item: IdentityProfile }>("/api/identity", input);
+    return payload.item;
+  }
+
+  async activateIdentity(identityId: string): Promise<IdentityProfile> {
+    const payload = await this.http.post<{ item: IdentityProfile }>(`/api/identity/${encodeURIComponent(identityId)}/activate`, {});
+    return payload.item;
+  }
   async continueRepoContext(repoId: string): Promise<RepoContinueRecord> {
     return this.http.post<RepoContinueRecord>(`/api/repos/${encodeURIComponent(repoId)}/continue`, {});
   }
@@ -981,6 +1002,8 @@ export class HttpWsIOProvider implements IOProvider {
     };
   }
 }
+
+
 
 
 

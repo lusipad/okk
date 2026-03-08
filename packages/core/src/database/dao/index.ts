@@ -24,3 +24,6 @@ export {
 
 export { MemoryDao, type UpsertMemoryInput, type ListMemoryInput, type LogMemoryAccessInput } from './memory-dao.js';
 
+
+export { IdentityDao, type CreateIdentityProfileInput } from './identity-dao.js';
+

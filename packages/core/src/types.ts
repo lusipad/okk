@@ -325,6 +325,16 @@ export interface InstalledSkill {
   updatedAt: string;
 }
 
+export interface IdentityProfile {
+  id: string;
+  name: string;
+  systemPrompt: string;
+  profileJson: Record<string, unknown>;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface AgentDefinition {
   name: string;
   description: string;
@@ -380,3 +390,4 @@ export interface RepositoryContext {
   knowledgeSummary: string;
   systemPromptAppendix: string;
 }
+

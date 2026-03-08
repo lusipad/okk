@@ -9,6 +9,7 @@ import { LoginPage } from './pages/LoginPage';
 import { ChatPage } from './pages/ChatPage';
 import { McpSettingsPage } from './pages/McpSettingsPage';
 import { SkillsPage } from './pages/SkillsPage';
+import { IdentityPage } from './pages/IdentityPage';
 import { MemoryPage } from './pages/MemoryPage';
 
 interface DesktopRuntimeConfig {
@@ -378,6 +379,7 @@ export function App() {
     </IOContext.Provider>
   );
 }
+
 
 
 

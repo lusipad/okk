@@ -228,10 +228,21 @@ export interface MemoryEntry {
   updatedAt: string;
 }
 
+export interface IdentityProfile {
+  id: string;
+  name: string;
+  systemPrompt: string;
+  profileJson: Record<string, unknown>;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface LoginResult {
   token: string;
   user: UserProfile;
 }
+
 
 
 

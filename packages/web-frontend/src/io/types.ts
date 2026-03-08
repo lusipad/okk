@@ -5,6 +5,7 @@ import type {
   CollaborationRunStatus,
   CollaborationSourceType,
   KnowledgeSuggestion,
+  IdentityProfile,
   LoginResult,
   McpServerInfo,
   RepoContextRecord,
@@ -260,6 +261,10 @@ export interface IOProvider {
   createMemoryEntry(input: Omit<MemoryEntry, "id" | "createdAt" | "updatedAt" | "userId">): Promise<MemoryEntry>;
   updateMemoryEntry(memoryId: string, input: Partial<Pick<MemoryEntry, "title" | "content" | "summary" | "confidence" | "status">>): Promise<MemoryEntry>;
   syncMemoryRepo(repoId: string): Promise<{ imported: number }>;
+  listIdentityProfiles(): Promise<IdentityProfile[]>;
+  getActiveIdentity(): Promise<IdentityProfile | null>;
+  upsertIdentity(input: Omit<IdentityProfile, "id" | "createdAt" | "updatedAt">): Promise<IdentityProfile>;
+  activateIdentity(identityId: string): Promise<IdentityProfile>;
 }
 
 export interface MessageStartedPayload {
@@ -412,5 +417,8 @@ export interface TeamRunRecord {
   diagnostics?: CollaborationDiagnostics;
   actions?: CollaborationAction[];
 }
+
+
+
 
 

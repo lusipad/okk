@@ -213,6 +213,12 @@ const ensureMemorySchema = (db: SqliteConnection): void => {
   db.exec("CREATE INDEX IF NOT EXISTS idx_memory_access_log_memory ON memory_access_log(memory_id, created_at DESC);");
 };
 
+const ensureIdentitySchema = (db: SqliteConnection): void => {
+  db.exec(
+    "CREATE TABLE IF NOT EXISTS identity_profiles (id TEXT PRIMARY KEY, name TEXT NOT NULL, system_prompt TEXT NOT NULL, profile_json TEXT NOT NULL DEFAULT '{}', is_active INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);"
+  );
+};
+
 const migrations: Migration[] = [
   {
     version: 1,
@@ -249,9 +255,14 @@ const migrations: Migration[] = [
     run: (db) => {
       ensureMemorySchema(db);
     }
+  },
+  {
+    version: 7,
+    run: (db) => {
+      ensureIdentitySchema(db);
+    }
   }
 ];
-
 const getCurrentVersion = (db: SqliteConnection): number => {
   const result = db
     .prepare("SELECT COALESCE(MAX(version), 0) AS version FROM schema_migrations")
@@ -297,3 +308,4 @@ export const runMigrations = (db: SqliteConnection): void => {
     );
   }
 };
+

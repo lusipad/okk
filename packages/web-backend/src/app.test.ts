@@ -1253,3 +1253,38 @@ test("REST /api/memory 支持列出、创建、更新和 sync", async () => {
     await app.close();
   }
 });
+
+test("REST /api/identity 支持列出、创建与激活", async () => {
+  const core = await createCore({ dbPath: ":memory:", workspaceRoot: process.cwd() });
+  const app = await createApp({ jwtSecret: "test-secret", logger: false, core });
+  await app.listen({ host: "127.0.0.1", port: 0 });
+
+  try {
+    const token = await loginToken(app);
+    const headers = { Authorization: `Bearer ${token}` };
+
+    const createResponse = await app.inject({
+      method: "POST",
+      url: "/api/identity",
+      headers,
+      payload: {
+        name: "严格代码审查者",
+        systemPrompt: "请以严格代码审查者身份回复。",
+        isActive: true,
+      }
+    });
+    assert.equal(createResponse.statusCode, 201, createResponse.body);
+    const created = createResponse.json().item as { id: string; isActive: boolean };
+    assert.equal(created.isActive, true);
+
+    const listResponse = await app.inject({ method: "GET", url: "/api/identity", headers });
+    assert.equal(listResponse.statusCode, 200, listResponse.body);
+    assert.ok((listResponse.json().items as Array<{ id: string }>).some((item) => item.id === created.id));
+
+    const activeResponse = await app.inject({ method: "GET", url: "/api/identity/active", headers });
+    assert.equal(activeResponse.statusCode, 200, activeResponse.body);
+    assert.equal(activeResponse.json().item.id, created.id);
+  } finally {
+    await app.close();
+  }
+});
