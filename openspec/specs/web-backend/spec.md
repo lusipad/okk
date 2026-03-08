@@ -141,3 +141,30 @@ TBD - created by archiving change okk-architecture. Update Purpose after archive
 - **WHEN** 用户在 1 分钟内发送超过 10 次 Q&A 请求
 - **THEN** 系统 SHALL 返回 429 Too Many Requests
 - **AND** 响应 SHALL 包含 Retry-After 头
+
+### Requirement: 统一协作事件契约
+Web 后端 SHALL 为协作运行输出统一事件契约，覆盖 backend、tool、skill、agent、team、mcp 等来源。
+
+#### Scenario: 统一事件字段
+- **WHEN** WebSocket 推送协作相关事件
+- **THEN** 每个事件 SHALL 包含 run id、source type、status、timestamp 和 diagnostics 摘要
+- **AND** 前端 SHALL 无需根据来源类型切换到完全不同的解析逻辑
+
+#### Scenario: 运行详情查询
+- **WHEN** 前端请求某个协作运行的详情
+- **THEN** REST 接口 SHALL 返回与 WebSocket 事件兼容的结构化详情
+- **AND** 用于恢复刷新后的时间线视图
+
+### Requirement: Embedded Backend 健康检查与诊断输出
+Web 后端 SHALL 在 embedded desktop 模式下提供健康检查、readiness 和结构化诊断输出，供桌面壳层使用。
+
+#### Scenario: 启动完成前 readiness 查询
+- **WHEN** Desktop 壳层等待 embedded backend 就绪
+- **THEN** 系统 SHALL 提供 readiness 状态与未完成项摘要
+- **AND** 避免 renderer 在后端未就绪时直接进入空白页
+
+#### Scenario: 后端异常诊断
+- **WHEN** embedded backend 启动或运行异常
+- **THEN** 系统 SHALL 返回结构化诊断信息
+- **AND** 包含失败层级、原因摘要和建议恢复动作
+

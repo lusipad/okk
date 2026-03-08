@@ -14,13 +14,15 @@
     "build:backend": "npm run build -w @okk/core && npm run build -w @okk/web-backend",
     "copy:renderer": "node ./scripts/copy-assets.mjs renderer",
     "copy:web": "node ./scripts/copy-assets.mjs web",
-    "build:desktop": "npm run clean && npm run build:ts && npm run copy:renderer",
+    "copy:backend": "node ./scripts/copy-assets.mjs backend",
+    "build:desktop": "npm run clean && npm run build:ts && npm run copy:renderer && npm run copy:backend",
     "build:web": "cross-env OKK_VITE_BASE=./ npm run build -w @okk/web-frontend",
     "build": "npm run build:backend && npm run build:web && npm run build:desktop && npm run copy:web",
     "dev": "concurrently -k \"npm run dev -w @okk/web-frontend\" \"npm run dev:electron\"",
     "dev:electron": "npm run build:desktop && wait-on tcp:5173 && cross-env OKK_DESKTOP_DEV_URL=http://localhost:5173 electron dist/main/index.js",
     "package": "npm run build && electron-builder",
     "package:win": "npm run build && electron-builder --win dir --x64 --publish never",
+    "smoke": "node ../../scripts/desktop-smoke.mjs --entry dist/main/index.js --mode source --cwd .",
     "test": "vitest run"
   },
   "build": {
@@ -53,3 +55,6 @@
   "description": "OKK Desktop - AI-native engineering workspace",
   "author": "OKK"
 }
+
+
+

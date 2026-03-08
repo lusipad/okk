@@ -8,6 +8,7 @@ const outputDir = path.resolve("output/playwright");
 fs.mkdirSync(outputDir, { recursive: true });
 
 const configuredUiUrl = process.env.OKK_UI_URL?.trim();
+const expectedCoreMode = (process.env.OKK_EXPECT_CORE_MODE?.trim() || "real").toLowerCase();
 const apiUrl = process.env.OKK_API_URL ?? "http://127.0.0.1:3000";
 const username = process.env.OKK_USER ?? "admin";
 const password = process.env.OKK_PASS ?? "admin";
@@ -92,9 +93,9 @@ try {
   const healthJson = await healthResponse.json();
   const coreMode = typeof healthJson.coreMode === "string" ? healthJson.coreMode : "unknown";
   console.log(`health_core_mode=${coreMode}`);
-  if (coreMode !== "real") {
-    throw new Error(`expected coreMode=real, got ${coreMode}`);
-}
+  if (expectedCoreMode !== "any" && coreMode !== expectedCoreMode) {
+    throw new Error(`expected coreMode=${expectedCoreMode}, got ${coreMode}`);
+  }
 
   try {
     browser = await chromium.launch({ channel: "chrome", headless: true });
@@ -303,6 +304,77 @@ try {
   await importedSkill.locator("[data-testid='skill-detail-smoke-skill-e2e']").click();
   await page.waitForTimeout(800);
 
+  const installSkillRes = await fetch(`${apiUrl}/api/skills/${importedSkillId}/install`, {
+    method: "POST",
+    headers: {
+      Authorization: authHeaders.Authorization
+    }
+  });
+  if (!installSkillRes.ok) {
+    throw new Error(`install skill failed: ${installSkillRes.status}`);
+  }
+  if (!createdMcpId) {
+    throw new Error("missing mcp id before collaboration smoke");
+  }
+
+  await page.getByTestId("nav-chat").click();
+  await waitForVisible(page.getByTestId("composer-input"), 20000);
+  await page.reload({ waitUntil: "domcontentloaded" });
+  await waitForVisible(page.getByTestId("composer-input"), 20000);
+  await page.getByRole("button", { name: "工具" }).click();
+  await page.getByTestId("composer-skill-summary").click();
+  const importedSkillToggle = page.getByTestId(`composer-skill-toggle-${importedSkillId}`);
+  await waitForVisible(importedSkillToggle, 15000);
+  if (!(await importedSkillToggle.isChecked())) {
+    await importedSkillToggle.check();
+  }
+
+  await page.getByTestId("composer-mcp-summary").click();
+  const createdMcpToggle = page.getByTestId(`composer-mcp-toggle-${createdMcpId}`);
+  await waitForVisible(createdMcpToggle, 15000);
+  if (!(await createdMcpToggle.isChecked())) {
+    await createdMcpToggle.check();
+  }
+
+  const assistantCountBeforeCollaboration = await page.locator(".message-item.role-assistant").count();
+  const collaborationPrompt = `请只回复 collaboration-ok-${Date.now()}，不要解释。`;
+  await page.getByTestId("composer-input").fill(collaborationPrompt);
+  await page.getByTestId("composer-send").click();
+
+  await page.waitForFunction(
+    (expectedCount) => document.querySelectorAll(".message-item.role-assistant").length > expectedCount,
+    assistantCountBeforeCollaboration,
+    { timeout: 120000 }
+  );
+
+  const collaborationAssistantContent = page.locator(".message-item.role-assistant:last-child [data-testid='message-content']");
+  let collaborationAssistantText = "";
+  for (let attempt = 0; attempt < 120; attempt += 1) {
+    collaborationAssistantText = ((await collaborationAssistantContent.textContent()) ?? "").replace(/\s+/g, " ").trim();
+    if (collaborationAssistantText && collaborationAssistantText !== "正在流式输出") {
+      break;
+    }
+    await page.waitForTimeout(1000);
+  }
+  if (!collaborationAssistantText || collaborationAssistantText === "正在流式输出") {
+    throw new Error("collaboration assistant text is empty");
+  }
+
+  await page.getByRole("button", { name: "协作" }).click();
+  await page.getByRole("button", { name: "时间线" }).click();
+  await waitForVisible(page.getByText("事件流").first(), 10000);
+  await waitForVisible(page.getByText(`Skill ${importedSkillId} 已加入当前请求`).first(), 20000);
+  await waitForVisible(page.getByText(`MCP ${createdMcpId} 已加入当前请求`).first(), 20000);
+  const openSkillsButton = page.getByRole("button", { name: "打开 Skills" }).first();
+  const openMcpButton = page.getByRole("button", { name: "打开 MCP 配置" }).first();
+  await waitForVisible(openSkillsButton, 10000);
+  await waitForVisible(openMcpButton, 10000);
+
+  await openSkillsButton.click();
+  await waitForVisible(page.getByTestId("skill-list"), 20000);
+  await page.goto(baseUrl, { waitUntil: "domcontentloaded" });
+  await waitForVisible(page.getByTestId("composer-input"), 20000);
+
   const screenshotPath = path.join(outputDir, "e2e-success.png");
   await page.screenshot({ path: screenshotPath, fullPage: true });
 
@@ -311,6 +383,7 @@ try {
   console.log(`chat_completion=${completion}`);
   console.log("mcp_ok=true");
   console.log("skills_ok=true");
+  console.log("collaboration_ok=true");
   console.log(`screenshot=${screenshotPath}`);
 } catch (error) {
   console.error("e2e_ok=false");
@@ -374,3 +447,6 @@ try {
       .catch(() => {});
   }
   }
+
+
+

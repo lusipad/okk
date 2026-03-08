@@ -81,3 +81,38 @@ TBD - created by archiving change okk-architecture. Update Purpose after archive
 - **WHEN** 用户首次启动应用或手动触发扫描
 - **THEN** 系统 SHALL 扫描常用目录（~/Projects、~/repos、~/code 等）
 - **AND** 列出发现的 Git 仓库供用户选择注册
+
+### Requirement: 桌面工作台壳层一致性
+Desktop 壳层 SHALL 复用与 Web 一致的工作台信息架构，保证导航、快捷键和窗口恢复行为可预测。
+
+#### Scenario: 全局入口回到同一工作台
+- **WHEN** 用户通过桌面托盘、全局快捷键或搜索窗打开应用
+- **THEN** 系统 SHALL 回到当前工作台上下文，而不是打开一套独立页面流
+- **AND** 保留最近访问的主舞台页面与侧栏状态
+
+#### Scenario: 桌面端命令面板一致
+- **WHEN** 用户在 Desktop 中触发命令面板
+- **THEN** 系统 SHALL 提供与 Web 相同的工作台跳转与模式切换能力
+- **AND** 快捷键和执行结果 SHALL 与 Web 保持一致
+
+### Requirement: Desktop 主流程等价与启动诊断
+Desktop 应用 SHALL 对主流程提供与 Web 一致的可用性，并在启动失败时返回结构化诊断信息。
+
+#### Scenario: 启动失败可诊断
+- **WHEN** embedded backend、预载桥接或渲染主入口启动失败
+- **THEN** 系统 SHALL 展示可见错误态
+- **AND** 提供失败层级、原因摘要和建议恢复动作
+
+#### Scenario: 主流程等价
+- **WHEN** 用户在 Desktop 中执行登录、对话、Skills、MCP、Knowledge 或 Team 主流程
+- **THEN** 系统 SHALL 与 Web 端保持相同的业务语义和结果
+- **AND** 桌面增强能力不得破坏共享工作台交互
+
+### Requirement: 桌面原生增强接入共享工作台
+Desktop 应用 SHALL 将托盘、全局搜索、拖拽和文件选择等原生能力接入共享工作台，而不是形成独立流程。
+
+#### Scenario: 全局搜索回到当前工作台
+- **WHEN** 用户通过全局搜索或托盘入口唤起应用
+- **THEN** 系统 SHALL 回到当前工作台上下文
+- **AND** 将搜索或文件输入注入现有工作流，而不是跳转到独立功能页
+

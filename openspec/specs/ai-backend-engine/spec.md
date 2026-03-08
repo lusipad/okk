@@ -87,3 +87,29 @@ TBD - created by archiving change okk-architecture. Update Purpose after archive
 - **THEN** 系统 SHALL 将 CLAUDE.md 内容追加到系统提示
 - **AND** 系统 SHALL 追加该仓库的相关已有知识条目
 
+### Requirement: 后端能力探测与失败诊断
+系统 SHALL 在会话执行前后提供结构化的后端能力探测与失败诊断，避免仅返回模糊错误文本。
+
+#### Scenario: 会话前置能力检查
+- **WHEN** 用户准备使用某个 AI 后端发起会话
+- **THEN** 系统 SHALL 返回该后端是否可用、命令来源、缺失依赖和建议修复动作
+- **AND** 前端 SHALL 可据此提前提示用户
+
+#### Scenario: 结构化失败原因
+- **WHEN** 后端执行失败
+- **THEN** 系统 SHALL 返回结构化失败原因、失败层级和可恢复动作建议
+- **AND** 不得只输出不可操作的原始错误字符串
+
+### Requirement: 桌面本地运行时前置检查
+AI 后端执行引擎 SHALL 在桌面本地运行时提供 CLI、路径和依赖的前置检查，避免在会话中途才暴露环境问题。
+
+#### Scenario: 会话前校验 CLI 可用性
+- **WHEN** 用户在 Desktop 中准备发起对话
+- **THEN** 系统 SHALL 检查所选 CLI 后端是否可用
+- **AND** 若不可用 SHALL 返回具体缺失项与修复建议
+
+#### Scenario: 本地路径或权限异常
+- **WHEN** 桌面本地运行所需路径、配置或权限异常
+- **THEN** 系统 SHALL 在会话开始前返回结构化错误
+- **AND** 不得等到流式执行中才模糊失败
+

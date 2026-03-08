@@ -422,3 +422,43 @@ TBD - created by archiving change okk-architecture. Update Purpose after archive
 - **WHEN** 应用在 Electron 中运行
 - **THEN** IOProvider SHALL 使用 Electron IPC 实现
 - **AND** UI 组件代码 SHALL 无需修改
+
+### Requirement: 协作侧栏与步骤时间线
+前端 SHALL 提供统一协作侧栏与步骤时间线，承载 backend、tool、skill、agent、team、mcp 的运行信息。
+
+#### Scenario: 时间线分层展示
+- **WHEN** 当前会话发生多类协作运行
+- **THEN** 系统 SHALL 按时间线展示各运行节点
+- **AND** 用户 SHALL 能区分来源类型、运行状态与上下游关系
+
+#### Scenario: 失败默认放大
+- **WHEN** 某个协作节点失败或属于高风险操作
+- **THEN** 系统 SHALL 默认展开其详情
+- **AND** 提供重试、查看配置或复制诊断信息的入口
+
+### Requirement: 统一工作台导航层级
+系统 SHALL 提供稳定的工作台导航层级，将高频入口、主能力页面与会话历史明确分层，避免页面集合式跳转。
+
+#### Scenario: 左栏分层导航
+- **WHEN** 用户进入主工作台
+- **THEN** 系统 SHALL 在左栏按 `New chat / Search / Primary links / Chats` 分层展示入口
+- **AND** 会话历史 SHALL 独立于一级能力入口展示
+
+#### Scenario: 路由上下文保持
+- **WHEN** 用户从 Chat 切换到 Skills、MCP 或 Knowledge 页面后再返回
+- **THEN** 系统 SHALL 保留当前仓库、当前会话和最近一次上下文面板状态
+- **AND** 不得将用户重置到默认空页面
+
+### Requirement: 上下文侧栏与专注模式
+系统 SHALL 提供按需展开的上下文侧栏与专注模式，使主任务舞台始终保持阅读优先。
+
+#### Scenario: 右侧上下文面板按需展开
+- **WHEN** 用户打开步骤、知识建议、Team 状态或诊断信息
+- **THEN** 系统 SHALL 在右侧统一上下文面板中展示对应内容
+- **AND** 默认状态下 SHALL 保持收起，避免干扰主对话
+
+#### Scenario: 专注模式
+- **WHEN** 用户通过快捷键或命令面板切换专注模式
+- **THEN** 系统 SHALL 隐藏左右侧栏并仅保留中间主舞台
+- **AND** 刷新后 SHALL 恢复上次专注模式偏好
+

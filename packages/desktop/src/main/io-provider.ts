@@ -12,6 +12,7 @@ export interface IOProviderResponse {
   action: string;
   payload: unknown;
   timestamp: string;
+  mode: "stub";
 }
 
 type IpcMainLike = Pick<IpcMain, "handle">;
@@ -22,7 +23,8 @@ export function createStubIOProviderHandler(provider: IOProviderName) {
     ok: true,
     action: request.action ?? "noop",
     payload: request.payload ?? null,
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
+    mode: "stub"
   });
 }
 

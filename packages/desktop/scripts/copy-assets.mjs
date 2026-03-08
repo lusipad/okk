@@ -22,6 +22,14 @@ async function copyWebAssets() {
   );
 }
 
+async function copyBackendAssets() {
+  await cp(
+    path.join(packageRoot, "..", "web-backend", "dist"),
+    path.join(packageRoot, "dist", "backend"),
+    { recursive: true, force: true }
+  );
+}
+
 async function main() {
   const target = process.argv[2];
 
@@ -32,6 +40,11 @@ async function main() {
 
   if (target === "web") {
     await copyWebAssets();
+    return;
+  }
+
+  if (target === "backend") {
+    await copyBackendAssets();
     return;
   }
 
