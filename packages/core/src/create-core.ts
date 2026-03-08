@@ -348,6 +348,35 @@ function quoteWindowsShellArg(value: string): string {
   return `"${value.replace(/"/g, '""')}"`;
 }
 
+function resolveWindowsCommandPath(command: string): string {
+  const trimmed = command.trim();
+  if (process.platform !== "win32" || !trimmed || /[\\/]/.test(trimmed) || /\.[a-z0-9]+$/i.test(trimmed)) {
+    return trimmed;
+  }
+
+  try {
+    const result = spawnSync(
+      "powershell.exe",
+      [
+        "-NoProfile",
+        "-Command",
+        `$cmd = Get-Command ${quoteWindowsShellArg(trimmed)} -ErrorAction SilentlyContinue; if ($cmd) { $cmd.Path }`
+      ],
+      {
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "ignore"],
+        windowsHide: true,
+        timeout: 4000
+      }
+    );
+
+    const resolved = result.stdout?.trim();
+    return resolved || trimmed;
+  } catch {
+    return trimmed;
+  }
+}
+
 function resolveBackendCommand(
   explicitCommand: string | undefined,
   envName: string,
@@ -356,7 +385,7 @@ function resolveBackendCommand(
   const configured = explicitCommand?.trim();
   if (configured) {
     return {
-      command: configured,
+      command: resolveWindowsCommandPath(configured),
       source: "option"
     };
   }
@@ -364,14 +393,14 @@ function resolveBackendCommand(
   const fromEnv = process.env[envName]?.trim();
   if (fromEnv) {
     return {
-      command: fromEnv,
+      command: resolveWindowsCommandPath(fromEnv),
       source: "env",
       envName
     };
   }
 
   return {
-    command: fallbackCommand,
+    command: resolveWindowsCommandPath(fallbackCommand),
     source: "default"
   };
 }

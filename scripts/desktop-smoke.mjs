@@ -140,7 +140,7 @@ const env = {
   ...process.env,
   OKK_DESKTOP_RUNTIME_STATUS_PATH: statePath,
   OKK_DESKTOP_LOG_DIR: logsDir,
-  OKK_DESKTOP_NODE_COMMAND: process.execPath
+  ...(options.mode === "packaged" ? {} : { OKK_DESKTOP_NODE_COMMAND: process.execPath })
 };
 const launch = createLaunch(options, resolvedEntry, resolvedCwd);
 
@@ -218,5 +218,4 @@ try {
 } finally {
   await killProcessTree(child);
 }
-
 

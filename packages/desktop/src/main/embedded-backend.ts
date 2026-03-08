@@ -41,6 +41,11 @@ interface ReadinessPayload {
   diagnostics?: DesktopRuntimeDiagnostic[];
 }
 
+interface EmbeddedBackendCommand {
+  command: string;
+  extraEnv?: NodeJS.ProcessEnv;
+}
+
 async function isPortAvailable(port: number): Promise<boolean> {
   return new Promise((resolve) => {
     const server = createServer();
@@ -63,6 +68,37 @@ async function pickPort(): Promise<number> {
 
 function resolveBackendServerPath(): string {
   return path.join(__dirname, "..", "backend", "server.js");
+}
+
+function resolveBackendWorkingDirectory(backendServerPath: string): string {
+  const serverDir = path.dirname(backendServerPath);
+  if (serverDir.includes(".asar")) {
+    return path.dirname(process.execPath);
+  }
+  return serverDir;
+}
+
+export function resolveEmbeddedBackendCommand(): EmbeddedBackendCommand {
+  const explicit = process.env.OKK_DESKTOP_NODE_COMMAND?.trim();
+  if (explicit) {
+    return { command: explicit };
+  }
+
+  if (process.versions.electron) {
+    return {
+      command: process.execPath,
+      extraEnv: {
+        ELECTRON_RUN_AS_NODE: "1"
+      }
+    };
+  }
+
+  const npmNode = process.env.npm_node_execpath?.trim();
+  if (npmNode) {
+    return { command: npmNode };
+  }
+
+  return { command: "node" };
 }
 
 function toCheckStatus(value: string | undefined): DesktopRuntimeCheck["status"] {
@@ -147,22 +183,25 @@ export function normalizeBackendError(error: unknown): DesktopRuntimeDiagnostic 
 
 export async function startEmbeddedBackend(options: EmbeddedBackendOptions = {}): Promise<EmbeddedBackendRuntime> {
   const port = await pickPort();
-  const nodeCommand = process.env.OKK_DESKTOP_NODE_COMMAND?.trim() || process.env.npm_node_execpath?.trim() || "node";
+  const backendCommand = resolveEmbeddedBackendCommand();
   const backendServerPath = resolveBackendServerPath();
+  const backendWorkingDirectory = resolveBackendWorkingDirectory(backendServerPath);
   const apiBaseUrl = `http://${HOST}:${port}`;
   const wsBaseUrl = `ws://${HOST}:${port}`;
 
   options.logger?.write("embedded_backend_start", {
     host: HOST,
     port,
-    nodeCommand,
-    backendServerPath
+    nodeCommand: backendCommand.command,
+    backendServerPath,
+    backendWorkingDirectory
   });
 
-  const child = spawn(nodeCommand, [backendServerPath], {
-    cwd: path.dirname(backendServerPath),
+  const child = spawn(backendCommand.command, [backendServerPath], {
+    cwd: backendWorkingDirectory,
     env: {
       ...process.env,
+      ...(backendCommand.extraEnv ?? {}),
       HOST,
       PORT: String(port),
       OKK_CORE_MODE: "real"

@@ -81,6 +81,8 @@ export async function createApp(options: CreateAppOptions = {}) {
         return;
       }
       const isLocalhost =
+        origin === "null" ||
+        origin.startsWith("file://") ||
         /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin) ||
         origin.startsWith("app://");
       callback(null, isLocalhost);
@@ -94,6 +96,19 @@ export async function createApp(options: CreateAppOptions = {}) {
   await app.register(wsRoutes, { prefix: "/ws" });
 
   app.get("/healthz", async () => ({ ok: true, coreMode }));
+  app.get("/readyz", async () => ({
+    status: "ready",
+    checks: [
+      {
+        id: "web-backend",
+        label: "web backend",
+        status: "ready",
+        summary: "Web backend 已就绪",
+        detail: `coreMode=${coreMode}`
+      }
+    ],
+    diagnostics: []
+  }));
 
   return app;
 }

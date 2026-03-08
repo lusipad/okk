@@ -290,30 +290,19 @@ export function App() {
       return;
     }
 
-    let cancelled = false;
     setDesktopAutoLoginState('running');
     setDesktopAutoLoginError(null);
 
     void io
       .login('admin', 'admin')
       .then((result) => {
-        if (cancelled) {
-          return;
-        }
         login(result.token, result.user);
         setDesktopAutoLoginState('done');
       })
       .catch((error) => {
-        if (cancelled) {
-          return;
-        }
         setDesktopAutoLoginError(toErrorMessage(error, '桌面本地登录失败，请手动登录。'));
         setDesktopAutoLoginState('failed');
       });
-
-    return () => {
-      cancelled = true;
-    };
   }, [desktopRuntime, desktopRuntimeStatus?.phase, desktopAutoLoginState, io, login, token]);
 
   const reloadDesktopRuntime = useMemo(

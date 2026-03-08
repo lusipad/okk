@@ -11,6 +11,7 @@ type FailureStage = "spawn" | "startup" | "execution" | "abort";
 interface SpawnTarget {
   command: string;
   args: string[];
+  env?: NodeJS.ProcessEnv;
 }
 
 interface AttemptFailure {
@@ -38,6 +39,12 @@ export interface CliBackendOptions {
   name: string;
   command: string;
   buildArgs?: (request: BackendRequest) => string[];
+  resolveSpawn?: (input: {
+    command: string;
+    args: string[];
+    env: NodeJS.ProcessEnv;
+    request: BackendRequest;
+  }) => SpawnTarget;
   capabilities?: Partial<BackendCapabilities>;
   env?: NodeJS.ProcessEnv;
   onLog?: (entry: CliBackendLogEntry) => void;
@@ -84,7 +91,7 @@ const delay = async (ms: number): Promise<void> => {
   await new Promise((resolve) => setTimeout(resolve, ms));
 };
 
-const isDirectExecutableCommand = (command: string): boolean => /\.exe$/i.test(command.trim());
+const isDirectExecutableCommand = (command: string): boolean => /\.(exe|cmd|bat)$/i.test(command.trim());
 
 const quoteWindowsShellArg = (value: string): string => {
   if (value.length === 0) {
@@ -99,8 +106,16 @@ const quoteWindowsShellArg = (value: string): string => {
 };
 
 const resolveSpawnTarget = (command: string, args: string[]): SpawnTarget => {
-  if (process.platform !== "win32" || isDirectExecutableCommand(command)) {
+  const trimmed = command.trim();
+  if (process.platform !== "win32" || isDirectExecutableCommand(trimmed)) {
     return { command, args };
+  }
+
+  if (/\.ps1$/i.test(trimmed)) {
+    return {
+      command: "powershell.exe",
+      args: ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", trimmed, ...args]
+    };
   }
 
   const commandLine = [command, ...args].map((value) => quoteWindowsShellArg(value)).join(" ");
@@ -626,6 +641,12 @@ export class CliBackend implements IBackend {
 
   private readonly command: string;
   private readonly buildArgs: (request: BackendRequest) => string[];
+  private readonly resolveSpawn?: (input: {
+    command: string;
+    args: string[];
+    env: NodeJS.ProcessEnv;
+    request: BackendRequest;
+  }) => SpawnTarget;
   private readonly env: NodeJS.ProcessEnv;
   private readonly onLog?: (entry: CliBackendLogEntry) => void;
   private readonly stderrTailSize: number;
@@ -641,6 +662,7 @@ export class CliBackend implements IBackend {
     this.command = options.command;
     this.capabilities = { ...defaultCapabilities, ...options.capabilities };
     this.buildArgs = options.buildArgs ?? ((request) => this.defaultBuildArgs(request));
+    this.resolveSpawn = options.resolveSpawn;
     this.env = { ...process.env, ...options.env };
     this.onLog = options.onLog;
     this.stderrTailSize = options.stderrTailSize ?? DEFAULT_STDERR_TAIL_SIZE;
@@ -754,10 +776,16 @@ export class CliBackend implements IBackend {
   }): Promise<AttemptResult> {
     const { request, sessionId, queue, attempt, isFinalAttempt } = options;
     const args = this.buildArgs(request);
-    const spawnTarget = resolveSpawnTarget(this.command, args);
+    const baseEnv = { ...this.env };
+    const spawnTarget = this.resolveSpawn?.({
+      command: this.command,
+      args,
+      env: baseEnv,
+      request
+    }) ?? resolveSpawnTarget(this.command, args);
     const child = spawn(spawnTarget.command, spawnTarget.args, {
       cwd: request.workingDirectory,
-      env: this.env,
+      env: spawnTarget.env ?? baseEnv,
       stdio: "pipe",
       windowsHide: true
     });

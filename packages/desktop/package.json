@@ -27,7 +27,7 @@
   },
   "build": {
     "appId": "com.okk.desktop",
-    "electronVersion": "30.0.0",
+    "electronVersion": "39.8.0",
     "productName": "OKK",
     "win": {
       "target": "dir",
@@ -46,7 +46,7 @@
     "@types/node": "^22.13.9",
     "concurrently": "^9.1.2",
     "cross-env": "^7.0.3",
-    "electron": "30.0.0",
+    "electron": "^39.8.0",
     "electron-builder": "^24.13.3",
     "rimraf": "^6.0.1",
     "vitest": "^3.2.4",
@@ -55,6 +55,3 @@
   "description": "OKK Desktop - AI-native engineering workspace",
   "author": "OKK"
 }
-
-
-
