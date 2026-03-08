@@ -998,7 +998,7 @@ test("REST /api/repos/context 支持读取、更新和继续工作摘要", async
       method: "POST",
       url: "/api/repos",
       headers,
-      payload: { name: "okclaw", path: process.cwd() }
+      payload: { name: "okk", path: process.cwd() }
     });
     assert.equal(createRepoResponse.statusCode, 201, createRepoResponse.body);
     const repoId = createRepoResponse.json().id as string;

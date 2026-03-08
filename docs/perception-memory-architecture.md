@@ -17,7 +17,7 @@
 - 远程协作时哪些记忆和来源可以共享
 - 如何避免长期记忆污染和隐私泄露
 
-本文是 [product-architecture-baseline.md](/D:/Repos/okclaw/docs/product-architecture-baseline.md) 的专题延伸。
+本文是 `docs/product-architecture-baseline.md` 的专题延伸。
 
 ---
 

@@ -158,7 +158,7 @@ describe('ShellLayout', () => {
 
   it('支持通过命令面板触发桌面文件选择', async () => {
     const user = userEvent.setup();
-    const pick = vi.fn().mockResolvedValue(['D:/Repos/okclaw']);
+    const pick = vi.fn().mockResolvedValue(['D:/Repos/okk']);
     const dispatchSpy = vi.spyOn(window, 'dispatchEvent');
 
     (window as Window & { okkDesktop?: DesktopShellBridgeMock }).okkDesktop = {

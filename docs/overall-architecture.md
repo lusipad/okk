@@ -13,7 +13,7 @@
 
 本文定义的是 **整个 OKK 项目的总体架构**，不是单一前端、后端或某个模块的技术说明。
 
-当前正式产品形态与架构形态，以 [product-architecture-baseline.md](/D:/Repos/okclaw/docs/product-architecture-baseline.md) 为主基线；本文保留为项目总览与落地映射文档。
+当前正式产品形态与架构形态，以 `docs/product-architecture-baseline.md` 为主基线；本文保留为项目总览与落地映射文档。
 
 它用于统一以下内容：
 

@@ -116,7 +116,7 @@ describe('LeftSidebar', () => {
           sessions={[{ id: 'session-1', title: '重构右侧任务图', repoId: 'repo-1', updatedAt: '2026-02-01T00:00:00.000Z' }]}
           currentSessionId='session-1'
           projectContext={{
-            repoName: 'okclaw',
+            repoName: 'okk',
             preferredAgentName: 'code-reviewer',
             lastActivitySummary: '继续修复登录流程'
           }}
@@ -129,7 +129,7 @@ describe('LeftSidebar', () => {
     );
 
     expect(screen.getByTestId('sidebar-project-context')).toBeInTheDocument();
-    expect(screen.getByText('当前仓库：okclaw')).toBeInTheDocument();
+    expect(screen.getByText('当前仓库：okk')).toBeInTheDocument();
     expect(screen.getByText('偏好 Agent：code-reviewer')).toBeInTheDocument();
     expect(screen.getByText('最近活动：继续修复登录流程')).toBeInTheDocument();
 
