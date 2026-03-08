@@ -50,3 +50,4 @@ export class SqliteDatabase {
     this.connection.close();
   }
 }
+

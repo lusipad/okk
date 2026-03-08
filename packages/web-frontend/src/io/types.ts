@@ -1,5 +1,6 @@
 import type {
   AgentInfo,
+  AgentTraceEvent,
   CollaborationAction,
   CollaborationDiagnostics,
   CollaborationRunStatus,
@@ -265,6 +266,7 @@ export interface IOProvider {
   getActiveIdentity(): Promise<IdentityProfile | null>;
   upsertIdentity(input: Omit<IdentityProfile, "id" | "createdAt" | "updatedAt">): Promise<IdentityProfile>;
   activateIdentity(identityId: string): Promise<IdentityProfile>;
+  listAgentTraces(sessionId: string): Promise<AgentTraceEvent[]>;
 }
 
 export interface MessageStartedPayload {
@@ -417,6 +419,8 @@ export interface TeamRunRecord {
   diagnostics?: CollaborationDiagnostics;
   actions?: CollaborationAction[];
 }
+
+
 
 
 

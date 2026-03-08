@@ -1,5 +1,6 @@
 import type {
   AgentInfo,
+  AgentTraceEvent,
   CollaborationAction,
   CollaborationDiagnostics,
   CollaborationRunStatus,
@@ -609,6 +610,10 @@ export class HttpWsIOProvider implements IOProvider {
     const payload = await this.http.post<{ item: IdentityProfile }>(`/api/identity/${encodeURIComponent(identityId)}/activate`, {});
     return payload.item;
   }
+  async listAgentTraces(sessionId: string): Promise<AgentTraceEvent[]> {
+    const payload = await this.http.get<AgentTraceEvent[] | ListPayload<AgentTraceEvent>>(`/api/agents/traces/${encodeURIComponent(sessionId)}`);
+    return unwrapItems(payload);
+  }
   async continueRepoContext(repoId: string): Promise<RepoContinueRecord> {
     return this.http.post<RepoContinueRecord>(`/api/repos/${encodeURIComponent(repoId)}/continue`, {});
   }
@@ -1002,6 +1007,9 @@ export class HttpWsIOProvider implements IOProvider {
     };
   }
 }
+
+
+
 
 
 

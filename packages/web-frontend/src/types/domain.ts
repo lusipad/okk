@@ -238,6 +238,16 @@ export interface IdentityProfile {
   updatedAt: string;
 }
 
+
+export interface AgentTraceEvent {
+  id: string;
+  sessionId: string;
+  traceType: string;
+  sourceType: string;
+  summary: string;
+  payload: Record<string, unknown>;
+  createdAt: string;
+}
 export interface LoginResult {
   token: string;
   user: UserProfile;
