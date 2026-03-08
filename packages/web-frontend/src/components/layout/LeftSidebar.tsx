@@ -1,8 +1,9 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import type { SessionInfo } from '../../types/domain';
 
 const COMMAND_PALETTE_EVENT = 'okk:command-palette';
+const MORE_TOOLS_STORAGE_KEY = 'okk.sidebar.more-tools-expanded';
 
 interface ProjectContextSummary {
   repoName: string;
@@ -26,13 +27,14 @@ interface LeftSidebarProps {
   onRefreshProjectContext?: () => void;
 }
 
-interface PrimaryLinkItem {
+interface NavLinkItem {
   id: string;
   label: string;
   to: string;
   active: boolean;
 }
 
+const PRIMARY_LINK_IDS = new Set(['chat', 'identity', 'memory', 'workspaces']);
 const relativeTimeFormatter = new Intl.RelativeTimeFormat('zh-CN', { numeric: 'auto' });
 
 function formatRelativeTime(value: string): string {
@@ -74,6 +76,22 @@ function formatAbsoluteTime(value: string): string {
   }).format(target);
 }
 
+function readMoreToolsExpanded(): boolean {
+  try {
+    return window.localStorage.getItem(MORE_TOOLS_STORAGE_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+function persistMoreToolsExpanded(expanded: boolean): void {
+  try {
+    window.localStorage.setItem(MORE_TOOLS_STORAGE_KEY, expanded ? '1' : '0');
+  } catch {
+    // ignore persistence failure
+  }
+}
+
 export function LeftSidebar({
   sessions,
   currentSessionId,
@@ -89,9 +107,15 @@ export function LeftSidebar({
 }: LeftSidebarProps) {
   const [sessionQuery, setSessionQuery] = useState('');
   const [showArchived, setShowArchived] = useState(false);
+  const [moreToolsExpanded, setMoreToolsExpanded] = useState<boolean>(() => readMoreToolsExpanded());
   const location = useLocation();
   const inChat = location.pathname === '/';
   const normalizedSessionQuery = sessionQuery.trim().toLowerCase();
+
+  useEffect(() => {
+    persistMoreToolsExpanded(moreToolsExpanded);
+  }, [moreToolsExpanded]);
+
   const filteredSessions = useMemo(() => {
     const scopedSessions = sessions.filter((session) =>
       showArchived ? Boolean(session.archivedAt) : !session.archivedAt
@@ -107,6 +131,7 @@ export function LeftSidebar({
       return haystack.includes(normalizedSessionQuery);
     });
   }, [normalizedSessionQuery, sessions, showArchived]);
+
   const groupedSessions = useMemo(() => {
     const now = new Date();
     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
@@ -147,20 +172,33 @@ export function LeftSidebar({
       { key: 'earlier', label: '更早', items: groups.earlier }
     ].filter((group) => group.items.length > 0);
   }, [filteredSessions]);
-  const primaryLinks = useMemo<PrimaryLinkItem[]>(
+
+  const navigationLinks = useMemo<NavLinkItem[]>(
     () => [
       { id: 'chat', label: 'Chats', to: '/', active: inChat },
+      { id: 'identity', label: 'Identity', to: '/identity', active: location.pathname === '/identity' },
+      { id: 'memory', label: 'Memory', to: '/memory', active: location.pathname === '/memory' },
       { id: 'workspaces', label: 'Workspaces', to: '/workspaces', active: location.pathname === '/workspaces' },
+      { id: 'skills', label: 'Skills', to: '/skills', active: location.pathname === '/skills' },
       { id: 'mcp', label: 'MCP', to: '/settings/mcp', active: location.pathname === '/settings/mcp' },
       { id: 'governance', label: 'Governance', to: '/governance', active: location.pathname === '/governance' },
       { id: 'imports', label: 'Imports', to: '/imports', active: location.pathname === '/imports' },
       { id: 'workflows', label: 'Workflows', to: '/workflows', active: location.pathname === '/workflows' },
-      { id: 'identity', label: 'Identity', to: '/identity', active: location.pathname === '/identity' },
-      { id: 'memory', label: 'Memory', to: '/memory', active: location.pathname === '/memory' },
-      { id: 'memory-sharing', label: 'Sharing', to: '/memory-sharing', active: location.pathname === '/memory-sharing' },
-      { id: 'skills', label: 'Skills', to: '/skills', active: location.pathname === '/skills' }
+      { id: 'memory-sharing', label: 'Sharing', to: '/memory-sharing', active: location.pathname === '/memory-sharing' }
     ],
     [inChat, location.pathname]
+  );
+
+  const primaryLinks = useMemo(
+    () => navigationLinks.filter((link) => PRIMARY_LINK_IDS.has(link.id)),
+    [navigationLinks]
+  );
+  const secondaryLinks = useMemo(
+    () => navigationLinks.filter((link) => !PRIMARY_LINK_IDS.has(link.id)),
+    [navigationLinks]
+  );
+  const hasProjectContextSection = Boolean(
+    projectContext || onContinueProjectContext || onSaveProjectContext || onRefreshProjectContext
   );
 
   return (
@@ -170,6 +208,59 @@ export function LeftSidebar({
         <span aria-hidden='true'>+</span>
         <span>New chat</span>
       </button>
+
+      {hasProjectContextSection && (
+        <div className='sidebar-section'>
+          <p className='sidebar-section-label'>Continue work</p>
+          {projectContext?.loading ? (
+            <p className='small-text'>正在同步项目上下文…</p>
+          ) : projectContext?.error ? (
+            <>
+              <p className='small-text'>{projectContext.error}</p>
+              {onRefreshProjectContext && (
+                <button
+                  type='button'
+                  className='small-button'
+                  data-testid='sidebar-project-refresh'
+                  onClick={onRefreshProjectContext}
+                >
+                  刷新
+                </button>
+              )}
+            </>
+          ) : projectContext ? (
+            <div className='sidebar-project-context' data-testid='sidebar-project-context'>
+              <p className='small-text'>当前仓库：{projectContext.repoName}</p>
+              <p className='small-text'>偏好 Agent：{projectContext.preferredAgentName || '未设置'}</p>
+              <p className='small-text'>最近活动：{projectContext.lastActivitySummary || '暂无记录'}</p>
+              <div className='row-actions'>
+                {onContinueProjectContext && (
+                  <button
+                    type='button'
+                    className='small-button'
+                    data-testid='sidebar-project-continue'
+                    onClick={onContinueProjectContext}
+                  >
+                    继续上次工作
+                  </button>
+                )}
+                {onSaveProjectContext && (
+                  <button
+                    type='button'
+                    className='ghost-button small-button'
+                    data-testid='sidebar-project-save'
+                    onClick={onSaveProjectContext}
+                  >
+                    记住当前偏好
+                  </button>
+                )}
+              </div>
+            </div>
+          ) : (
+            <p className='small-text'>切换到具体会话后会显示仓库级上下文与继续工作入口。</p>
+          )}
+        </div>
+      )}
 
       <div className='sidebar-section'>
         <p className='sidebar-section-label'>Search</p>
@@ -233,38 +324,37 @@ export function LeftSidebar({
       </div>
 
       <div className='sidebar-section'>
-        <p className='sidebar-section-label'>Project context</p>
-        {projectContext?.loading ? (
-          <p className='small-text'>正在同步项目上下文…</p>
-        ) : projectContext?.error ? (
-          <>
-            <p className='small-text'>{projectContext.error}</p>
-            {onRefreshProjectContext && (
-              <button type='button' className='small-button' data-testid='sidebar-project-refresh' onClick={onRefreshProjectContext}>
-                刷新
-              </button>
-            )}
-          </>
-        ) : projectContext ? (
-          <div className='sidebar-project-context' data-testid='sidebar-project-context'>
-            <p className='small-text'>当前仓库：{projectContext.repoName}</p>
-            <p className='small-text'>偏好 Agent：{projectContext.preferredAgentName || '未设置'}</p>
-            <p className='small-text'>最近活动：{projectContext.lastActivitySummary || '暂无记录'}</p>
-            <div className='row-actions'>
-              {onContinueProjectContext && (
-                <button type='button' className='small-button' data-testid='sidebar-project-continue' onClick={onContinueProjectContext}>
-                  继续上次工作
-                </button>
-              )}
-              {onSaveProjectContext && (
-                <button type='button' className='ghost-button small-button' data-testid='sidebar-project-save' onClick={onSaveProjectContext}>
-                  记住当前偏好
-                </button>
-              )}
-            </div>
-          </div>
+        <div className='sidebar-section-header'>
+          <p className='sidebar-section-label'>More tools</p>
+          <button
+            type='button'
+            className='ghost-button small-button sidebar-more-tools-toggle'
+            data-testid='sidebar-more-tools-toggle'
+            aria-expanded={moreToolsExpanded ? 'true' : 'false'}
+            onClick={() => setMoreToolsExpanded((value) => !value)}
+          >
+            {moreToolsExpanded ? '收起' : '展开'}
+          </button>
+        </div>
+        {moreToolsExpanded ? (
+          <nav className='sidebar-primary-nav sidebar-secondary-nav' aria-label='更多工具导航'>
+            {secondaryLinks.map((link) => (
+              <Link
+                key={link.id}
+                data-testid={`nav-${link.id}`}
+                className={`sidebar-link ${link.active ? 'active' : ''}`}
+                to={link.to}
+                aria-current={link.active ? 'page' : undefined}
+              >
+                <span className='sidebar-link-icon' aria-hidden='true'>
+                  ◦
+                </span>
+                <span className='sidebar-link-label'>{link.label}</span>
+              </Link>
+            ))}
+          </nav>
         ) : (
-          <p className='small-text'>切换到具体会话后会显示仓库级上下文与继续工作入口。</p>
+          <p className='sidebar-section-hint sidebar-more-tools-hint'>默认收起次级工具，保持主任务入口聚焦。</p>
         )}
       </div>
 
@@ -353,5 +443,3 @@ export function LeftSidebar({
     </section>
   );
 }
-
-

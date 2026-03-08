@@ -1,17 +1,26 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
-import { vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { LeftSidebar } from '../components/layout/LeftSidebar';
 
+const MORE_TOOLS_STORAGE_KEY = 'okk.sidebar.more-tools-expanded';
+
 describe('LeftSidebar', () => {
+  beforeEach(() => {
+    localStorage.removeItem(MORE_TOOLS_STORAGE_KEY);
+  });
+
   afterEach(() => {
     vi.useRealTimers();
+    vi.restoreAllMocks();
+    localStorage.removeItem(MORE_TOOLS_STORAGE_KEY);
   });
 
   it('按时间分组展示会话', () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-03-01T10:00:00.000Z'));
+
     render(
       <MemoryRouter initialEntries={['/']}>
         <LeftSidebar
@@ -35,6 +44,7 @@ describe('LeftSidebar', () => {
 
   it('支持按标题筛选会话', async () => {
     const user = userEvent.setup();
+
     render(
       <MemoryRouter initialEntries={['/']}>
         <LeftSidebar
@@ -57,7 +67,7 @@ describe('LeftSidebar', () => {
     expect(screen.getByText('修复登录与空白页')).toBeInTheDocument();
   });
 
-  it('展示分层信息架构并支持 Search 入口', async () => {
+  it('展示主导航、默认收起更多工具，并支持 Search 入口', async () => {
     const user = userEvent.setup();
     const commandListener = vi.fn();
     window.addEventListener('okk:command-palette', commandListener as EventListener);
@@ -76,20 +86,29 @@ describe('LeftSidebar', () => {
     expect(screen.getByRole('button', { name: 'New chat' })).toBeInTheDocument();
     expect(screen.getByText('Search', { selector: '.sidebar-section-label' })).toBeInTheDocument();
     expect(screen.getByText('Primary links', { selector: '.sidebar-section-label' })).toBeInTheDocument();
+    expect(screen.getByText('More tools', { selector: '.sidebar-section-label' })).toBeInTheDocument();
     expect(screen.getAllByText('Chats').length).toBeGreaterThan(0);
     expect(screen.getByTestId('nav-workspaces')).toBeInTheDocument();
-    expect(screen.getByTestId('nav-governance')).toBeInTheDocument();
-    expect(screen.getByTestId('nav-workflows')).toBeInTheDocument();
-    expect(screen.getByTestId('nav-memory-sharing')).toBeInTheDocument();
+    expect(screen.getByTestId('nav-identity')).toBeInTheDocument();
+    expect(screen.getByTestId('nav-memory')).toBeInTheDocument();
+    expect(screen.queryByTestId('nav-governance')).not.toBeInTheDocument();
+    expect(screen.getByTestId('sidebar-more-tools-toggle')).toHaveAttribute('aria-expanded', 'false');
 
     await user.click(screen.getByTestId('sidebar-search-trigger'));
     expect(commandListener).toHaveBeenCalledTimes(1);
+
+    await user.click(screen.getByTestId('sidebar-more-tools-toggle'));
+    expect(screen.getByTestId('sidebar-more-tools-toggle')).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByTestId('nav-governance')).toBeInTheDocument();
+    expect(screen.getByTestId('nav-workflows')).toBeInTheDocument();
+    expect(screen.getByTestId('nav-memory-sharing')).toBeInTheDocument();
 
     window.removeEventListener('okk:command-palette', commandListener as EventListener);
   });
 
   it('筛选无结果时显示空态提示', async () => {
     const user = userEvent.setup();
+
     render(
       <MemoryRouter initialEntries={['/']}>
         <LeftSidebar
@@ -128,6 +147,7 @@ describe('LeftSidebar', () => {
       </MemoryRouter>
     );
 
+    expect(screen.getByText('Continue work', { selector: '.sidebar-section-label' })).toBeInTheDocument();
     expect(screen.getByTestId('sidebar-project-context')).toBeInTheDocument();
     expect(screen.getByText('当前仓库：okk')).toBeInTheDocument();
     expect(screen.getByText('偏好 Agent：code-reviewer')).toBeInTheDocument();
@@ -139,39 +159,92 @@ describe('LeftSidebar', () => {
     expect(onContinue).toHaveBeenCalledTimes(1);
     expect(onSave).toHaveBeenCalledTimes(1);
   });
-});
 
-it('支持归档视图切换与引用动作', async () => {
-  const user = userEvent.setup();
-  const onArchive = vi.fn();
-  const onRestore = vi.fn();
-  const onReference = vi.fn();
+  it('支持归档视图切换与引用动作', async () => {
+    const user = userEvent.setup();
+    const onArchive = vi.fn();
+    const onRestore = vi.fn();
+    const onReference = vi.fn();
 
-  render(
-    <MemoryRouter initialEntries={['/']}>
-      <LeftSidebar
-        sessions={[
-          { id: 'session-1', title: '活跃会话', summary: '处理登录问题', tags: ['login'], updatedAt: '2026-02-01T00:00:00.000Z' },
-          { id: 'session-2', title: '已归档会话', summary: '旧排查记录', tags: ['archive'], archivedAt: '2026-02-02T00:00:00.000Z', updatedAt: '2026-02-02T00:00:00.000Z' }
-        ]}
-        currentSessionId='session-1'
-        onSelectSession={() => undefined}
-        onCreateSession={() => undefined}
-        onArchiveSession={onArchive}
-        onRestoreSession={onRestore}
-        onReferenceSession={onReference}
-      />
-    </MemoryRouter>
-  );
+    render(
+      <MemoryRouter initialEntries={['/']}>
+        <LeftSidebar
+          sessions={[
+            { id: 'session-1', title: '活跃会话', summary: '处理登录问题', tags: ['login'], updatedAt: '2026-02-01T00:00:00.000Z' },
+            { id: 'session-2', title: '已归档会话', summary: '旧排查记录', tags: ['archive'], archivedAt: '2026-02-02T00:00:00.000Z', updatedAt: '2026-02-02T00:00:00.000Z' }
+          ]}
+          currentSessionId='session-1'
+          onSelectSession={() => undefined}
+          onCreateSession={() => undefined}
+          onArchiveSession={onArchive}
+          onRestoreSession={onRestore}
+          onReferenceSession={onReference}
+        />
+      </MemoryRouter>
+    );
 
-  expect(screen.getByText('活跃会话')).toBeInTheDocument();
-  await user.click(screen.getByTestId('session-archive-session-1'));
-  await user.click(screen.getByTestId('session-reference-session-1'));
-  expect(onArchive).toHaveBeenCalledWith('session-1');
-  expect(onReference).toHaveBeenCalledWith('session-1');
+    expect(screen.getByText('活跃会话')).toBeInTheDocument();
+    await user.click(screen.getByTestId('session-archive-session-1'));
+    await user.click(screen.getByTestId('session-reference-session-1'));
+    expect(onArchive).toHaveBeenCalledWith('session-1');
+    expect(onReference).toHaveBeenCalledWith('session-1');
 
-  await user.click(screen.getByTestId('sidebar-archived-toggle'));
-  expect(screen.getByText('已归档会话')).toBeInTheDocument();
-  await user.click(screen.getByTestId('session-restore-session-2'));
-  expect(onRestore).toHaveBeenCalledWith('session-2');
+    await user.click(screen.getByTestId('sidebar-archived-toggle'));
+    expect(screen.getByText('已归档会话')).toBeInTheDocument();
+    await user.click(screen.getByTestId('session-restore-session-2'));
+    expect(onRestore).toHaveBeenCalledWith('session-2');
+  });
+
+  it('记住更多工具区的展开状态', async () => {
+    const user = userEvent.setup();
+    const { unmount } = render(
+      <MemoryRouter initialEntries={['/']}>
+        <LeftSidebar
+          sessions={[{ id: 'session-1', title: '重构右侧任务图', updatedAt: '2026-02-01T00:00:00.000Z' }]}
+          currentSessionId='session-1'
+          onSelectSession={() => undefined}
+          onCreateSession={() => undefined}
+        />
+      </MemoryRouter>
+    );
+
+    await user.click(screen.getByTestId('sidebar-more-tools-toggle'));
+    expect(localStorage.getItem(MORE_TOOLS_STORAGE_KEY)).toBe('1');
+
+    unmount();
+
+    render(
+      <MemoryRouter initialEntries={['/']}>
+        <LeftSidebar
+          sessions={[{ id: 'session-1', title: '重构右侧任务图', updatedAt: '2026-02-01T00:00:00.000Z' }]}
+          currentSessionId='session-1'
+          onSelectSession={() => undefined}
+          onCreateSession={() => undefined}
+        />
+      </MemoryRouter>
+    );
+
+    expect(screen.getByTestId('sidebar-more-tools-toggle')).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByTestId('nav-governance')).toBeInTheDocument();
+  });
+
+  it('localStorage 读取异常时回退到默认收起状态', () => {
+    vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+      throw new Error('storage blocked');
+    });
+
+    render(
+      <MemoryRouter initialEntries={['/']}>
+        <LeftSidebar
+          sessions={[{ id: 'session-1', title: '重构右侧任务图', updatedAt: '2026-02-01T00:00:00.000Z' }]}
+          currentSessionId='session-1'
+          onSelectSession={() => undefined}
+          onCreateSession={() => undefined}
+        />
+      </MemoryRouter>
+    );
+
+    expect(screen.getByTestId('sidebar-more-tools-toggle')).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByTestId('nav-governance')).not.toBeInTheDocument();
+  });
 });

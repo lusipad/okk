@@ -4884,6 +4884,54 @@ body {
   margin-top: 0;
 }
 
+.sidebar-section {
+  margin-top: 12px;
+}
+
+.sidebar-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.sidebar-section-header .sidebar-section-label {
+  margin-top: 0;
+}
+
+.sidebar-section-hint {
+  margin: 6px 0 0;
+  color: #8a90a5;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.sidebar-project-context {
+  display: grid;
+  gap: 6px;
+  padding: 10px;
+  border: 1px solid var(--shell-control-border);
+  border-radius: 10px;
+  background: rgba(36, 37, 44, 0.88);
+}
+
+.sidebar-project-context .row-actions {
+  margin-top: 4px;
+}
+
+.sidebar-more-tools-toggle {
+  min-width: 56px;
+  justify-content: center;
+}
+
+.sidebar-secondary-nav {
+  margin-top: 6px;
+}
+
+.sidebar-more-tools-hint {
+  margin-top: 6px;
+}
+
 .session-search {
   margin-top: 2px;
 }
