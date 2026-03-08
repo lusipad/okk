@@ -205,6 +205,30 @@ npm run smoke -w @okk/desktop
 - 聊天体验验收：`docs/chat-experience-acceptance.md`
 - 协作运行时验收：`docs/collaboration-runtime-acceptance.md`
 
+## GitHub Actions
+
+当前仓库提供两类 GitHub Actions：
+
+- 通用 CI：`.github/workflows/ci.yml`
+  - Linux 下全仓测试与构建
+  - Windows 下桌面端测试与构建
+- Windows 打包发布：`.github/workflows/desktop-windows-package.yml`
+  - 手动触发或 `v*` tag 触发
+  - 执行桌面打包、packaged smoke、checksum 和 release artifact 上传
+  - 打 tag 时自动发布 GitHub Release
+
+OpenSpec 校验不放入主 CI，避免规格流程阻塞代码构建。建议在以下场景手工执行：
+
+- 提交新的 proposal / design / spec / tasks
+- 准备归档某个 change
+- 调整主规格文档
+
+如果你要排查 CI，优先看：
+
+- `npm run test`
+- `npm run build`
+- `npm run build -w @okk/desktop`
+
 ## 当前建议的下一阶段重点
 
 当前活动 change 已归档完成，下一阶段建议聚焦：
