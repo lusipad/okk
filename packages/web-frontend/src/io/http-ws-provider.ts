@@ -22,14 +22,18 @@ import { SessionWsClient, TeamWsClient } from './ws-client';
 import type {
   AskQuestionInput,
   CreateMcpServerInput,
+  GovernanceDetailPayload,
   IOProvider,
   ImportSkillFolderInput,
   InstallSkillFromMarketInput,
+  KnowledgeImportPreviewInput,
+  MemorySharingOverview,
   McpResourceInfo,
   McpResourceReadContent,
   McpServerSetting,
   McpToolCallResult,
   McpToolInfo,
+  RepoRecord,
   RuntimeBackendHealth,
   RetryQuestionInput,
   SaveKnowledgeInput,
@@ -42,6 +46,8 @@ import type {
   SkillRiskSummary,
   TeamRunRecord,
   TeamRunRequest,
+  WorkflowTemplate,
+  WorkspaceStatusPayload,
   SubscribeTeamInput,
   SubscribeSessionInput,
   UpdateMcpServerInput
@@ -545,6 +551,11 @@ export class HttpWsIOProvider implements IOProvider {
     return this.http.post<LoginResult>('/api/auth/login', { username, password });
   }
 
+  async listRepos(): Promise<RepoRecord[]> {
+    const payload = await this.http.get<RepoRecord[] | ListPayload<RepoRecord>>('/api/repos');
+    return unwrapItems(payload);
+  }
+
   async listSessions(input?: { archived?: boolean; q?: string; tag?: string }): Promise<SessionInfo[]> {
     const params = new URLSearchParams();
     if (input?.q) {
@@ -614,8 +625,55 @@ export class HttpWsIOProvider implements IOProvider {
     const payload = await this.http.get<AgentTraceEvent[] | ListPayload<AgentTraceEvent>>(`/api/agents/traces/${encodeURIComponent(sessionId)}`);
     return unwrapItems(payload);
   }
+
+  async getAgentTrace(sessionId: string, traceId: string): Promise<AgentTraceEvent> {
+    const payload = await this.http.get<{ item: AgentTraceEvent }>(`/api/agents/traces/${encodeURIComponent(sessionId)}/${encodeURIComponent(traceId)}`);
+    return payload.item;
+  }
+
+  async getAgentTraceDiff(sessionId: string, traceId: string, filePath: string): Promise<{ path: string; changeType: string; diff: string } | null> {
+    const payload = await this.http.get<{ item?: { path: string; changeType: string; diff: string } | null }>(
+      `/api/agents/traces/${encodeURIComponent(sessionId)}/${encodeURIComponent(traceId)}/diff?filePath=${encodeURIComponent(filePath)}`
+    );
+    return payload.item ?? null;
+  }
+
   async continueRepoContext(repoId: string): Promise<RepoContinueRecord> {
     return this.http.post<RepoContinueRecord>(`/api/repos/${encodeURIComponent(repoId)}/continue`, {});
+  }
+
+  async listWorkspaces() {
+    const payload = await this.http.get<{ items: import('../types/domain').WorkspaceRecord[] }>('/api/workspaces');
+    return payload.items;
+  }
+
+  async createWorkspace(input: { name: string; description?: string | null; repoIds?: string[]; activeRepoId?: string | null }) {
+    const payload = await this.http.post<{ item: import('../types/domain').WorkspaceRecord }>('/api/workspaces', input);
+    return payload.item;
+  }
+
+  async updateWorkspace(workspaceId: string, input: Partial<{ name: string; description: string | null; repoIds: string[]; activeRepoId: string | null }>) {
+    const payload = await this.http.patch<{ item: import('../types/domain').WorkspaceRecord }>(`/api/workspaces/${encodeURIComponent(workspaceId)}`, input);
+    return payload.item;
+  }
+
+  async deleteWorkspace(workspaceId: string): Promise<void> {
+    await this.http.delete(`/api/workspaces/${encodeURIComponent(workspaceId)}`);
+  }
+
+  async activateWorkspaceRepo(workspaceId: string, repoId: string) {
+    const payload = await this.http.post<{ item: import('../types/domain').WorkspaceRecord }>(`/api/workspaces/${encodeURIComponent(workspaceId)}/activate`, { repoId });
+    return payload.item;
+  }
+
+  async getWorkspaceStatus(workspaceId: string): Promise<WorkspaceStatusPayload> {
+    return this.http.get<WorkspaceStatusPayload>(`/api/workspaces/${encodeURIComponent(workspaceId)}/status`);
+  }
+
+  async searchWorkspace(workspaceId: string, query?: string) {
+    const suffix = query && query.trim().length > 0 ? `?q=${encodeURIComponent(query.trim())}` : '';
+    const payload = await this.http.get<{ items: import('../types/domain').WorkspaceSearchRecord[] }>(`/api/workspaces/${encodeURIComponent(workspaceId)}/search${suffix}`);
+    return payload.items;
   }
 
   async listMemoryEntries(input?: { repoId?: string; memoryType?: MemoryType; status?: MemoryStatus }): Promise<MemoryEntry[]> {
@@ -646,6 +704,114 @@ export class HttpWsIOProvider implements IOProvider {
 
   async syncMemoryRepo(repoId: string): Promise<{ imported: number }> {
     return this.http.post<{ imported: number }>('/api/memory/sync', { repoId });
+  }
+
+  async listGovernanceRecords(status?: string) {
+    const suffix = status ? `?status=${encodeURIComponent(status)}` : '';
+    const payload = await this.http.get<{ items: import('../types/domain').KnowledgeGovernanceRecord[] }>(`/api/governance${suffix}`);
+    return payload.items;
+  }
+
+  async refreshGovernance() {
+    const payload = await this.http.post<{ items: import('../types/domain').KnowledgeGovernanceRecord[] }>('/api/governance/refresh', {});
+    return payload.items;
+  }
+
+  async getGovernanceDetail(governanceId: string): Promise<GovernanceDetailPayload> {
+    return this.http.get<GovernanceDetailPayload>(`/api/governance/${encodeURIComponent(governanceId)}`);
+  }
+
+  async reviewGovernance(governanceId: string, input: { action: string; targetEntryId?: string; version?: number; note?: string }) {
+    const payload = await this.http.post<{ item: import('../types/domain').KnowledgeGovernanceRecord }>(`/api/governance/${encodeURIComponent(governanceId)}/review`, input);
+    return payload.item;
+  }
+
+  async listKnowledgeImportBatches() {
+    const payload = await this.http.get<{ items: import('../types/domain').KnowledgeImportBatch[] }>('/api/knowledge-imports');
+    return payload.items;
+  }
+
+  async previewKnowledgeImport(input: KnowledgeImportPreviewInput) {
+    return this.http.post<{ item: import('../types/domain').KnowledgeImportBatch; items: import('../types/domain').KnowledgeImportItem[] }>('/api/knowledge-imports/preview', input);
+  }
+
+  async getKnowledgeImportBatch(batchId: string) {
+    return this.http.get<{ item: import('../types/domain').KnowledgeImportBatch; items: import('../types/domain').KnowledgeImportItem[] }>(`/api/knowledge-imports/${encodeURIComponent(batchId)}`);
+  }
+
+  async confirmKnowledgeImportBatch(batchId: string) {
+    return this.http.post<{ item: import('../types/domain').KnowledgeImportBatch; items: import('../types/domain').KnowledgeImportItem[]; results: Array<Record<string, unknown>> }>(`/api/knowledge-imports/${encodeURIComponent(batchId)}/confirm`, {});
+  }
+
+  async replayKnowledgeImportBatch(batchId: string) {
+    return this.http.post<{ item: import('../types/domain').KnowledgeImportBatch; items: import('../types/domain').KnowledgeImportItem[] }>(`/api/knowledge-imports/${encodeURIComponent(batchId)}/replay`, {});
+  }
+
+  async listWorkflowTemplates(): Promise<WorkflowTemplate[]> {
+    const payload = await this.http.get<{ items: WorkflowTemplate[] }>('/api/workflows/templates');
+    return payload.items;
+  }
+
+  async listWorkflows() {
+    const payload = await this.http.get<{ items: import('../types/domain').SkillWorkflowRecord[] }>('/api/workflows');
+    return payload.items;
+  }
+
+  async createWorkflow(input: { name: string; description?: string; status?: 'draft' | 'active'; nodes: Array<Record<string, unknown>> }) {
+    const payload = await this.http.post<{ item: import('../types/domain').SkillWorkflowRecord }>('/api/workflows', input);
+    return payload.item;
+  }
+
+  async updateWorkflow(workflowId: string, input: Partial<{ name: string; description: string; status: 'draft' | 'active'; nodes: Array<Record<string, unknown>> }>) {
+    const payload = await this.http.patch<{ item: import('../types/domain').SkillWorkflowRecord }>(`/api/workflows/${encodeURIComponent(workflowId)}`, input);
+    return payload.item;
+  }
+
+  async deleteWorkflow(workflowId: string): Promise<void> {
+    await this.http.delete(`/api/workflows/${encodeURIComponent(workflowId)}`);
+  }
+
+  async runWorkflow(workflowId: string, input?: { sessionId?: string; input?: Record<string, unknown> }) {
+    const payload = await this.http.post<{ item: import('../types/domain').SkillWorkflowRun }>(`/api/workflows/${encodeURIComponent(workflowId)}/run`, input ?? {});
+    return payload.item;
+  }
+
+  async retryWorkflowRun(runId: string) {
+    const payload = await this.http.post<{ item: import('../types/domain').SkillWorkflowRun }>(`/api/workflows/runs/${encodeURIComponent(runId)}/retry`, {});
+    return payload.item;
+  }
+
+  async listWorkflowRuns(workflowId: string) {
+    const payload = await this.http.get<{ items: import('../types/domain').SkillWorkflowRun[] }>(`/api/workflows/${encodeURIComponent(workflowId)}/runs`);
+    return payload.items;
+  }
+
+  async getWorkflowRun(runId: string) {
+    const payload = await this.http.get<{ item?: import('../types/domain').SkillWorkflowRun | null }>(`/api/workflows/runs/${encodeURIComponent(runId)}`);
+    return payload.item ?? null;
+  }
+
+  async listMemoryShares() {
+    const payload = await this.http.get<{ items: import('../types/domain').MemoryShareRecord[] }>('/api/memory-sharing');
+    return payload.items;
+  }
+
+  async getMemorySharingOverview(): Promise<MemorySharingOverview> {
+    return this.http.get<MemorySharingOverview>('/api/memory-sharing/overview');
+  }
+
+  async requestMemoryShare(memoryId: string, visibility: 'private' | 'workspace' | 'team') {
+    const payload = await this.http.post<{ item: import('../types/domain').MemoryShareRecord }>('/api/memory-sharing/request', { memoryId, visibility });
+    return payload.item;
+  }
+
+  async reviewMemoryShare(shareId: string, input: { action: string; note?: string }) {
+    const payload = await this.http.post<{ item: import('../types/domain').MemoryShareRecord }>(`/api/memory-sharing/${encodeURIComponent(shareId)}/review`, input);
+    return payload.item;
+  }
+
+  async getMemoryShare(shareId: string) {
+    return this.http.get<{ item: import('../types/domain').MemoryShareRecord; reviews: import('../types/domain').MemoryShareReview[] }>(`/api/memory-sharing/${encodeURIComponent(shareId)}`);
   }
 
   async listRuntimeBackends(): Promise<RuntimeBackendHealth[]> {

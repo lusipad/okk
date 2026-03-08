@@ -219,6 +219,216 @@ const ensureIdentitySchema = (db: SqliteConnection): void => {
   );
 };
 
+const ensureAgentTraceSchema = (db: SqliteConnection): void => {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS agent_trace_events (
+      id TEXT PRIMARY KEY,
+      session_id TEXT NOT NULL,
+      trace_type TEXT NOT NULL,
+      source_type TEXT NOT NULL,
+      parent_trace_id TEXT,
+      span_id TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'completed',
+      summary TEXT NOT NULL,
+      payload_json TEXT NOT NULL DEFAULT '{}',
+      file_changes_json TEXT NOT NULL DEFAULT '[]',
+      created_at TEXT NOT NULL,
+      FOREIGN KEY (session_id) REFERENCES sessions(id)
+    );
+  `);
+  db.exec("CREATE INDEX IF NOT EXISTS idx_agent_trace_session_created ON agent_trace_events(session_id, created_at DESC);");
+  db.exec("CREATE INDEX IF NOT EXISTS idx_agent_trace_parent ON agent_trace_events(parent_trace_id, created_at DESC);");
+  db.exec("CREATE INDEX IF NOT EXISTS idx_agent_trace_type_status ON agent_trace_events(trace_type, status, created_at DESC);");
+
+  const tableInfo = db.prepare("PRAGMA table_info(agent_trace_events)").all() as Array<{ name: string }>;
+  if (!tableInfo.some((column) => column.name === "parent_trace_id")) {
+    db.exec("ALTER TABLE agent_trace_events ADD COLUMN parent_trace_id TEXT;");
+  }
+  if (!tableInfo.some((column) => column.name === "span_id")) {
+    db.exec("ALTER TABLE agent_trace_events ADD COLUMN span_id TEXT NOT NULL DEFAULT ''; ");
+  }
+  if (!tableInfo.some((column) => column.name === "status")) {
+    db.exec("ALTER TABLE agent_trace_events ADD COLUMN status TEXT NOT NULL DEFAULT 'completed';");
+  }
+  if (!tableInfo.some((column) => column.name === "file_changes_json")) {
+    db.exec("ALTER TABLE agent_trace_events ADD COLUMN file_changes_json TEXT NOT NULL DEFAULT '[]';");
+  }
+
+  db.prepare("UPDATE agent_trace_events SET span_id = id WHERE span_id IS NULL OR span_id = ''; ").run();
+  db.prepare("UPDATE agent_trace_events SET status = 'completed' WHERE status IS NULL OR status = ''; ").run();
+  db.prepare("UPDATE agent_trace_events SET file_changes_json = '[]' WHERE file_changes_json IS NULL OR file_changes_json = ''; ").run();
+};
+
+const ensureWorkspaceSchema = (db: SqliteConnection): void => {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS workspaces (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      description TEXT,
+      active_repo_id TEXT,
+      recent_repo_ids_json TEXT NOT NULL DEFAULT '[]',
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      FOREIGN KEY (active_repo_id) REFERENCES repositories(id)
+    );
+  `);
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS workspace_repositories (
+      workspace_id TEXT NOT NULL,
+      repo_id TEXT NOT NULL,
+      position INTEGER NOT NULL DEFAULT 0,
+      added_at TEXT NOT NULL,
+      PRIMARY KEY(workspace_id, repo_id),
+      FOREIGN KEY (workspace_id) REFERENCES workspaces(id),
+      FOREIGN KEY (repo_id) REFERENCES repositories(id)
+    );
+  `);
+  db.exec("CREATE INDEX IF NOT EXISTS idx_workspace_repositories_repo ON workspace_repositories(repo_id, workspace_id);");
+};
+
+const ensureKnowledgeGovernanceSchema = (db: SqliteConnection): void => {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS knowledge_governance_records (
+      id TEXT PRIMARY KEY,
+      entry_id TEXT NOT NULL UNIQUE,
+      source_type TEXT NOT NULL DEFAULT 'system',
+      source_label TEXT NOT NULL DEFAULT '自动治理',
+      health_score REAL NOT NULL DEFAULT 1,
+      governance_status TEXT NOT NULL DEFAULT 'healthy',
+      stale_reason TEXT,
+      conflict_entry_ids_json TEXT NOT NULL DEFAULT '[]',
+      queue_reason TEXT,
+      queue_priority INTEGER NOT NULL DEFAULT 0,
+      evidence_json TEXT NOT NULL DEFAULT '{}',
+      reviewed_at TEXT,
+      reviewed_by TEXT,
+      rollback_version INTEGER,
+      merged_into_entry_id TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      FOREIGN KEY (entry_id) REFERENCES knowledge_entries(id)
+    );
+  `);
+  db.exec("CREATE INDEX IF NOT EXISTS idx_knowledge_governance_status ON knowledge_governance_records(governance_status, queue_priority DESC, updated_at DESC);");
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS knowledge_governance_reviews (
+      id TEXT PRIMARY KEY,
+      governance_id TEXT NOT NULL,
+      action TEXT NOT NULL,
+      note TEXT,
+      actor_id TEXT NOT NULL,
+      payload_json TEXT NOT NULL DEFAULT '{}',
+      created_at TEXT NOT NULL,
+      FOREIGN KEY (governance_id) REFERENCES knowledge_governance_records(id)
+    );
+  `);
+};
+
+const ensureKnowledgeImportSchema = (db: SqliteConnection): void => {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS knowledge_import_batches (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      source_types_json TEXT NOT NULL DEFAULT '[]',
+      source_summary TEXT NOT NULL DEFAULT '',
+      status TEXT NOT NULL DEFAULT 'draft',
+      item_count INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+  `);
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS knowledge_import_items (
+      id TEXT PRIMARY KEY,
+      batch_id TEXT NOT NULL,
+      title TEXT NOT NULL,
+      summary TEXT NOT NULL,
+      content TEXT NOT NULL,
+      repo_id TEXT,
+      source_type TEXT NOT NULL,
+      source_ref TEXT,
+      dedupe_key TEXT NOT NULL,
+      evidence_json TEXT NOT NULL DEFAULT '{}',
+      status TEXT NOT NULL DEFAULT 'pending',
+      merged_entry_id TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      FOREIGN KEY (batch_id) REFERENCES knowledge_import_batches(id),
+      FOREIGN KEY (repo_id) REFERENCES repositories(id)
+    );
+  `);
+  db.exec("CREATE INDEX IF NOT EXISTS idx_knowledge_import_items_batch ON knowledge_import_items(batch_id, status, created_at ASC);");
+};
+
+const ensureWorkflowSchema = (db: SqliteConnection): void => {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS skill_workflows (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      description TEXT NOT NULL DEFAULT '',
+      status TEXT NOT NULL DEFAULT 'draft',
+      nodes_json TEXT NOT NULL DEFAULT '[]',
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+  `);
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS skill_workflow_runs (
+      id TEXT PRIMARY KEY,
+      workflow_id TEXT NOT NULL,
+      session_id TEXT,
+      status TEXT NOT NULL DEFAULT 'running',
+      input_json TEXT NOT NULL DEFAULT '{}',
+      output_json TEXT NOT NULL DEFAULT '{}',
+      steps_json TEXT NOT NULL DEFAULT '[]',
+      started_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      ended_at TEXT,
+      FOREIGN KEY (workflow_id) REFERENCES skill_workflows(id),
+      FOREIGN KEY (session_id) REFERENCES sessions(id)
+    );
+  `);
+  db.exec("CREATE INDEX IF NOT EXISTS idx_skill_workflow_runs_workflow ON skill_workflow_runs(workflow_id, updated_at DESC);");
+};
+
+const ensureMemorySharingSchema = (db: SqliteConnection): void => {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS memory_shares (
+      id TEXT PRIMARY KEY,
+      memory_id TEXT NOT NULL UNIQUE,
+      knowledge_entry_id TEXT,
+      visibility TEXT NOT NULL DEFAULT 'private',
+      review_status TEXT NOT NULL DEFAULT 'draft',
+      requested_by TEXT NOT NULL,
+      reviewed_by TEXT,
+      approval_note TEXT,
+      rejection_reason TEXT,
+      recommendation_score REAL NOT NULL DEFAULT 0,
+      memory_title TEXT NOT NULL,
+      memory_summary TEXT NOT NULL,
+      repo_id TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      published_at TEXT,
+      FOREIGN KEY (memory_id) REFERENCES memory_entries(id),
+      FOREIGN KEY (knowledge_entry_id) REFERENCES knowledge_entries(id),
+      FOREIGN KEY (repo_id) REFERENCES repositories(id)
+    );
+  `);
+  db.exec("CREATE INDEX IF NOT EXISTS idx_memory_shares_status ON memory_shares(review_status, visibility, updated_at DESC);");
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS memory_share_reviews (
+      id TEXT PRIMARY KEY,
+      share_id TEXT NOT NULL,
+      action TEXT NOT NULL,
+      note TEXT,
+      created_by TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      FOREIGN KEY (share_id) REFERENCES memory_shares(id)
+    );
+  `);
+};
+
 const migrations: Migration[] = [
   {
     version: 1,
@@ -260,6 +470,37 @@ const migrations: Migration[] = [
     version: 7,
     run: (db) => {
       ensureIdentitySchema(db);
+    }
+  },
+  {
+    version: 8,
+    run: (db) => {
+      ensureAgentTraceSchema(db);
+    }
+  },
+  {
+    version: 9,
+    run: (db) => {
+      ensureWorkspaceSchema(db);
+    }
+  },
+  {
+    version: 10,
+    run: (db) => {
+      ensureKnowledgeGovernanceSchema(db);
+      ensureKnowledgeImportSchema(db);
+    }
+  },
+  {
+    version: 11,
+    run: (db) => {
+      ensureWorkflowSchema(db);
+    }
+  },
+  {
+    version: 12,
+    run: (db) => {
+      ensureMemorySharingSchema(db);
     }
   }
 ];
@@ -308,5 +549,6 @@ export const runMigrations = (db: SqliteConnection): void => {
     );
   }
 };
+
 
 

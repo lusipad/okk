@@ -1288,3 +1288,163 @@ test("REST /api/identity 支持列出、创建与激活", async () => {
     await app.close();
   }
 });
+
+test("REST 新增工作区/治理/导入/工作流/共享/Trace 接口可联通", async () => {
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "okk-ops-api-"));
+  const workspaceRoot = path.join(tempDir, "workspace-a");
+  const repoBPath = path.join(tempDir, "workspace-b");
+  await fs.mkdir(workspaceRoot, { recursive: true });
+  await fs.mkdir(repoBPath, { recursive: true });
+
+  const core = await createCore({ dbPath: ":memory:", workspaceRoot });
+  const repoB = await core.repos.create({ name: "workspace-b", path: repoBPath });
+  const app = await createApp({ jwtSecret: "test-secret", logger: false, core });
+  await app.listen({ host: "127.0.0.1", port: 0 });
+
+  try {
+    const token = await loginToken(app);
+    const headers = { Authorization: `Bearer ${token}` };
+
+    const reposResponse = await app.inject({ method: "GET", url: "/api/repos", headers });
+    assert.equal(reposResponse.statusCode, 200, reposResponse.body);
+    const repos = reposResponse.json().items as Array<{ id: string; path: string }>;
+    const repoA = repos.find((item) => item.path === workspaceRoot);
+    assert.ok(repoA);
+
+    const workspaceResponse = await app.inject({
+      method: "POST",
+      url: "/api/workspaces",
+      headers,
+      payload: {
+        name: "multi-repo",
+        repoIds: [repoA?.id, repoB.id]
+      }
+    });
+    assert.equal(workspaceResponse.statusCode, 201, workspaceResponse.body);
+    const workspaceId = workspaceResponse.json().item.id as string;
+
+    const workspaceStatus = await app.inject({ method: "GET", url: `/api/workspaces/${workspaceId}/status`, headers });
+    assert.equal(workspaceStatus.statusCode, 200, workspaceStatus.body);
+    assert.equal((workspaceStatus.json().repositories as unknown[]).length, 2);
+
+    const adminId = core.database.users.getByUsername("admin")?.id;
+    assert.ok(adminId);
+    const entryA = core.database.knowledge.create({
+      title: "冲突条目",
+      content: "draft content",
+      summary: "draft",
+      repoId: repoA?.id ?? repoB.id,
+      status: "draft",
+      createdBy: adminId as string
+    });
+    core.database.knowledge.create({
+      title: "冲突条目",
+      content: "published content",
+      summary: "published",
+      repoId: repoA?.id ?? repoB.id,
+      status: "published",
+      createdBy: adminId as string
+    });
+
+    const governanceRefresh = await app.inject({ method: "POST", url: "/api/governance/refresh", headers });
+    assert.equal(governanceRefresh.statusCode, 200, governanceRefresh.body);
+    const governanceList = await app.inject({ method: "GET", url: "/api/governance", headers });
+    assert.equal(governanceList.statusCode, 200, governanceList.body);
+    const governanceItems = governanceList.json().items as Array<{ id: string; entryId: string }>;
+    const governanceItem = governanceItems.find((item) => item.entryId === entryA.id);
+    assert.ok(governanceItem);
+
+    const governanceReview = await app.inject({
+      method: "POST",
+      url: `/api/governance/${governanceItem?.id}/review`,
+      headers,
+      payload: { action: "approve" }
+    });
+    assert.equal(governanceReview.statusCode, 200, governanceReview.body);
+
+    const memory = core.database.memory.upsert({
+      userId: adminId as string,
+      repoId: repoA?.id ?? repoB.id,
+      memoryType: "project",
+      title: "导入来源",
+      content: "shared memory content",
+      summary: "shared memory",
+      sourceKind: "manual"
+    });
+    const previewResponse = await app.inject({
+      method: "POST",
+      url: "/api/knowledge-imports/preview",
+      headers,
+      payload: { sourceTypes: ["memory"], repoIds: [repoA?.id ?? repoB.id] }
+    });
+    assert.equal(previewResponse.statusCode, 201, previewResponse.body);
+    const batchId = previewResponse.json().item.id as string;
+
+    const confirmResponse = await app.inject({ method: "POST", url: `/api/knowledge-imports/${batchId}/confirm`, headers });
+    assert.equal(confirmResponse.statusCode, 200, confirmResponse.body);
+
+    const workflowCreate = await app.inject({
+      method: "POST",
+      url: "/api/workflows",
+      headers,
+      payload: {
+        name: "review-flow",
+        status: "active",
+        nodes: [
+          { id: "prompt-1", type: "prompt", name: "准备", config: { template: "topic={{topic}}", outputKey: "brief" }, next: ["agent-1"] },
+          { id: "agent-1", type: "agent", name: "审查", config: { agentName: "code-reviewer", outputKey: "result" }, next: [] }
+        ]
+      }
+    });
+    assert.equal(workflowCreate.statusCode, 201, workflowCreate.body);
+    const workflowId = workflowCreate.json().item.id as string;
+
+    const workflowRun = await app.inject({
+      method: "POST",
+      url: `/api/workflows/${workflowId}/run`,
+      headers,
+      payload: { input: { topic: "trace", severity: "high" } }
+    });
+    assert.equal(workflowRun.statusCode, 200, workflowRun.body);
+    assert.equal(workflowRun.json().item.status, "completed");
+
+    const shareRequest = await app.inject({
+      method: "POST",
+      url: "/api/memory-sharing/request",
+      headers,
+      payload: { memoryId: memory.id, visibility: "team" }
+    });
+    assert.equal(shareRequest.statusCode, 201, shareRequest.body);
+    const shareId = shareRequest.json().item.id as string;
+
+    const approveShare = await app.inject({ method: "POST", url: `/api/memory-sharing/${shareId}/review`, headers, payload: { action: "approve" } });
+    assert.equal(approveShare.statusCode, 200, approveShare.body);
+    const publishShare = await app.inject({ method: "POST", url: `/api/memory-sharing/${shareId}/review`, headers, payload: { action: "publish" } });
+    assert.equal(publishShare.statusCode, 200, publishShare.body);
+
+    const shareOverview = await app.inject({ method: "GET", url: "/api/memory-sharing/overview", headers });
+    assert.equal(shareOverview.statusCode, 200, shareOverview.body);
+    assert.equal(typeof shareOverview.json().summary.total, "number");
+
+    const session = await core.sessions.create({ title: "trace-session", repoId: repoA?.id ?? repoB.id });
+    const trace = core.database.agentTrace.append({
+      sessionId: session.id,
+      traceType: "request_completed",
+      sourceType: "backend",
+      summary: "trace done",
+      status: "completed",
+      payload: { ok: true },
+      fileChanges: [{ path: "README.md", changeType: "modified", diff: "-old\n+new" }]
+    });
+    const traceList = await app.inject({ method: "GET", url: `/api/agents/traces/${session.id}`, headers });
+    assert.equal(traceList.statusCode, 200, traceList.body);
+    assert.ok((traceList.json().items as Array<{ id: string }>).some((item) => item.id === trace.id));
+    const traceDetail = await app.inject({ method: "GET", url: `/api/agents/traces/${session.id}/${trace.id}`, headers });
+    assert.equal(traceDetail.statusCode, 200, traceDetail.body);
+    const traceDiff = await app.inject({ method: "GET", url: `/api/agents/traces/${session.id}/${trace.id}/diff?filePath=${encodeURIComponent("README.md")}`, headers });
+    assert.equal(traceDiff.statusCode, 200, traceDiff.body);
+    assert.equal(traceDiff.json().item.path, "README.md");
+  } finally {
+    await app.close();
+  }
+});

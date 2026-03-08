@@ -1,3 +1,4 @@
+import type { SqliteDatabase } from "@okk/core";
 import type { FastifyPluginAsync } from "fastify";
 import type {
   CollaborationAction,
@@ -281,6 +282,46 @@ export const agentsRoutes: FastifyPluginAsync = async (app) => {
   app.get("/runtime/backends", { preHandler: [app.authenticate] }, async (_request, reply) => {
     const items = (await app.core.runtime.listBackendHealth()).map((item) => mapRuntimeBackend(item));
     return reply.send({ items });
+  });
+
+  app.get<{ Params: { sessionId: string }; Querystring: { traceType?: string; status?: string; sourceType?: string; q?: string; filePath?: string } }>("/traces/:sessionId", { preHandler: [app.authenticate] }, async (request, reply) => {
+    const database = (app.core as unknown as { database?: SqliteDatabase }).database;
+    const items = database?.agentTrace
+      ? database.agentTrace.listBySessionId(request.params.sessionId, {
+          limit: 200,
+          traceType: asNonEmptyString(request.query.traceType) ?? undefined,
+          status: asNonEmptyString(request.query.status) as never,
+          sourceType: asNonEmptyString(request.query.sourceType) ?? undefined,
+          q: asNonEmptyString(request.query.q) ?? undefined,
+          filePath: asNonEmptyString(request.query.filePath) ?? undefined
+        })
+      : [];
+    return reply.send({ items });
+  });
+
+  app.get<{ Params: { sessionId: string; traceId: string } }>("/traces/:sessionId/:traceId", { preHandler: [app.authenticate] }, async (request, reply) => {
+    const database = (app.core as unknown as { database?: SqliteDatabase }).database;
+    const item = database?.agentTrace?.getById(request.params.traceId) ?? null;
+    if (!item || item.sessionId !== request.params.sessionId) {
+      return reply.code(404).send({ message: "trace not found" });
+    }
+    return reply.send({ item });
+  });
+
+  app.get<{ Params: { sessionId: string; traceId: string }; Querystring: { filePath?: string } }>("/traces/:sessionId/:traceId/diff", { preHandler: [app.authenticate] }, async (request, reply) => {
+    const filePath = asNonEmptyString(request.query.filePath);
+    if (!filePath) {
+      return reply.code(400).send({ message: "filePath 必填" });
+    }
+
+    const database = (app.core as unknown as { database?: SqliteDatabase }).database;
+    const item = database?.agentTrace?.getById(request.params.traceId) ?? null;
+    if (!item || item.sessionId !== request.params.sessionId) {
+      return reply.code(404).send({ message: "trace not found" });
+    }
+
+    const diff = database?.agentTrace?.getFileDiff(request.params.traceId, filePath) ?? null;
+    return reply.send({ item: diff });
   });
 
   app.get("/teams", { preHandler: [app.authenticate] }, async (_request, reply) => {

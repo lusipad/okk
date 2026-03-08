@@ -1,14 +1,20 @@
 import { runMigrations } from "./migrations.js";
 import {
+  AgentTraceDao,
   IdentityDao,
   InstalledSkillsDao,
+  KnowledgeGovernanceDao,
+  KnowledgeImportsDao,
   KnowledgeDao,
+  MemorySharingDao,
   MessagesDao,
   MemoryDao,
   RepositoriesDao,
   RunsDao,
   SessionsDao,
+  SkillWorkflowsDao,
   UsersDao
+  ,WorkspacesDao
 } from "./dao/index.js";
 import {
   openSqliteConnection,
@@ -25,6 +31,12 @@ export class SqliteDatabase {
   readonly sessions: SessionsDao;
   readonly messages: MessagesDao;
   readonly identity: IdentityDao;
+  readonly agentTrace: AgentTraceDao;
+  readonly workspaces: WorkspacesDao;
+  readonly knowledgeGovernance: KnowledgeGovernanceDao;
+  readonly knowledgeImports: KnowledgeImportsDao;
+  readonly skillWorkflows: SkillWorkflowsDao;
+  readonly memorySharing: MemorySharingDao;
   readonly memory: MemoryDao;
   readonly knowledge: KnowledgeDao;
   readonly runs: RunsDao;
@@ -40,6 +52,12 @@ export class SqliteDatabase {
     this.sessions = new SessionsDao(this.connection);
     this.messages = new MessagesDao(this.connection);
     this.identity = new IdentityDao(this.connection);
+    this.agentTrace = new AgentTraceDao(this.connection);
+    this.workspaces = new WorkspacesDao(this.connection);
+    this.knowledgeGovernance = new KnowledgeGovernanceDao(this.connection);
+    this.knowledgeImports = new KnowledgeImportsDao(this.connection);
+    this.skillWorkflows = new SkillWorkflowsDao(this.connection);
+    this.memorySharing = new MemorySharingDao(this.connection);
     this.memory = new MemoryDao(this.connection);
     this.knowledge = new KnowledgeDao(this.connection);
     this.runs = new RunsDao(this.connection);
@@ -50,4 +68,5 @@ export class SqliteDatabase {
     this.connection.close();
   }
 }
+
 

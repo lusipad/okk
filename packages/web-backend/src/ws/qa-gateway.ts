@@ -1,5 +1,6 @@
 import type { WebSocket } from "ws";
 import { randomUUID } from "node:crypto";
+import { execFileSync } from "node:child_process";
 import type { OkkCore } from "../core/types.js";
 import type {
   BackendEventEnvelope,
@@ -113,6 +114,87 @@ export class QaGateway {
   private readonly inflight = new Map<string, { aborted: boolean; messageId: string }>();
 
   private readonly pendingByMessage = new Map<string, Promise<void>>();
+
+  private readonly traceSnapshots = new Map<string, Map<string, string>>();
+
+  private appendTrace(
+    sessionId: string,
+    traceType: string,
+    sourceType: string,
+    summary: string,
+    payload: Record<string, unknown>,
+    options?: {
+      parentTraceId?: string | null;
+      spanId?: string;
+      status?: 'running' | 'completed' | 'failed' | 'aborted';
+      fileChanges?: Array<{ path: string; changeType: 'created' | 'modified' | 'deleted'; diff: string }>;
+    }
+  ): { id: string } | null {
+    const database = (this.core as unknown as { database?: { agentTrace?: { append: (input: { sessionId: string; traceType: string; sourceType: string; summary: string; payload: Record<string, unknown>; parentTraceId?: string | null; spanId?: string; status?: 'running' | 'completed' | 'failed' | 'aborted'; fileChanges?: Array<{ path: string; changeType: 'created' | 'modified' | 'deleted'; diff: string }> }) => { id: string } } } }).database;
+    return database?.agentTrace?.append({ sessionId, traceType, sourceType, summary, payload, ...options }) ?? null;
+  }
+
+  private getTraceSnapshotKey(sessionId: string, clientMessageId: string): string {
+    return `${sessionId}:${clientMessageId}`;
+  }
+
+  private getRepositoryPath(sessionId: string): string | null {
+    const database = (this.core as unknown as {
+      database?: {
+        sessions?: { getById: (sessionId: string) => { repoId: string } | null };
+        repositories?: { getById: (repoId: string) => { path: string } | null };
+      };
+    }).database;
+    const session = database?.sessions?.getById(sessionId) ?? null;
+    if (!session) {
+      return null;
+    }
+    return database?.repositories?.getById(session.repoId)?.path ?? null;
+  }
+
+  private captureGitSnapshot(repoPath: string): Map<string, string> {
+    try {
+      const output = execFileSync('git', ['-C', repoPath, 'status', '--porcelain', '--untracked-files=all'], { encoding: 'utf-8' });
+      const snapshot = new Map<string, string>();
+      output.split(/\r?\n/).filter(Boolean).forEach((line) => {
+        const trimmed = line.trimEnd();
+        const path = trimmed.slice(3).trim();
+        if (path) {
+          snapshot.set(path, trimmed.slice(0, 2));
+        }
+      });
+      return snapshot;
+    } catch {
+      return new Map();
+    }
+  }
+
+  private collectGitFileChanges(repoPath: string, baseline: Map<string, string>): Array<{ path: string; changeType: 'created' | 'modified' | 'deleted'; diff: string }> {
+    const current = this.captureGitSnapshot(repoPath);
+    const changedPaths = Array.from(current.keys()).filter((path) => baseline.get(path) !== current.get(path));
+    return changedPaths.map((path) => {
+      const status = current.get(path) ?? ' M';
+      let changeType: 'created' | 'modified' | 'deleted' = 'modified';
+      if (status.includes('??') || status.includes('A')) {
+        changeType = 'created';
+      } else if (status.includes('D')) {
+        changeType = 'deleted';
+      }
+
+      let diff = '';
+      try {
+        diff = execFileSync('git', ['-C', repoPath, 'diff', '--', path], { encoding: 'utf-8', maxBuffer: 1024 * 1024 }).slice(0, 4000);
+      } catch {
+        diff = '';
+      }
+
+      if (!diff.trim()) {
+        diff = changeType === 'created' ? `# Created\n${path}` : changeType === 'deleted' ? `# Deleted\n${path}` : `# Modified\n${path}`;
+      }
+
+      return { path, changeType, diff };
+    });
+  }
 
   constructor(private readonly core: OkkCore) {}
 
@@ -293,6 +375,13 @@ export class QaGateway {
       });
     }
 
+    const traceSpanId = randomUUID();
+    const traceSnapshotKey = this.getTraceSnapshotKey(sessionId, message.client_message_id);
+    const repoPath = this.getRepositoryPath(sessionId);
+    if (repoPath) {
+      this.traceSnapshots.set(traceSnapshotKey, this.captureGitSnapshot(repoPath));
+    }
+    const requestTrace = this.appendTrace(sessionId, "request_started", "backend", `请求开始：${message.agent_name}`, { backend: message.backend, agentName: message.agent_name, clientMessageId: message.client_message_id }, { spanId: traceSpanId, status: "running" });
     appendAndSend("qa.accepted", {
       action: message.action,
       backend: message.backend,
@@ -321,6 +410,7 @@ export class QaGateway {
           break;
         }
         assistantContent += chunk.content;
+        this.appendTrace(sessionId, "text_chunk", "backend", "流式回复片段", { chunk: chunk.content.slice(0, 160) }, { parentTraceId: requestTrace?.id ?? null, spanId: traceSpanId, status: "running" });
         appendAndSend("qa.chunk", {
           backend: message.backend,
           agent_name: message.agent_name,
@@ -330,6 +420,8 @@ export class QaGateway {
       }
 
       if (state.aborted) {
+        const fileChanges = repoPath ? this.collectGitFileChanges(repoPath, this.traceSnapshots.get(traceSnapshotKey) ?? new Map()) : [];
+        this.appendTrace(sessionId, "request_aborted", "backend", "请求已中止", { clientMessageId: message.client_message_id, fileChangeCount: fileChanges.length }, { parentTraceId: requestTrace?.id ?? null, spanId: traceSpanId, status: "aborted", fileChanges });
         appendAndSend("qa.aborted", {
           client_message_id: message.client_message_id,
         });
@@ -388,6 +480,8 @@ export class QaGateway {
           }
         });
       } else {
+        const fileChanges = repoPath ? this.collectGitFileChanges(repoPath, this.traceSnapshots.get(traceSnapshotKey) ?? new Map()) : [];
+        this.appendTrace(sessionId, "request_completed", "backend", "请求处理完成", { clientMessageId: message.client_message_id, assistantSummary: assistantContent.slice(0, 200), fileChangeCount: fileChanges.length }, { parentTraceId: requestTrace?.id ?? null, spanId: traceSpanId, status: "completed", fileChanges });
         appendAndSend("qa.completed", {
           backend: message.backend,
           agent_name: message.agent_name,
@@ -464,6 +558,8 @@ export class QaGateway {
         });
       }
     } catch (error) {
+      const fileChanges = repoPath ? this.collectGitFileChanges(repoPath, this.traceSnapshots.get(traceSnapshotKey) ?? new Map()) : [];
+      this.appendTrace(sessionId, "request_failed", "backend", "请求处理失败", { clientMessageId: message.client_message_id, reason: error instanceof Error ? error.message : "unknown_error", fileChangeCount: fileChanges.length }, { parentTraceId: requestTrace?.id ?? null, spanId: traceSpanId, status: "failed", fileChanges });
       appendAndSend("qa.error", {
         client_message_id: message.client_message_id,
         reason: error instanceof Error ? error.message : "unknown_error",
@@ -527,6 +623,7 @@ export class QaGateway {
       if (this.inflight.get(sessionId) === state) {
         this.inflight.delete(sessionId);
       }
+      this.traceSnapshots.delete(traceSnapshotKey);
       this.eventStore.saveIdempotentEvents(sessionId, message.client_message_id, emittedEvents);
       this.pendingByMessage.delete(pendingKey);
       resolvePending?.();

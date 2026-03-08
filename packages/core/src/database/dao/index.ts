@@ -27,3 +27,11 @@ export { MemoryDao, type UpsertMemoryInput, type ListMemoryInput, type LogMemory
 
 export { IdentityDao, type CreateIdentityProfileInput } from './identity-dao.js';
 
+
+export { AgentTraceDao } from './agent-trace-dao.js';
+export { WorkspacesDao, type CreateWorkspaceInput, type UpdateWorkspaceInput } from './workspaces-dao.js';
+export { KnowledgeGovernanceDao, type UpsertKnowledgeGovernanceInput } from './knowledge-governance-dao.js';
+export { KnowledgeImportsDao, type CreateKnowledgeImportBatchInput, type CreateKnowledgeImportItemInput } from './knowledge-imports-dao.js';
+export { SkillWorkflowsDao, type CreateWorkflowInput } from './skill-workflows-dao.js';
+export { MemorySharingDao, type UpsertMemoryShareInput } from './memory-sharing-dao.js';
+

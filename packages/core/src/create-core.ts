@@ -731,6 +731,15 @@ export async function createCore(options: CreateCoreOptions = {}): Promise<CoreA
     defaultBackend: "codex"
   });
 
+  if (!database.workspaces.getByRepositoryId(defaultRepo.id)) {
+    database.workspaces.create({
+      name: `${path.basename(workspaceRoot) || "默认"} Workspace`,
+      description: "默认多仓库工作区",
+      repoIds: [defaultRepo.id],
+      activeRepoId: defaultRepo.id
+    });
+  }
+
   const skillRegistry = new SkillRegistry();
   const candidateSkillDirectories = options.skillDirectories ?? [
     path.join(workspaceRoot, ".codex", "skills"),
@@ -850,6 +859,13 @@ export async function createCore(options: CreateCoreOptions = {}): Promise<CoreA
     const projectSnapshot = database.repositories.getContextSnapshot(repository.id);
     const recentActivities = database.repositories.listRecentActivities(repository.id, 5);
     const projectContextAppendix = formatProjectContextAppendix(projectSnapshot, recentActivities);
+    const workspace = database.workspaces.getByRepositoryId(repository.id);
+    const workspaceAdditionalDirectories = workspace
+      ? database.workspaces
+          .listRepositoryStatus(workspace.id)
+          .filter((item) => item.repoId !== repository.id && item.exists)
+          .map((item) => item.path)
+      : [];
 
     try {
       const context = await repositoryContextService.buildContext({
@@ -861,7 +877,7 @@ export async function createCore(options: CreateCoreOptions = {}): Promise<CoreA
 
       return {
         workingDirectory: context.workingDirectory,
-        additionalDirectories: context.additionalDirectories,
+        additionalDirectories: Array.from(new Set([...context.additionalDirectories, ...workspaceAdditionalDirectories])),
         systemPrompt: context.systemPromptAppendix || undefined
       };
     } catch (error) {
@@ -872,7 +888,7 @@ export async function createCore(options: CreateCoreOptions = {}): Promise<CoreA
       });
       return {
         workingDirectory: repository.path,
-        additionalDirectories: []
+        additionalDirectories: workspaceAdditionalDirectories
       };
     }
   };

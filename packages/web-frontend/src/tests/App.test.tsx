@@ -59,6 +59,34 @@ vi.mock('../pages/SkillsPage', () => ({
   SkillsPage: () => <div>skills-page</div>
 }));
 
+vi.mock('../pages/IdentityPage', () => ({
+  IdentityPage: () => <div>identity-page</div>
+}));
+
+vi.mock('../pages/MemoryPage', () => ({
+  MemoryPage: () => <div>memory-page</div>
+}));
+
+vi.mock('../pages/GovernancePage', () => ({
+  GovernancePage: () => <div>governance-page</div>
+}));
+
+vi.mock('../pages/WorkspacesPage', () => ({
+  WorkspacesPage: () => <div>workspaces-page</div>
+}));
+
+vi.mock('../pages/KnowledgeImportsPage', () => ({
+  KnowledgeImportsPage: () => <div>imports-page</div>
+}));
+
+vi.mock('../pages/WorkflowsPage', () => ({
+  WorkflowsPage: () => <div>workflows-page</div>
+}));
+
+vi.mock('../pages/MemorySharingPage', () => ({
+  MemorySharingPage: () => <div>sharing-page</div>
+}));
+
 describe('App desktop auto login', () => {
   beforeEach(() => {
     authState.token = null;

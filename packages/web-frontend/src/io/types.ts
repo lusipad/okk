@@ -5,9 +5,15 @@ import type {
   CollaborationDiagnostics,
   CollaborationRunStatus,
   CollaborationSourceType,
+  KnowledgeGovernanceRecord,
+  KnowledgeGovernanceReview,
+  KnowledgeImportBatch,
+  KnowledgeImportItem,
   KnowledgeSuggestion,
   IdentityProfile,
   LoginResult,
+  MemoryShareRecord,
+  MemoryShareReview,
   McpServerInfo,
   RepoContextRecord,
   RepoContinueRecord,
@@ -17,11 +23,16 @@ import type {
   SessionInfo,
   SessionReferenceRecord,
   SkillInfo,
+  SkillWorkflowRecord,
+  SkillWorkflowRun,
   TeamMemberEvent,
   ToolCall,
   TeamMemberSnapshot,
   TeamMessageItem,
-  TeamTaskSnapshot
+  TeamTaskSnapshot,
+  WorkspaceRecord,
+  WorkspaceRepositoryStatus,
+  WorkspaceSearchRecord
 } from "../types/domain";
 
 export type WsConnectionState = "connecting" | "connected" | "reconnecting" | "disconnected";
@@ -204,6 +215,56 @@ export interface CreateMcpServerInput {
   enabled?: boolean;
 }
 
+export interface RepoRecord {
+  id: string;
+  name: string;
+  path: string;
+  createdAt: string;
+}
+
+export interface WorkspaceStatusPayload {
+  item: WorkspaceRecord;
+  repositories: WorkspaceRepositoryStatus[];
+}
+
+export interface GovernanceDetailPayload {
+  item: KnowledgeGovernanceRecord;
+  entry?: Record<string, unknown> | null;
+  versions: Array<Record<string, unknown>>;
+  conflicts: Array<Record<string, unknown>>;
+  reviews: KnowledgeGovernanceReview[];
+}
+
+export interface KnowledgeImportPreviewInput {
+  name?: string;
+  sourceTypes?: string[];
+  repoIds?: string[];
+}
+
+export interface WorkflowTemplate {
+  id: string;
+  name: string;
+  description: string;
+  nodes: Array<Record<string, unknown>>;
+}
+
+export interface MemorySharingOverview {
+  summary: {
+    total: number;
+    pending: number;
+    approved: number;
+    published: number;
+    rejected: number;
+  };
+  recommendations: Array<{
+    memoryId: string;
+    title: string;
+    summary: string;
+    confidence: number;
+    repoId: string | null;
+  }>;
+}
+
 export interface UpdateMcpServerInput {
   name?: string;
   description?: string;
@@ -216,6 +277,7 @@ export interface UpdateMcpServerInput {
 
 export interface IOProvider {
   login(username: string, password: string): Promise<LoginResult>;
+  listRepos(): Promise<RepoRecord[]>;
   listSessions(input?: { archived?: boolean; q?: string; tag?: string }): Promise<SessionInfo[]>;
   createSession(title?: string): Promise<SessionInfo>;
   archiveSession(sessionId: string): Promise<SessionInfo>;
@@ -267,6 +329,38 @@ export interface IOProvider {
   upsertIdentity(input: Omit<IdentityProfile, "id" | "createdAt" | "updatedAt">): Promise<IdentityProfile>;
   activateIdentity(identityId: string): Promise<IdentityProfile>;
   listAgentTraces(sessionId: string): Promise<AgentTraceEvent[]>;
+  getAgentTrace(sessionId: string, traceId: string): Promise<AgentTraceEvent>;
+  getAgentTraceDiff(sessionId: string, traceId: string, filePath: string): Promise<{ path: string; changeType: string; diff: string } | null>;
+  listWorkspaces(): Promise<WorkspaceRecord[]>;
+  createWorkspace(input: { name: string; description?: string | null; repoIds?: string[]; activeRepoId?: string | null }): Promise<WorkspaceRecord>;
+  updateWorkspace(workspaceId: string, input: Partial<{ name: string; description: string | null; repoIds: string[]; activeRepoId: string | null }>): Promise<WorkspaceRecord>;
+  deleteWorkspace(workspaceId: string): Promise<void>;
+  activateWorkspaceRepo(workspaceId: string, repoId: string): Promise<WorkspaceRecord>;
+  getWorkspaceStatus(workspaceId: string): Promise<WorkspaceStatusPayload>;
+  searchWorkspace(workspaceId: string, query?: string): Promise<WorkspaceSearchRecord[]>;
+  listGovernanceRecords(status?: string): Promise<KnowledgeGovernanceRecord[]>;
+  refreshGovernance(): Promise<KnowledgeGovernanceRecord[]>;
+  getGovernanceDetail(governanceId: string): Promise<GovernanceDetailPayload>;
+  reviewGovernance(governanceId: string, input: { action: string; targetEntryId?: string; version?: number; note?: string }): Promise<KnowledgeGovernanceRecord>;
+  listKnowledgeImportBatches(): Promise<KnowledgeImportBatch[]>;
+  previewKnowledgeImport(input: KnowledgeImportPreviewInput): Promise<{ item: KnowledgeImportBatch; items: KnowledgeImportItem[] }>;
+  getKnowledgeImportBatch(batchId: string): Promise<{ item: KnowledgeImportBatch; items: KnowledgeImportItem[] }>;
+  confirmKnowledgeImportBatch(batchId: string): Promise<{ item: KnowledgeImportBatch; items: KnowledgeImportItem[]; results: Array<Record<string, unknown>> }>;
+  replayKnowledgeImportBatch(batchId: string): Promise<{ item: KnowledgeImportBatch; items: KnowledgeImportItem[] }>;
+  listWorkflowTemplates(): Promise<WorkflowTemplate[]>;
+  listWorkflows(): Promise<SkillWorkflowRecord[]>;
+  createWorkflow(input: { name: string; description?: string; status?: 'draft' | 'active'; nodes: Array<Record<string, unknown>> }): Promise<SkillWorkflowRecord>;
+  updateWorkflow(workflowId: string, input: Partial<{ name: string; description: string; status: 'draft' | 'active'; nodes: Array<Record<string, unknown>> }>): Promise<SkillWorkflowRecord>;
+  deleteWorkflow(workflowId: string): Promise<void>;
+  runWorkflow(workflowId: string, input?: { sessionId?: string; input?: Record<string, unknown> }): Promise<SkillWorkflowRun>;
+  retryWorkflowRun(runId: string): Promise<SkillWorkflowRun>;
+  listWorkflowRuns(workflowId: string): Promise<SkillWorkflowRun[]>;
+  getWorkflowRun(runId: string): Promise<SkillWorkflowRun | null>;
+  listMemoryShares(): Promise<MemoryShareRecord[]>;
+  getMemorySharingOverview(): Promise<MemorySharingOverview>;
+  requestMemoryShare(memoryId: string, visibility: 'private' | 'workspace' | 'team'): Promise<MemoryShareRecord>;
+  reviewMemoryShare(shareId: string, input: { action: string; note?: string }): Promise<MemoryShareRecord>;
+  getMemoryShare(shareId: string): Promise<{ item: MemoryShareRecord; reviews: MemoryShareReview[] }>;
 }
 
 export interface MessageStartedPayload {

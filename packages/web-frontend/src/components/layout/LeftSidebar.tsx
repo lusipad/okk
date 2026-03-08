@@ -150,9 +150,14 @@ export function LeftSidebar({
   const primaryLinks = useMemo<PrimaryLinkItem[]>(
     () => [
       { id: 'chat', label: 'Chats', to: '/', active: inChat },
+      { id: 'workspaces', label: 'Workspaces', to: '/workspaces', active: location.pathname === '/workspaces' },
       { id: 'mcp', label: 'MCP', to: '/settings/mcp', active: location.pathname === '/settings/mcp' },
+      { id: 'governance', label: 'Governance', to: '/governance', active: location.pathname === '/governance' },
+      { id: 'imports', label: 'Imports', to: '/imports', active: location.pathname === '/imports' },
+      { id: 'workflows', label: 'Workflows', to: '/workflows', active: location.pathname === '/workflows' },
       { id: 'identity', label: 'Identity', to: '/identity', active: location.pathname === '/identity' },
       { id: 'memory', label: 'Memory', to: '/memory', active: location.pathname === '/memory' },
+      { id: 'memory-sharing', label: 'Sharing', to: '/memory-sharing', active: location.pathname === '/memory-sharing' },
       { id: 'skills', label: 'Skills', to: '/skills', active: location.pathname === '/skills' }
     ],
     [inChat, location.pathname]

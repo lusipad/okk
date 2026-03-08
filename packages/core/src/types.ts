@@ -335,6 +335,203 @@ export interface IdentityProfile {
   updatedAt: string;
 }
 
+export type AgentTraceStatus = "running" | "completed" | "failed" | "aborted";
+
+export interface AgentTraceFileChange {
+  path: string;
+  changeType: "created" | "modified" | "deleted";
+  diff: string;
+}
+
+export interface AgentTraceEvent {
+  id: string;
+  sessionId: string;
+  traceType: string;
+  sourceType: string;
+  parentTraceId: string | null;
+  spanId: string;
+  status: AgentTraceStatus;
+  summary: string;
+  payload: Record<string, unknown>;
+  fileChanges: AgentTraceFileChange[];
+  createdAt: string;
+}
+
+export type KnowledgeGovernanceStatus =
+  | "healthy"
+  | "pending_review"
+  | "stale"
+  | "conflict"
+  | "merged"
+  | "rolled_back";
+
+export interface KnowledgeGovernanceRecord {
+  id: string;
+  entryId: string;
+  sourceType: string;
+  sourceLabel: string;
+  healthScore: number;
+  status: KnowledgeGovernanceStatus;
+  staleReason: string | null;
+  conflictEntryIds: string[];
+  queueReason: string | null;
+  queuePriority: number;
+  evidence: Record<string, unknown>;
+  reviewedAt: string | null;
+  reviewedBy: string | null;
+  rollbackVersion: number | null;
+  mergedIntoEntryId: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface KnowledgeGovernanceReview {
+  id: string;
+  governanceId: string;
+  action: "refresh" | "approve" | "mark_stale" | "merge" | "rollback";
+  note: string | null;
+  actorId: string;
+  payload: Record<string, unknown>;
+  createdAt: string;
+}
+
+export interface WorkspaceRecord {
+  id: string;
+  name: string;
+  description: string | null;
+  activeRepoId: string | null;
+  repoIds: string[];
+  recentRepoIds: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface WorkspaceRepositoryBinding {
+  workspaceId: string;
+  repoId: string;
+  position: number;
+  addedAt: string;
+}
+
+export interface WorkspaceSearchRecord {
+  kind: "repo" | "session" | "knowledge";
+  id: string;
+  repoId: string | null;
+  title: string;
+  summary: string;
+  updatedAt: string;
+}
+
+export type KnowledgeImportStatus = "draft" | "confirmed" | "completed" | "failed";
+export type KnowledgeImportItemStatus = "pending" | "imported" | "duplicate" | "skipped";
+
+export interface KnowledgeImportItem {
+  id: string;
+  batchId: string;
+  title: string;
+  summary: string;
+  content: string;
+  repoId: string | null;
+  sourceType: string;
+  sourceRef: string | null;
+  dedupeKey: string;
+  evidence: Record<string, unknown>;
+  status: KnowledgeImportItemStatus;
+  mergedEntryId: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface KnowledgeImportBatch {
+  id: string;
+  name: string;
+  sourceTypes: string[];
+  sourceSummary: string;
+  status: KnowledgeImportStatus;
+  itemCount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type SkillWorkflowStatus = "draft" | "active";
+export type SkillWorkflowNodeType = "prompt" | "skill" | "agent" | "condition";
+export type SkillWorkflowRunStatus = "running" | "completed" | "failed";
+export type SkillWorkflowStepStatus = "pending" | "running" | "completed" | "failed" | "skipped";
+
+export interface SkillWorkflowNode {
+  id: string;
+  type: SkillWorkflowNodeType;
+  name: string;
+  config: Record<string, unknown>;
+  next: string[];
+}
+
+export interface SkillWorkflowRecord {
+  id: string;
+  name: string;
+  description: string;
+  status: SkillWorkflowStatus;
+  nodes: SkillWorkflowNode[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SkillWorkflowRunStep {
+  nodeId: string;
+  nodeName: string;
+  nodeType: SkillWorkflowNodeType;
+  status: SkillWorkflowStepStatus;
+  input: Record<string, unknown>;
+  output: Record<string, unknown>;
+  startedAt: string;
+  endedAt: string | null;
+  error: string | null;
+}
+
+export interface SkillWorkflowRun {
+  id: string;
+  workflowId: string;
+  sessionId: string | null;
+  status: SkillWorkflowRunStatus;
+  input: Record<string, unknown>;
+  output: Record<string, unknown>;
+  steps: SkillWorkflowRunStep[];
+  startedAt: string;
+  updatedAt: string;
+  endedAt: string | null;
+}
+
+export type MemoryShareVisibility = "private" | "workspace" | "team";
+export type MemoryShareReviewStatus = "draft" | "pending" | "approved" | "rejected" | "published";
+
+export interface MemoryShareRecord {
+  id: string;
+  memoryId: string;
+  knowledgeEntryId: string | null;
+  visibility: MemoryShareVisibility;
+  reviewStatus: MemoryShareReviewStatus;
+  requestedBy: string;
+  reviewedBy: string | null;
+  approvalNote: string | null;
+  rejectionReason: string | null;
+  recommendationScore: number;
+  memoryTitle: string;
+  memorySummary: string;
+  repoId: string | null;
+  createdAt: string;
+  updatedAt: string;
+  publishedAt: string | null;
+}
+
+export interface MemoryShareReview {
+  id: string;
+  shareId: string;
+  action: "submit" | "approve" | "reject" | "publish" | "rollback";
+  note: string | null;
+  createdBy: string;
+  createdAt: string;
+}
+
 export interface AgentDefinition {
   name: string;
   description: string;

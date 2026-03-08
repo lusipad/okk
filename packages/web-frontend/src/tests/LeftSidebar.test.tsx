@@ -77,6 +77,10 @@ describe('LeftSidebar', () => {
     expect(screen.getByText('Search', { selector: '.sidebar-section-label' })).toBeInTheDocument();
     expect(screen.getByText('Primary links', { selector: '.sidebar-section-label' })).toBeInTheDocument();
     expect(screen.getAllByText('Chats').length).toBeGreaterThan(0);
+    expect(screen.getByTestId('nav-workspaces')).toBeInTheDocument();
+    expect(screen.getByTestId('nav-governance')).toBeInTheDocument();
+    expect(screen.getByTestId('nav-workflows')).toBeInTheDocument();
+    expect(screen.getByTestId('nav-memory-sharing')).toBeInTheDocument();
 
     await user.click(screen.getByTestId('sidebar-search-trigger'));
     expect(commandListener).toHaveBeenCalledTimes(1);

@@ -1,14 +1,19 @@
 import type { FastifyPluginAsync } from "fastify";
 import { agentsRoutes } from "./agents.js";
 import { authRoutes } from "./auth.js";
+import { governanceRoutes } from "./governance.js";
 import { identityRoutes } from "./identity.js";
+import { knowledgeImportsRoutes } from "./knowledge-imports.js";
 import { knowledgeRoutes } from "./knowledge.js";
 import { knowledgeSuggestionsRoutes } from "./knowledge-suggestions.js";
 import { mcpRoutes } from "./mcp.js";
 import { memoryRoutes } from "./memory.js";
+import { memorySharingRoutes } from "./memory-sharing.js";
 import { reposRoutes } from "./repos.js";
 import { sessionsRoutes } from "./sessions.js";
 import { skillsRoutes } from "./skills.js";
+import { workflowsRoutes } from "./workflows.js";
+import { workspacesRoutes } from "./workspaces.js";
 
 export const apiRoutes: FastifyPluginAsync = async (app) => {
   await app.register(authRoutes, { prefix: "/auth" });
@@ -16,9 +21,14 @@ export const apiRoutes: FastifyPluginAsync = async (app) => {
   await app.register(sessionsRoutes, { prefix: "/sessions" });
   await app.register(knowledgeRoutes, { prefix: "/knowledge" });
   await app.register(knowledgeSuggestionsRoutes, { prefix: "/knowledge/suggestions" });
+  await app.register(governanceRoutes, { prefix: "/governance" });
+  await app.register(knowledgeImportsRoutes, { prefix: "/knowledge-imports" });
   await app.register(identityRoutes, { prefix: "/identity" });
   await app.register(agentsRoutes, { prefix: "/agents" });
   await app.register(mcpRoutes, { prefix: "/mcp" });
   await app.register(memoryRoutes, { prefix: "/memory" });
+  await app.register(memorySharingRoutes, { prefix: "/memory-sharing" });
   await app.register(skillsRoutes, { prefix: "/skills" });
+  await app.register(workflowsRoutes, { prefix: "/workflows" });
+  await app.register(workspacesRoutes, { prefix: "/workspaces" });
 };

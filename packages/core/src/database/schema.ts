@@ -1,4 +1,4 @@
-export const CURRENT_SCHEMA_VERSION = 7;
+export const CURRENT_SCHEMA_VERSION = 12;
 
 export const createBaseSchemaSql = `
 CREATE TABLE IF NOT EXISTS schema_migrations (
@@ -257,6 +257,7 @@ CREATE TABLE IF NOT EXISTS memory_access_log (
 CREATE INDEX IF NOT EXISTS idx_memory_access_log_memory
 ON memory_access_log(memory_id, created_at DESC);
 `;
+
 
 
 

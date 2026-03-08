@@ -11,6 +11,11 @@ import { McpSettingsPage } from './pages/McpSettingsPage';
 import { SkillsPage } from './pages/SkillsPage';
 import { IdentityPage } from './pages/IdentityPage';
 import { MemoryPage } from './pages/MemoryPage';
+import { GovernancePage } from './pages/GovernancePage';
+import { WorkspacesPage } from './pages/WorkspacesPage';
+import { KnowledgeImportsPage } from './pages/KnowledgeImportsPage';
+import { WorkflowsPage } from './pages/WorkflowsPage';
+import { MemorySharingPage } from './pages/MemorySharingPage';
 
 interface DesktopRuntimeConfig {
   phase?: 'starting' | 'ready' | 'error';
@@ -357,10 +362,66 @@ export function App() {
               }
             />
             <Route
+              path='/workspaces'
+              element={
+                <Guard authenticated={Boolean(token)}>
+                  <WorkspacesPage />
+                </Guard>
+              }
+            />
+            <Route
               path='/settings/mcp'
               element={
                 <Guard authenticated={Boolean(token)}>
                   <McpSettingsPage />
+                </Guard>
+              }
+            />
+            <Route
+              path='/governance'
+              element={
+                <Guard authenticated={Boolean(token)}>
+                  <GovernancePage />
+                </Guard>
+              }
+            />
+            <Route
+              path='/imports'
+              element={
+                <Guard authenticated={Boolean(token)}>
+                  <KnowledgeImportsPage />
+                </Guard>
+              }
+            />
+            <Route
+              path='/workflows'
+              element={
+                <Guard authenticated={Boolean(token)}>
+                  <WorkflowsPage />
+                </Guard>
+              }
+            />
+            <Route
+              path='/identity'
+              element={
+                <Guard authenticated={Boolean(token)}>
+                  <IdentityPage />
+                </Guard>
+              }
+            />
+            <Route
+              path='/memory'
+              element={
+                <Guard authenticated={Boolean(token)}>
+                  <MemoryPage />
+                </Guard>
+              }
+            />
+            <Route
+              path='/memory-sharing'
+              element={
+                <Guard authenticated={Boolean(token)}>
+                  <MemorySharingPage />
                 </Guard>
               }
             />

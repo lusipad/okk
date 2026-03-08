@@ -1,0 +1,22 @@
+## ADDED Requirements
+
+### Requirement: Agent Trace 可视化执行链路集成
+系统 SHALL 在 AI 后端执行链路中集成输出稳定的执行事件、工具调用节点和文件修改元数据，确保请求构建、事件处理或恢复流程与主题能力保持一致。
+
+#### Scenario: 构建或执行请求
+- **WHEN** AI 后端开始处理与Agent Trace 可视化相关的请求
+- **THEN** 执行链路 SHALL 注入或产出与主题相关的必要上下文
+- **AND** 不得遗漏后续步骤依赖的关键元数据
+
+#### Scenario: 执行中断或恢复
+- **WHEN** Agent Trace 可视化相关执行链路发生中断、超时或恢复
+- **THEN** 系统 SHALL 保持主题状态的一致性并输出可恢复信息
+- **AND** 调用方 SHALL 能判断是否需要重试或重新发起请求
+
+### Requirement: Agent Trace 可视化结构化反馈
+系统 SHALL 为Agent Trace 可视化返回结构化状态、命中信息或失败诊断，便于前端和治理逻辑消费。
+
+#### Scenario: 返回主题结果
+- **WHEN** AI 后端完成与Agent Trace 可视化相关的处理
+- **THEN** 系统 SHALL 返回结构化结果而不是仅有原始文本
+- **AND** 结果 SHALL 便于后续展示、过滤或审计

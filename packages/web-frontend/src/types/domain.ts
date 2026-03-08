@@ -244,8 +244,169 @@ export interface AgentTraceEvent {
   sessionId: string;
   traceType: string;
   sourceType: string;
+  parentTraceId: string | null;
+  spanId: string;
+  status: 'running' | 'completed' | 'failed' | 'aborted';
   summary: string;
   payload: Record<string, unknown>;
+  fileChanges: Array<{ path: string; changeType: 'created' | 'modified' | 'deleted'; diff: string }>;
+  createdAt: string;
+}
+
+export interface WorkspaceRecord {
+  id: string;
+  name: string;
+  description: string | null;
+  activeRepoId: string | null;
+  repoIds: string[];
+  recentRepoIds: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface WorkspaceRepositoryStatus {
+  repoId: string;
+  name: string;
+  path: string;
+  exists: boolean;
+  isActive: boolean;
+}
+
+export interface WorkspaceSearchRecord {
+  kind: 'repo' | 'session' | 'knowledge';
+  id: string;
+  repoId: string | null;
+  title: string;
+  summary: string;
+  updatedAt: string;
+}
+
+export interface KnowledgeGovernanceRecord {
+  id: string;
+  entryId: string;
+  sourceType: string;
+  sourceLabel: string;
+  healthScore: number;
+  status: 'healthy' | 'pending_review' | 'stale' | 'conflict' | 'merged' | 'rolled_back';
+  staleReason: string | null;
+  conflictEntryIds: string[];
+  queueReason: string | null;
+  queuePriority: number;
+  evidence: Record<string, unknown>;
+  reviewedAt: string | null;
+  reviewedBy: string | null;
+  rollbackVersion: number | null;
+  mergedIntoEntryId: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface KnowledgeGovernanceReview {
+  id: string;
+  governanceId: string;
+  action: 'refresh' | 'approve' | 'mark_stale' | 'merge' | 'rollback';
+  note: string | null;
+  actorId: string;
+  payload: Record<string, unknown>;
+  createdAt: string;
+}
+
+export interface KnowledgeImportBatch {
+  id: string;
+  name: string;
+  sourceTypes: string[];
+  sourceSummary: string;
+  status: 'draft' | 'confirmed' | 'completed' | 'failed';
+  itemCount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface KnowledgeImportItem {
+  id: string;
+  batchId: string;
+  title: string;
+  summary: string;
+  content: string;
+  repoId: string | null;
+  sourceType: string;
+  sourceRef: string | null;
+  dedupeKey: string;
+  evidence: Record<string, unknown>;
+  status: 'pending' | 'imported' | 'duplicate' | 'skipped';
+  mergedEntryId: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SkillWorkflowNode {
+  id: string;
+  type: 'prompt' | 'skill' | 'agent' | 'condition';
+  name: string;
+  config: Record<string, unknown>;
+  next: string[];
+}
+
+export interface SkillWorkflowRecord {
+  id: string;
+  name: string;
+  description: string;
+  status: 'draft' | 'active';
+  nodes: SkillWorkflowNode[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SkillWorkflowRunStep {
+  nodeId: string;
+  nodeName: string;
+  nodeType: 'prompt' | 'skill' | 'agent' | 'condition';
+  status: 'pending' | 'running' | 'completed' | 'failed' | 'skipped';
+  input: Record<string, unknown>;
+  output: Record<string, unknown>;
+  startedAt: string;
+  endedAt: string | null;
+  error: string | null;
+}
+
+export interface SkillWorkflowRun {
+  id: string;
+  workflowId: string;
+  sessionId: string | null;
+  status: 'running' | 'completed' | 'failed';
+  input: Record<string, unknown>;
+  output: Record<string, unknown>;
+  steps: SkillWorkflowRunStep[];
+  startedAt: string;
+  updatedAt: string;
+  endedAt: string | null;
+}
+
+export interface MemoryShareRecord {
+  id: string;
+  memoryId: string;
+  knowledgeEntryId: string | null;
+  visibility: 'private' | 'workspace' | 'team';
+  reviewStatus: 'draft' | 'pending' | 'approved' | 'rejected' | 'published';
+  requestedBy: string;
+  reviewedBy: string | null;
+  approvalNote: string | null;
+  rejectionReason: string | null;
+  recommendationScore: number;
+  memoryTitle: string;
+  memorySummary: string;
+  repoId: string | null;
+  createdAt: string;
+  updatedAt: string;
+  publishedAt: string | null;
+}
+
+export interface MemoryShareReview {
+  id: string;
+  shareId: string;
+  action: 'submit' | 'approve' | 'reject' | 'publish' | 'rollback';
+  note: string | null;
+  createdBy: string;
   createdAt: string;
 }
 export interface LoginResult {
