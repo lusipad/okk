@@ -1,22 +1,14 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import type { SessionInfo } from '../../types/domain';
+import type { ContinueWorkCandidate, SessionInfo } from '../../types/domain';
 
 const COMMAND_PALETTE_EVENT = 'okk:command-palette';
 const MORE_TOOLS_STORAGE_KEY = 'okk.sidebar.more-tools-expanded';
 
-interface ProjectContextSummary {
-  repoName: string;
-  preferredAgentName?: string | null;
-  lastActivitySummary?: string | null;
-  loading?: boolean;
-  error?: string | null;
-}
-
 interface LeftSidebarProps {
   sessions: SessionInfo[];
   currentSessionId: string | null;
-  projectContext?: ProjectContextSummary | null;
+  continueCandidate?: ContinueWorkCandidate | null;
   onSelectSession: (sessionId: string) => void;
   onCreateSession: () => void;
   onArchiveSession?: (sessionId: string) => void;
@@ -95,7 +87,7 @@ function persistMoreToolsExpanded(expanded: boolean): void {
 export function LeftSidebar({
   sessions,
   currentSessionId,
-  projectContext = null,
+  continueCandidate = null,
   onSelectSession,
   onCreateSession,
   onArchiveSession,
@@ -197,9 +189,7 @@ export function LeftSidebar({
     () => navigationLinks.filter((link) => !PRIMARY_LINK_IDS.has(link.id)),
     [navigationLinks]
   );
-  const hasProjectContextSection = Boolean(
-    projectContext || onContinueProjectContext || onSaveProjectContext || onRefreshProjectContext
-  );
+  const hasContinueSection = Boolean(continueCandidate || onContinueProjectContext);
 
   return (
     <section className='panel left-sidebar-panel'>
@@ -209,30 +199,14 @@ export function LeftSidebar({
         <span>New chat</span>
       </button>
 
-      {hasProjectContextSection && (
+      {hasContinueSection && (
         <div className='sidebar-section'>
           <p className='sidebar-section-label'>Continue work</p>
-          {projectContext?.loading ? (
-            <p className='small-text'>正在同步项目上下文…</p>
-          ) : projectContext?.error ? (
-            <>
-              <p className='small-text'>{projectContext.error}</p>
-              {onRefreshProjectContext && (
-                <button
-                  type='button'
-                  className='small-button'
-                  data-testid='sidebar-project-refresh'
-                  onClick={onRefreshProjectContext}
-                >
-                  刷新
-                </button>
-              )}
-            </>
-          ) : projectContext ? (
-            <div className='sidebar-project-context' data-testid='sidebar-project-context'>
-              <p className='small-text'>当前仓库：{projectContext.repoName}</p>
-              <p className='small-text'>偏好 Agent：{projectContext.preferredAgentName || '未设置'}</p>
-              <p className='small-text'>最近活动：{projectContext.lastActivitySummary || '暂无记录'}</p>
+          {continueCandidate ? (
+            <div className='sidebar-project-context sidebar-continue-card' data-testid='sidebar-project-context'>
+              <p className='small-text'>继续入口：{continueCandidate.title}</p>
+              {continueCandidate.repoName ? <p className='small-text'>当前仓库：{continueCandidate.repoName}</p> : null}
+              <p className='small-text'>最近活动：{continueCandidate.summary}</p>
               <div className='row-actions'>
                 {onContinueProjectContext && (
                   <button
@@ -240,11 +214,12 @@ export function LeftSidebar({
                     className='small-button'
                     data-testid='sidebar-project-continue'
                     onClick={onContinueProjectContext}
+                    disabled={Boolean(continueCandidate.loading)}
                   >
-                    继续上次工作
+                    {continueCandidate.loading ? '同步中…' : '继续上次工作'}
                   </button>
                 )}
-                {onSaveProjectContext && (
+                {continueCandidate.source === 'repo' && onSaveProjectContext && (
                   <button
                     type='button'
                     className='ghost-button small-button'
@@ -257,7 +232,7 @@ export function LeftSidebar({
               </div>
             </div>
           ) : (
-            <p className='small-text'>切换到具体会话后会显示仓库级上下文与继续工作入口。</p>
+            <p className='small-text'>当前还没有可继续的历史，先开始一段新的协作吧。</p>
           )}
         </div>
       )}

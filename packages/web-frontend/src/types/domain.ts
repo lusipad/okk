@@ -183,6 +183,16 @@ export interface RepoContinueRecord {
   recentActivities: RepoActivityRecord[];
 }
 
+export interface ContinueWorkCandidate {
+  source: 'repo' | 'session';
+  title: string;
+  summary: string;
+  repoName?: string | null;
+  sessionId?: string | null;
+  loading?: boolean;
+  error?: string | null;
+}
+
 export interface McpServerInfo {
   id: string;
   name: string;

@@ -4919,6 +4919,11 @@ body {
   margin-top: 4px;
 }
 
+.sidebar-continue-card {
+  border-width: 1px;
+  box-shadow: inset 0 0 0 1px rgba(108, 126, 255, 0.08);
+}
+
 .sidebar-more-tools-toggle {
   min-width: 56px;
   justify-content: center;
@@ -5094,6 +5099,10 @@ body {
   display: grid;
   gap: 16px;
   grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.partner-home-section-continue {
+  grid-column: 1 / -1;
 }
 
 .partner-home-section-head {

@@ -1,17 +1,10 @@
-import type { PartnerSummaryRecord, SessionInfo } from '../../types/domain';
+import type { ContinueWorkCandidate, PartnerSummaryRecord, SessionInfo } from '../../types/domain';
 
 interface PartnerHomeQuickAction {
   id: string;
   label: string;
   description: string;
   prompt: string;
-}
-
-interface PartnerHomeContinueCard {
-  repoName: string;
-  summary?: string | null;
-  loading?: boolean;
-  error?: string | null;
 }
 
 interface PartnerHomeSummaryCard {
@@ -24,7 +17,7 @@ interface PartnerHomeViewProps {
   partnerName: string;
   loading: boolean;
   recentSessions: SessionInfo[];
-  continueCard?: PartnerHomeContinueCard | null;
+  continueCandidate?: ContinueWorkCandidate | null;
   summaryCard?: PartnerHomeSummaryCard;
   quickActions: PartnerHomeQuickAction[];
   onSelectSession: (sessionId: string) => void;
@@ -50,7 +43,7 @@ export function PartnerHomeView({
   partnerName,
   loading,
   recentSessions,
-  continueCard = null,
+  continueCandidate = null,
   summaryCard,
   quickActions,
   onSelectSession,
@@ -110,6 +103,39 @@ export function PartnerHomeView({
       </section>
 
       <div className='partner-home-grid'>
+        <section className='partner-home-section partner-home-section-continue' aria-labelledby='partner-home-continue-title'>
+          <div className='partner-home-section-head'>
+            <h3 id='partner-home-continue-title'>继续工作</h3>
+            <span className='partner-home-section-meta'>首页主入口</span>
+          </div>
+          {continueCandidate ? (
+            <div className='partner-home-continue-card' data-testid='partner-home-continue-card'>
+              <p className='partner-home-continue-repo'>{continueCandidate.title}</p>
+              <p className='partner-home-continue-summary'>
+                {continueCandidate.loading
+                  ? '正在同步继续工作上下文…'
+                  : continueCandidate.error
+                    ? continueCandidate.error
+                    : continueCandidate.summary}
+              </p>
+              {continueCandidate.repoName ? <p className='small-text'>工作仓库：{continueCandidate.repoName}</p> : null}
+              {onContinueWork && (
+                <button
+                  type='button'
+                  className='small-button'
+                  data-testid='partner-home-continue-button'
+                  onClick={onContinueWork}
+                  disabled={Boolean(continueCandidate.loading)}
+                >
+                  {continueCandidate.loading ? '同步中…' : '继续上次工作'}
+                </button>
+              )}
+            </div>
+          ) : (
+            <p className='small-text'>当前还没有可继续的历史，先开始一段新的协作吧。</p>
+          )}
+        </section>
+
         <section className='partner-home-section' aria-labelledby='partner-home-recent-title'>
           <div className='partner-home-section-head'>
             <h3 id='partner-home-recent-title'>最近会话</h3>
@@ -136,37 +162,6 @@ export function PartnerHomeView({
           )}
         </section>
 
-        <section className='partner-home-section' aria-labelledby='partner-home-continue-title'>
-          <div className='partner-home-section-head'>
-            <h3 id='partner-home-continue-title'>继续工作</h3>
-            <span className='partner-home-section-meta'>当前上下文入口</span>
-          </div>
-          {continueCard ? (
-            <div className='partner-home-continue-card' data-testid='partner-home-continue-card'>
-              <p className='partner-home-continue-repo'>{continueCard.repoName}</p>
-              <p className='partner-home-continue-summary'>
-                {continueCard.loading
-                  ? '正在同步该仓库的继续工作上下文…'
-                  : continueCard.error
-                    ? continueCard.error
-                    : continueCard.summary || '继续当前仓库的最近任务与偏好。'}
-              </p>
-              {onContinueWork && (
-                <button
-                  type='button'
-                  className='small-button'
-                  data-testid='partner-home-continue-button'
-                  onClick={onContinueWork}
-                  disabled={Boolean(continueCard.loading)}
-                >
-                  {continueCard.loading ? '同步中…' : '继续上次工作'}
-                </button>
-              )}
-            </div>
-          ) : (
-            <p className='small-text'>切换到具体会话后，这里会给出仓库级继续工作入口。</p>
-          )}
-        </section>
       </div>
 
       <section className='partner-home-section' aria-labelledby='partner-home-actions-title'>

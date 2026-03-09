@@ -134,10 +134,11 @@ describe('LeftSidebar', () => {
         <LeftSidebar
           sessions={[{ id: 'session-1', title: '重构右侧任务图', repoId: 'repo-1', updatedAt: '2026-02-01T00:00:00.000Z' }]}
           currentSessionId='session-1'
-          projectContext={{
+          continueCandidate={{
+            source: 'repo',
+            title: 'okk',
             repoName: 'okk',
-            preferredAgentName: 'code-reviewer',
-            lastActivitySummary: '继续修复登录流程'
+            summary: '继续修复登录流程'
           }}
           onSelectSession={() => undefined}
           onCreateSession={() => undefined}
@@ -149,8 +150,8 @@ describe('LeftSidebar', () => {
 
     expect(screen.getByText('Continue work', { selector: '.sidebar-section-label' })).toBeInTheDocument();
     expect(screen.getByTestId('sidebar-project-context')).toBeInTheDocument();
+    expect(screen.getByText('继续入口：okk')).toBeInTheDocument();
     expect(screen.getByText('当前仓库：okk')).toBeInTheDocument();
-    expect(screen.getByText('偏好 Agent：code-reviewer')).toBeInTheDocument();
     expect(screen.getByText('最近活动：继续修复登录流程')).toBeInTheDocument();
 
     await user.click(screen.getByTestId('sidebar-project-continue'));
@@ -193,6 +194,34 @@ describe('LeftSidebar', () => {
     expect(screen.getByText('已归档会话')).toBeInTheDocument();
     await user.click(screen.getByTestId('session-restore-session-2'));
     expect(onRestore).toHaveBeenCalledWith('session-2');
+  });
+
+  it('无仓库上下文时展示最近会话 continue fallback', async () => {
+    const user = userEvent.setup();
+    const onContinue = vi.fn();
+
+    render(
+      <MemoryRouter initialEntries={['/']}>
+        <LeftSidebar
+          sessions={[{ id: 'session-2', title: '最近会话', summary: '回到这条会话继续工作', updatedAt: '2026-02-02T00:00:00.000Z' }]}
+          currentSessionId={null}
+          continueCandidate={{
+            source: 'session',
+            title: '最近会话',
+            summary: '回到这条会话继续工作',
+            sessionId: 'session-2'
+          }}
+          onSelectSession={() => undefined}
+          onCreateSession={() => undefined}
+          onContinueProjectContext={onContinue}
+        />
+      </MemoryRouter>
+    );
+
+    expect(screen.getByText('继续入口：最近会话')).toBeInTheDocument();
+    await user.click(screen.getByTestId('sidebar-project-continue'));
+    expect(onContinue).toHaveBeenCalledTimes(1);
+    expect(screen.queryByTestId('sidebar-project-save')).not.toBeInTheDocument();
   });
 
   it('记住更多工具区的展开状态', async () => {

@@ -10,7 +10,7 @@ import { ConnectionBanner } from '../components/common/ConnectionBanner';
 import { MessageList } from '../components/chat/MessageList';
 import { Composer } from '../components/chat/Composer';
 import { PartnerHomeView } from '../components/home/PartnerHomeView';
-import type { AgentTraceEvent, ChatMessage, IdentityProfile, PartnerSummaryRecord, RepoContextRecord, TeamPanelState } from '../types/domain';
+import type { AgentTraceEvent, ChatMessage, ContinueWorkCandidate, IdentityProfile, PartnerSummaryRecord, RepoContextRecord, TeamPanelState } from '../types/domain';
 
 type LoadedRepoContext = RepoContextRecord & { repoName: string };
 type LoadedRepoContinue = { repoId?: string; repoName: string; prompt: string; summary: string; snapshot: RepoContextRecord['snapshot']; recentActivities: RepoContextRecord['recentActivities'] };
@@ -122,6 +122,9 @@ export function ChatPage() {
   const [projectContextLoading, setProjectContextLoading] = useState(false);
   const [projectContextError, setProjectContextError] = useState<string | null>(null);
   const [activeIdentity, setActiveIdentity] = useState<IdentityProfile | null>(null);
+  const [partnerSummary, setPartnerSummary] = useState<PartnerSummaryRecord | null>(null);
+  const [partnerSummaryLoading, setPartnerSummaryLoading] = useState(true);
+  const [partnerSummaryError, setPartnerSummaryError] = useState<string | null>(null);
 
   const currentSessionId = state.currentSessionId;
   const currentSession = useMemo(() => state.sessions.find((item) => item.id === currentSessionId) ?? null, [currentSessionId, state.sessions]);
@@ -179,17 +182,42 @@ export function ChatPage() {
     () => state.sessions.filter((session) => !session.archivedAt && session.id !== currentSessionId).slice(0, 3),
     [currentSessionId, state.sessions]
   );
-  const partnerHomeContinueCard = useMemo(() => {
+  const repoContinueCandidate = useMemo<ContinueWorkCandidate | null>(() => {
     if (!currentRepoId) {
       return null;
     }
+
     return {
+      source: 'repo',
+      title: projectContext?.repoName ?? currentRepoId,
+      summary:
+        projectContextError ??
+        projectContext?.snapshot.lastActivitySummary ??
+        projectContext?.recentActivities[0]?.summary ??
+        '继续当前仓库的最近任务与偏好。',
       repoName: projectContext?.repoName ?? currentRepoId,
-      summary: projectContext?.snapshot.lastActivitySummary ?? projectContext?.recentActivities[0]?.summary ?? null,
+      sessionId: currentSessionId,
       loading: projectContextLoading,
       error: projectContextError
     };
-  }, [currentRepoId, projectContext, projectContextError, projectContextLoading]);
+  }, [currentRepoId, currentSessionId, projectContext, projectContextError, projectContextLoading]);
+  const sessionContinueCandidate = useMemo<ContinueWorkCandidate | null>(() => {
+    if (repoContinueCandidate) {
+      return null;
+    }
+    const fallbackSession = state.sessions.find((session) => !session.archivedAt && session.id !== currentSessionId) ?? null;
+    if (!fallbackSession) {
+      return null;
+    }
+    return {
+      source: 'session',
+      title: fallbackSession.title || '未命名会话',
+      summary: fallbackSession.summary || '回到这条最近会话继续当前工作。',
+      repoName: fallbackSession.repoId ?? null,
+      sessionId: fallbackSession.id
+    };
+  }, [currentSessionId, repoContinueCandidate, state.sessions]);
+  const continueCandidate = repoContinueCandidate ?? sessionContinueCandidate;
   const partnerHomeQuickActions = useMemo(
     () => [
       {
@@ -777,17 +805,7 @@ export function ChatPage() {
         <LeftSidebar
           sessions={state.sessions}
           currentSessionId={state.currentSessionId}
-          projectContext={
-            currentRepoId
-              ? {
-                  repoName: projectContext?.repoName ?? currentRepoId,
-                  preferredAgentName: projectContext?.snapshot.preferredAgentName ?? null,
-                  lastActivitySummary: projectContext?.snapshot.lastActivitySummary ?? projectContext?.recentActivities[0]?.summary ?? null,
-                  loading: projectContextLoading,
-                  error: projectContextError
-                }
-              : null
-          }
+          continueCandidate={continueCandidate}
           onSelectSession={(sessionId) => dispatch({ type: 'set_current_session', sessionId })}
           onCreateSession={() => void createSession()}
           onContinueProjectContext={() => void continueProjectContext()}
@@ -896,10 +914,10 @@ export function ChatPage() {
           )}
           {messages.length === 0 ? (
             <PartnerHomeView
-              partnerName={activeIdentity?.name ?? '赛博合伙人'}
+              partnerName={partnerSummary?.identity?.name ?? activeIdentity?.name ?? '赛博合伙人'}
               loading={bootstrapLoading}
               recentSessions={recentSessions}
-              continueCard={partnerHomeContinueCard}
+              continueCandidate={continueCandidate}
               quickActions={partnerHomeQuickActions}
               onSelectSession={(sessionId) => dispatch({ type: 'set_current_session', sessionId })}
               onContinueWork={() => void continueProjectContext()}

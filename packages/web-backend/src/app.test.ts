@@ -1344,6 +1344,31 @@ test("REST /api/partner/summary 支持返回聚合摘要并在空数据时降级
   }
 });
 
+test("REST /api/repos/:repoId/continue 在缺少 continuePrompt 时回退到 recentActivities", async () => {
+  const core = await createCore({ dbPath: ":memory:", workspaceRoot: process.cwd() });
+  const app = await createApp({ jwtSecret: "test-secret", logger: false, core });
+  await app.listen({ host: "127.0.0.1", port: 0 });
+
+  try {
+    const token = await loginToken(app);
+    const headers = { Authorization: `Bearer ${token}` };
+    const repoId = (await core.repos.list())[0]?.id;
+    assert.ok(repoId);
+
+    await core.repos.updateContext(repoId, {
+      continuePrompt: null,
+      lastActivitySummary: null
+    });
+
+    const continueResponse = await app.inject({ method: "POST", url: `/api/repos/${repoId}/continue`, headers });
+    assert.equal(continueResponse.statusCode, 200, continueResponse.body);
+    assert.match(continueResponse.json().prompt, /最近活动|继续上次工作/);
+    assert.equal(typeof continueResponse.json().summary, "string");
+  } finally {
+    await app.close();
+  }
+});
+
 test("REST /api/partner/summary 在 memory core 下返回可降级摘要", async () => {
   const app = await createApp({ jwtSecret: "test-secret", logger: false, coreMode: "memory" });
   await app.listen({ host: "127.0.0.1", port: 0 });

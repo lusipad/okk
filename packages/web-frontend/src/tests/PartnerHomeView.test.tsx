@@ -28,7 +28,9 @@ describe('PartnerHomeView', () => {
             updatedAt: '2026-03-01T08:00:00.000Z'
           }
         ]}
-        continueCard={{
+        continueCandidate={{
+          source: 'repo',
+          title: 'okk',
           repoName: 'okk',
           summary: '继续修复登录流程'
         }}
@@ -81,6 +83,40 @@ describe('PartnerHomeView', () => {
     expect(onSelectSession).toHaveBeenCalledWith('session-1');
     expect(onContinueWork).toHaveBeenCalledTimes(1);
     expect(onApplyQuickAction).toHaveBeenCalledWith('请帮我梳理下一步');
+  });
+
+  it('无 repo 时展示最近会话 continue fallback', async () => {
+    const user = userEvent.setup();
+    const onContinueWork = vi.fn();
+
+    render(
+      <PartnerHomeView
+        partnerName='OKK Copilot'
+        loading={false}
+        recentSessions={[
+          {
+            id: 'session-2',
+            title: '最近会话',
+            summary: '回到这条会话继续工作',
+            updatedAt: '2026-03-01T08:00:00.000Z'
+          }
+        ]}
+        continueCandidate={{
+          source: 'session',
+          title: '最近会话',
+          summary: '回到这条会话继续工作',
+          sessionId: 'session-2'
+        }}
+        quickActions={[]}
+        onSelectSession={() => undefined}
+        onContinueWork={onContinueWork}
+        onApplyQuickAction={() => undefined}
+      />
+    );
+
+    expect(screen.getByTestId('partner-home-continue-card')).toBeInTheDocument();
+    await user.click(screen.getByTestId('partner-home-continue-button'));
+    expect(onContinueWork).toHaveBeenCalledTimes(1);
   });
 
   it('加载态下展示结构化首页文案', () => {
