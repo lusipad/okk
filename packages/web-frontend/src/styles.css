@@ -5564,3 +5564,66 @@ body {
 .message-code-inline {
   font-family: ui-monospace, SFMono-Regular, SFMono-Regular, Menlo, Consolas, monospace;
 }
+
+
+.next-step-panel {
+  display: grid;
+  gap: 10px;
+  margin: 12px 12px 0;
+  padding: 12px;
+  border: 1px solid var(--shell-control-border);
+  border-radius: 14px;
+  background: rgba(29, 31, 38, 0.88);
+}
+
+.next-step-panel-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.next-step-panel-head h3 {
+  margin: 0;
+  font-size: 14px;
+  color: #ececf1;
+}
+
+.next-step-list {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.next-step-card {
+  display: grid;
+  gap: 6px;
+  text-align: left;
+  border: 1px solid var(--shell-control-border);
+  border-radius: 12px;
+  background: rgba(36, 37, 44, 0.92);
+  color: #f2f5ff;
+  padding: 12px;
+}
+
+.next-step-card:hover {
+  border-color: #4a4f61;
+  background: #282a33;
+}
+
+.next-step-label {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.next-step-description {
+  color: #b8c0d4;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+@media (max-width: 960px) {
+  .next-step-list {
+    grid-template-columns: 1fr;
+  }
+}

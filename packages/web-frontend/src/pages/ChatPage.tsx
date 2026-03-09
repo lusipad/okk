@@ -8,6 +8,7 @@ import { RightSidebar } from '../components/layout/RightSidebar';
 import { ShellLayout } from '../components/layout/ShellLayout';
 import { ConnectionBanner } from '../components/common/ConnectionBanner';
 import { MessageList } from '../components/chat/MessageList';
+import { NextStepSuggestions, deriveNextStepSuggestions, type NextStepSuggestion } from '../components/chat/NextStepSuggestions';
 import { Composer } from '../components/chat/Composer';
 import { PartnerHomeView } from '../components/home/PartnerHomeView';
 import type { AgentTraceEvent, ChatMessage, ContinueWorkCandidate, IdentityProfile, PartnerSummaryRecord, RepoContextRecord, TeamPanelState } from '../types/domain';
@@ -218,6 +219,16 @@ export function ChatPage() {
     };
   }, [currentSessionId, repoContinueCandidate, state.sessions]);
   const continueCandidate = repoContinueCandidate ?? sessionContinueCandidate;
+  const nextStepSuggestions = useMemo(
+    () =>
+      deriveNextStepSuggestions({
+        messages,
+        isStreaming,
+        skillCount: selectedSkillIds.length,
+        mcpCount: selectedMcpServerIds.length
+      }),
+    [isStreaming, messages, selectedMcpServerIds.length, selectedSkillIds.length]
+  );
   const partnerHomeQuickActions = useMemo(
     () => [
       {
@@ -935,7 +946,18 @@ export function ChatPage() {
               }
             />
           ) : (
-            <MessageList messages={messages} streaming={isStreaming} />
+            <>
+              <MessageList messages={messages} streaming={isStreaming} />
+              <NextStepSuggestions
+                suggestions={nextStepSuggestions}
+                onSelect={(suggestion: NextStepSuggestion) =>
+                  setComposerExternalDraft({
+                    id: `next-step-${Date.now()}`,
+                    text: suggestion.prompt
+                  })
+                }
+              />
+            </>
           )}
           <Composer
             agents={state.agents}
