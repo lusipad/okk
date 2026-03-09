@@ -3912,6 +3912,15 @@ body {
   padding: 4px 10px;
 }
 
+.chat-stage-stat {
+  border: 1px solid #3a3d49;
+  background: transparent;
+  color: #9ea6bc;
+  border-radius: 999px;
+  font-size: 12px;
+  padding: 4px 10px;
+}
+
 .message-list-wrap {
   display: flex;
   flex-direction: column;
