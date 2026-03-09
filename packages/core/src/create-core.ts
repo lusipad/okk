@@ -238,6 +238,9 @@ export interface CoreApi {
     update(memoryId: string, input: Partial<Pick<MemoryEntry, "title" | "content" | "summary" | "confidence" | "status">>): Promise<MemoryEntry | null>;
     syncRepo(repoId: string): Promise<{ imported: number }>;
   };
+  partner: {
+    getSummary(): Promise<CorePartnerSummaryRecord>;
+  };
   identity: {
     list(): Promise<IdentityProfile[]>;
     getActive(): Promise<IdentityProfile | null>;
