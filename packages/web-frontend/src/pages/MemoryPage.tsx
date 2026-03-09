@@ -38,6 +38,7 @@ export function MemoryPage() {
 
   return (
     <ShellLayout
+      topbarContext={{ title: 'Memory' }}
       left={
         <LeftSidebar
           sessions={state.sessions}

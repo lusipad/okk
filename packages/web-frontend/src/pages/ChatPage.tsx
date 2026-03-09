@@ -801,6 +801,12 @@ export function ChatPage() {
 
   return (
     <ShellLayout
+      topbarContext={
+        {
+          title: 'Chat',
+          identityName: partnerSummary?.identity?.name ?? activeIdentity?.name ?? null
+        }
+      }
       left={
         <LeftSidebar
           sessions={state.sessions}

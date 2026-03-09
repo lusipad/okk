@@ -46,6 +46,12 @@ export function IdentityPage() {
 
   return (
     <ShellLayout
+      topbarContext={
+        {
+          title: 'Identity',
+          identityName: items.find((item) => item.id === activeId)?.name ?? name
+        }
+      }
       left={<LeftSidebar sessions={state.sessions} currentSessionId={state.currentSessionId} onSelectSession={(sessionId) => dispatch({ type: 'set_current_session', sessionId })} onCreateSession={() => undefined} />}
       center={
         <section className='chat-panel'>

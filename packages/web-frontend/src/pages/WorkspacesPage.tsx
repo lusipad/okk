@@ -93,6 +93,7 @@ export function WorkspacesPage() {
 
   return (
     <ShellLayout
+      topbarContext={{ title: 'Workspaces' }}
       left={
         <LeftSidebar
           sessions={state.sessions}

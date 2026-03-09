@@ -2,10 +2,16 @@ import { useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 
+interface TopbarContext {
+  title: string;
+  identityName?: string | null;
+}
+
 interface ShellLayoutProps {
   left: ReactNode;
   center: ReactNode;
   right: ReactNode;
+  topbarContext?: TopbarContext;
 }
 
 interface DesktopShellBridge {
@@ -42,7 +48,21 @@ function normalizeCommandQuery(value: unknown): string {
   return typeof value === 'string' ? value.trim() : '';
 }
 
-export function ShellLayout({ left, center, right }: ShellLayoutProps) {
+function getDefaultTopbarTitle(pathname: string): string {
+  if (pathname === '/') return 'Chat';
+  if (pathname === '/identity') return 'Identity';
+  if (pathname === '/memory') return 'Memory';
+  if (pathname === '/workspaces') return 'Workspaces';
+  if (pathname === '/settings/mcp') return 'MCP';
+  if (pathname === '/skills') return 'Skills';
+  if (pathname === '/governance') return 'Governance';
+  if (pathname === '/imports') return 'Imports';
+  if (pathname === '/workflows') return 'Workflows';
+  if (pathname === '/memory-sharing') return 'Sharing';
+  return 'Workspace';
+}
+
+export function ShellLayout({ left, center, right, topbarContext }: ShellLayoutProps) {
   const [leftOpen, setLeftOpen] = useState(false);
   const [rightOpen, setRightOpen] = useState<boolean>(() => localStorage.getItem(RIGHT_PANEL_STORAGE_KEY) === '1');
   const [focusMode, setFocusMode] = useState<boolean>(() => {
@@ -57,6 +77,8 @@ export function ShellLayout({ left, center, right }: ShellLayoutProps) {
   const location = useLocation();
   const navigate = useNavigate();
   const desktopBridge = useMemo(() => (window as Window & { okkDesktop?: DesktopShellBridge }).okkDesktop, []);
+  const resolvedTopbarTitle = topbarContext?.title?.trim() || getDefaultTopbarTitle(location.pathname);
+  const resolvedIdentityName = topbarContext?.identityName?.trim() || null;
 
   const closeCommandPalette = (): void => {
     setCommandOpen(false);
@@ -276,9 +298,17 @@ export function ShellLayout({ left, center, right }: ShellLayoutProps) {
           <h1>OKK</h1>
         </div>
         <div className='topbar-center'>
-          <span className='topbar-model'>
-            {location.pathname === '/' ? 'Chat' : location.pathname === '/settings/mcp' ? 'MCP' : 'Skills'}
-          </span>
+          <div className='topbar-model topbar-context' aria-label='页面上下文'>
+            <span className='topbar-context-title'>{resolvedTopbarTitle}</span>
+            {resolvedIdentityName ? (
+              <>
+                <span className='topbar-context-divider' aria-hidden='true'>
+                  ·
+                </span>
+                <span className='topbar-context-identity'>{resolvedIdentityName}</span>
+              </>
+            ) : null}
+          </div>
         </div>
         <div className='topbar-actions'>
           <button

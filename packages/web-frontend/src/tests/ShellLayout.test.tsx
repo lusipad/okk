@@ -190,6 +190,38 @@ describe('ShellLayout', () => {
     });
   });
 
+  it('渲染顶栏页面上下文与身份信息', () => {
+    render(
+      <MemoryRouter initialEntries={['/memory']}>
+        <ShellLayout
+          left={<div>left-panel</div>}
+          center={<div>center-panel</div>}
+          right={<div>right-panel</div>}
+          topbarContext={{ title: 'Memory', identityName: 'OKK Copilot' }}
+        />
+      </MemoryRouter>
+    );
+
+    expect(screen.getByText('Memory')).toBeInTheDocument();
+    expect(screen.getByText('OKK Copilot')).toBeInTheDocument();
+  });
+
+  it('未提供身份信息时仍展示页面标题', () => {
+    render(
+      <MemoryRouter initialEntries={['/workspaces']}>
+        <ShellLayout
+          left={<div>left-panel</div>}
+          center={<div>center-panel</div>}
+          right={<div>right-panel</div>}
+          topbarContext={{ title: 'Workspaces' }}
+        />
+      </MemoryRouter>
+    );
+
+    expect(screen.getByText('Workspaces')).toBeInTheDocument();
+    expect(screen.queryByText('OKK Copilot')).not.toBeInTheDocument();
+  });
+
   it('读取持久化的协作面板状态', () => {
     localStorage.setItem('okk.right-panel-open', '1');
     render(
