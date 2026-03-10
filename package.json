@@ -8,6 +8,7 @@
   ],
   "scripts": {
     "build": "npm run build --workspaces --if-present",
+    "cli": "node packages/cli/dist/index.js",
     "dev": "concurrently -k \"npm run dev -w @okk/web-backend\" \"npm run dev -w @okk/web-frontend\"",
     "test": "npm run test --workspaces --if-present",
     "lint": "npm run lint --workspaces --if-present",
