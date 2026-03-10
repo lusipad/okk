@@ -1533,6 +1533,24 @@ test("REST 新增工作区/治理/导入/工作流/共享/Trace 接口可联通"
     const confirmResponse = await app.inject({ method: "POST", url: `/api/knowledge-imports/${batchId}/confirm`, headers });
     assert.equal(confirmResponse.statusCode, 200, confirmResponse.body);
 
+    const availableAgents = await core.agents.list();
+    const availableSkills = await core.skills.list();
+    const workflowExecutionNode = availableAgents[0]
+      ? {
+          id: "agent-1",
+          type: "agent",
+          name: "审查",
+          config: { agentName: availableAgents[0].name, outputKey: "result" },
+          next: []
+        }
+      : {
+          id: "skill-1",
+          type: "skill",
+          name: "技能摘要",
+          config: { skillName: availableSkills[0]?.name ?? "repo-stats", outputKey: "result" },
+          next: []
+        };
+
     const workflowCreate = await app.inject({
       method: "POST",
       url: "/api/workflows",
@@ -1541,8 +1559,8 @@ test("REST 新增工作区/治理/导入/工作流/共享/Trace 接口可联通"
         name: "review-flow",
         status: "active",
         nodes: [
-          { id: "prompt-1", type: "prompt", name: "准备", config: { template: "topic={{topic}}", outputKey: "brief" }, next: ["agent-1"] },
-          { id: "agent-1", type: "agent", name: "审查", config: { agentName: "knowledge-extractor", outputKey: "result" }, next: [] }
+          { id: "prompt-1", type: "prompt", name: "准备", config: { template: "topic={{topic}}", outputKey: "brief" }, next: [workflowExecutionNode.id] },
+          workflowExecutionNode
         ]
       }
     });

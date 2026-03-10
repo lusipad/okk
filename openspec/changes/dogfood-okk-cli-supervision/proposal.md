@@ -5,7 +5,6 @@
 ## What Changes
 
 - 引入 CLI 工作台主路径，支持 `partner home / team`、`mission`、`run`、`checkpoint`
-- 为 Windows 增加标准的 `cmd + ps1` 启动器，降低自用门槛
 - 为 `run team` 提供默认的多同事协作模板
 - 让 OKK 团队能用 OKK 自己来创建任务、发起协作、查看整体进度和待确认项
 
@@ -22,7 +21,5 @@
 ## Impact
 
 - `packages/cli/*`
-- `scripts/okk.ps1`
-- `okk.cmd`
 - `package.json`
 - 与 `@okk/core` 的集成方式和后续 CLI / Desktop / Web 统一任务语义
