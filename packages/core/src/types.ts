@@ -310,6 +310,100 @@ export interface TeamRun {
   updatedAt: string;
 }
 
+export type MissionStatus = "draft" | "active" | "blocked" | "awaiting_user" | "completed" | "failed";
+export type MissionPhase = "align" | "plan" | "execute" | "review" | "merge" | "done";
+
+export interface Mission {
+  id: string;
+  sessionId: string | null;
+  workspaceId: string | null;
+  repoId: string | null;
+  title: string;
+  goal: string;
+  summary: string;
+  status: MissionStatus;
+  phase: MissionPhase;
+  ownerPartnerId: string | null;
+  createdByUserId: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type MissionWorkstreamStatus =
+  | "queued"
+  | "running"
+  | "blocked"
+  | "awaiting_review"
+  | "awaiting_user"
+  | "completed"
+  | "failed";
+
+export interface MissionWorkstream {
+  id: string;
+  missionId: string;
+  teamRunId: string | null;
+  title: string;
+  description: string | null;
+  assigneePartnerId: string;
+  status: MissionWorkstreamStatus;
+  orderIndex: number;
+  dependsOnWorkstreamIds: string[];
+  outputSummary: string | null;
+  startedAt: string | null;
+  endedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type MissionCheckpointType = "direction" | "review" | "approval" | "conflict" | "identity";
+export type MissionCheckpointStatus = "open" | "resolved" | "dismissed";
+
+export interface MissionCheckpoint {
+  id: string;
+  missionId: string;
+  workstreamId: string | null;
+  type: MissionCheckpointType;
+  title: string;
+  summary: string;
+  status: MissionCheckpointStatus;
+  requiresUserAction: boolean;
+  createdByPartnerId: string | null;
+  resolvedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type MissionHandoffStatus = "pending" | "accepted" | "completed" | "rejected";
+
+export interface MissionHandoff {
+  id: string;
+  missionId: string;
+  fromWorkstreamId: string;
+  toPartnerId: string;
+  reason: string;
+  payloadSummary: string | null;
+  status: MissionHandoffStatus;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface MissionSummary {
+  id: string;
+  title: string;
+  goal: string;
+  status: MissionStatus;
+  phase: MissionPhase;
+  repoId: string | null;
+  sessionId: string | null;
+  ownerPartnerId: string | null;
+  partnerCount: number;
+  workstreamTotal: number;
+  workstreamCompleted: number;
+  blockedCount: number;
+  openCheckpointCount: number;
+  updatedAt: string;
+}
+
 export type SkillLifecycleStatus = "installed" | "disabled" | "error";
 
 export interface InstalledSkill {

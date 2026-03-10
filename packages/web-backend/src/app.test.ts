@@ -1386,6 +1386,59 @@ test("REST /api/partner/summary 在 memory core 下返回可降级摘要", async
   }
 });
 
+test("REST /api/missions 支持创建、汇总、workstreams 与 checkpoints", async () => {
+  const app = await createApp({ jwtSecret: "test-secret", logger: false, coreMode: "memory" });
+
+  try {
+    const loginResponse = await app.inject({
+      method: "POST",
+      url: "/api/auth/login",
+      payload: { username: "admin", password: "admin" }
+    });
+    assert.equal(loginResponse.statusCode, 200, loginResponse.body);
+    const token = loginResponse.json().token as string;
+    const headers = { Authorization: `Bearer ${token}` };
+
+    const missionCreate = await app.inject({
+      method: "POST",
+      url: "/api/missions",
+      headers,
+      payload: {
+        title: "统一 Figma 页面拆分",
+        goal: "把首页与任务页拆开"
+      }
+    });
+    assert.equal(missionCreate.statusCode, 201, missionCreate.body);
+    const missionId = missionCreate.json().item.id as string;
+
+    const missionList = await app.inject({
+      method: "GET",
+      url: "/api/missions?summaries=true",
+      headers
+    });
+    assert.equal(missionList.statusCode, 200, missionList.body);
+    assert.ok((missionList.json().items as Array<{ id: string }>).some((item) => item.id === missionId));
+
+    const checkpoints = await app.inject({
+      method: "GET",
+      url: `/api/missions/${missionId}/checkpoints`,
+      headers
+    });
+    assert.equal(checkpoints.statusCode, 200, checkpoints.body);
+    assert.deepEqual(checkpoints.json().items, []);
+
+    const workstreams = await app.inject({
+      method: "GET",
+      url: `/api/missions/${missionId}/workstreams`,
+      headers
+    });
+    assert.equal(workstreams.statusCode, 200, workstreams.body);
+    assert.deepEqual(workstreams.json().items, []);
+  } finally {
+    await app.close();
+  }
+});
+
 test("REST 新增工作区/治理/导入/工作流/共享/Trace 接口可联通", async () => {
   const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "okk-ops-api-"));
   const workspaceRoot = path.join(tempDir, "workspace-a");
@@ -1489,7 +1542,7 @@ test("REST 新增工作区/治理/导入/工作流/共享/Trace 接口可联通"
         status: "active",
         nodes: [
           { id: "prompt-1", type: "prompt", name: "准备", config: { template: "topic={{topic}}", outputKey: "brief" }, next: ["agent-1"] },
-          { id: "agent-1", type: "agent", name: "审查", config: { agentName: "code-reviewer", outputKey: "result" }, next: [] }
+          { id: "agent-1", type: "agent", name: "审查", config: { agentName: "knowledge-extractor", outputKey: "result" }, next: [] }
         ]
       }
     });

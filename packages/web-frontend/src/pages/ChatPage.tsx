@@ -11,7 +11,7 @@ import { MessageList } from '../components/chat/MessageList';
 import { NextStepSuggestions, deriveNextStepSuggestions, type NextStepSuggestion } from '../components/chat/NextStepSuggestions';
 import { Composer } from '../components/chat/Composer';
 import { PartnerHomeView } from '../components/home/PartnerHomeView';
-import type { AgentTraceEvent, ChatMessage, ContinueWorkCandidate, IdentityProfile, PartnerSummaryRecord, RepoContextRecord, TeamPanelState } from '../types/domain';
+import type { AgentTraceEvent, ChatMessage, ContinueWorkCandidate, IdentityProfile, MissionSummaryRecord, PartnerSummaryRecord, RepoContextRecord, TeamPanelState } from '../types/domain';
 
 type LoadedRepoContext = RepoContextRecord & { repoName: string };
 type LoadedRepoContinue = { repoId?: string; repoName: string; prompt: string; summary: string; snapshot: RepoContextRecord['snapshot']; recentActivities: RepoContextRecord['recentActivities'] };
@@ -126,6 +126,11 @@ export function ChatPage() {
   const [partnerSummary, setPartnerSummary] = useState<PartnerSummaryRecord | null>(null);
   const [partnerSummaryLoading, setPartnerSummaryLoading] = useState(true);
   const [partnerSummaryError, setPartnerSummaryError] = useState<string | null>(null);
+  const [activeMissions, setActiveMissions] = useState<MissionSummaryRecord[]>([]);
+  const [activeMissionSummary, setActiveMissionSummary] = useState<MissionSummaryRecord | null>(null);
+  const [activeMissionWorkstreams, setActiveMissionWorkstreams] = useState<import('../types/domain').MissionWorkstreamRecord[]>([]);
+  const [activeMissionCheckpoints, setActiveMissionCheckpoints] = useState<import('../types/domain').MissionCheckpointRecord[]>([]);
+  const [activeMissionHandoffs, setActiveMissionHandoffs] = useState<import('../types/domain').MissionHandoffRecord[]>([]);
 
   const currentSessionId = state.currentSessionId;
   const currentSession = useMemo(() => state.sessions.find((item) => item.id === currentSessionId) ?? null, [currentSessionId, state.sessions]);
@@ -267,9 +272,14 @@ export function ChatPage() {
     setBootstrapLoading(true);
     setBootstrapError(null);
     try {
-      const [sessions, agents] = await Promise.all([io.listSessions(), io.listAgents()]);
+      const [sessions, agents, missions] = await Promise.all([io.listSessions(), io.listAgents(), io.listMissionSummaries()]);
       dispatch({ type: 'set_sessions', sessions });
       dispatch({ type: 'set_agents', agents });
+      setActiveMissions(
+        missions
+          .filter((item) => item.status === 'active' || item.status === 'awaiting_user' || item.status === 'blocked')
+          .slice(0, 3)
+      );
     } catch (incoming) {
       setBootstrapError(toErrorMessage(incoming, '基础数据加载失败，请稍后重试。'));
     } finally {
@@ -280,6 +290,55 @@ export function ChatPage() {
   useEffect(() => {
     void loadBootstrap();
   }, [loadBootstrap]);
+
+  useEffect(() => {
+    if (!currentSessionId) {
+      setActiveMissionSummary(null);
+      setActiveMissionWorkstreams([]);
+      setActiveMissionCheckpoints([]);
+      setActiveMissionHandoffs([]);
+      return;
+    }
+
+    let cancelled = false;
+    void (async () => {
+      try {
+        const summaries = await io.listMissionSummaries({ sessionId: currentSessionId });
+        const mission = summaries[0] ?? null;
+        if (cancelled || !mission) {
+          if (!cancelled) {
+            setActiveMissionSummary(null);
+            setActiveMissionWorkstreams([]);
+            setActiveMissionCheckpoints([]);
+            setActiveMissionHandoffs([]);
+          }
+          return;
+        }
+        const [workstreams, checkpoints, handoffs] = await Promise.all([
+          io.listMissionWorkstreams(mission.id),
+          io.listMissionCheckpoints(mission.id),
+          io.listMissionHandoffs(mission.id)
+        ]);
+        if (!cancelled) {
+          setActiveMissionSummary(mission);
+          setActiveMissionWorkstreams(workstreams);
+          setActiveMissionCheckpoints(checkpoints);
+          setActiveMissionHandoffs(handoffs);
+        }
+      } catch {
+        if (!cancelled) {
+          setActiveMissionSummary(null);
+          setActiveMissionWorkstreams([]);
+          setActiveMissionCheckpoints([]);
+          setActiveMissionHandoffs([]);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [currentSessionId, io]);
 
   const loadCapabilities = useCallback(async (): Promise<void> => {
     setCapabilitySnapshot((prev) => ({
@@ -934,6 +993,7 @@ export function ChatPage() {
               partnerName={partnerSummary?.identity?.name ?? activeIdentity?.name ?? '赛博合伙人'}
               loading={bootstrapLoading}
               recentSessions={recentSessions}
+              activeMissions={activeMissions}
               continueCandidate={continueCandidate}
               quickActions={partnerHomeQuickActions}
               onSelectSession={(sessionId) => dispatch({ type: 'set_current_session', sessionId })}
@@ -986,6 +1046,10 @@ export function ChatPage() {
           teamView={teamView}
           teamRun={activeTeamRun}
           teamRuns={teamRuns}
+          missionSummary={activeMissionSummary}
+          missionWorkstreams={activeMissionWorkstreams}
+          missionCheckpoints={activeMissionCheckpoints}
+          missionHandoffs={activeMissionHandoffs}
           runtimeBackends={capabilitySnapshot.runtimeBackends}
           teamRunPending={teamRunPending}
           teamRunError={teamRunError}

@@ -19,10 +19,15 @@ import type {
   CollaborationDiagnostics,
   CollaborationRunStatus,
   CollaborationSourceType,
-  KnowledgeStatus,
   IdentityProfile,
+  KnowledgeStatus,
   MemoryEntry,
   MemoryType,
+  Mission,
+  MissionCheckpoint,
+  MissionHandoff,
+  MissionSummary,
+  MissionWorkstream,
   Repository,
   Session,
   UserRole
@@ -180,6 +185,7 @@ export interface CoreTeamRunMemberInput {
 
 export interface CoreTeamRunRequest {
   teamId?: string;
+  missionId?: string;
   sessionId: string;
   teamName: string;
   members: CoreTeamRunMemberInput[];
@@ -200,6 +206,7 @@ export interface CoreTeamRunRecord {
   id: string;
   teamId: string;
   sessionId: string;
+  missionId?: string;
   teamName: string;
   status: "running" | "done" | "error";
   memberCount: number;
@@ -208,6 +215,21 @@ export interface CoreTeamRunRecord {
   endedAt?: string;
   summary?: string;
   members: CoreTeamRunMemberResult[];
+}
+
+export interface CoreMissionRecord extends Mission {}
+export interface CoreMissionSummaryRecord extends MissionSummary {}
+export interface CoreMissionWorkstreamRecord extends MissionWorkstream {}
+export interface CoreMissionCheckpointRecord extends MissionCheckpoint {}
+export interface CoreMissionHandoffRecord extends MissionHandoff {}
+
+export interface CoreMissionCreateInput {
+  title: string;
+  goal: string;
+  repoId?: string | null;
+  sessionId?: string | null;
+  workspaceId?: string | null;
+  ownerPartnerId?: string | null;
 }
 
 export interface CoreApi {
@@ -231,6 +253,16 @@ export interface CoreApi {
     archive(sessionId: string): Promise<CoreSessionRecord | null>;
     restore(sessionId: string): Promise<CoreSessionRecord | null>;
     listReferences(sessionId: string, query?: string): Promise<CoreSessionReferenceRecord[]>;
+  };
+  missions: {
+    list(input?: { status?: Mission["status"]; repoId?: string; sessionId?: string }): Promise<CoreMissionRecord[]>;
+    listSummaries(input?: { status?: Mission["status"]; repoId?: string; sessionId?: string }): Promise<CoreMissionSummaryRecord[]>;
+    create(input: CoreMissionCreateInput): Promise<CoreMissionRecord>;
+    get(missionId: string): Promise<CoreMissionRecord | null>;
+    listWorkstreams(missionId: string): Promise<CoreMissionWorkstreamRecord[]>;
+    listCheckpoints(missionId: string): Promise<CoreMissionCheckpointRecord[]>;
+    resolveCheckpoint(checkpointId: string): Promise<CoreMissionCheckpointRecord | null>;
+    listHandoffs(missionId: string): Promise<CoreMissionHandoffRecord[]>;
   };
   memory: {
     list(input?: { repoId?: string | null; memoryType?: MemoryType; status?: MemoryEntry["status"] }): Promise<MemoryEntry[]>;
@@ -586,6 +618,26 @@ function toSessionRecord(record: Session): CoreSessionRecord {
     createdAt: record.createdAt,
     updatedAt: record.updatedAt
   };
+}
+
+function toMissionRecord(record: Mission): CoreMissionRecord {
+  return { ...record };
+}
+
+function toMissionSummaryRecord(record: MissionSummary): CoreMissionSummaryRecord {
+  return { ...record };
+}
+
+function toMissionWorkstreamRecord(record: MissionWorkstream): CoreMissionWorkstreamRecord {
+  return { ...record };
+}
+
+function toMissionCheckpointRecord(record: MissionCheckpoint): CoreMissionCheckpointRecord {
+  return { ...record };
+}
+
+function toMissionHandoffRecord(record: MissionHandoff): CoreMissionHandoffRecord {
+  return { ...record };
 }
 
 function toCoreRepoContextSnapshot(snapshot: RepositoryContextSnapshot): CoreRepoContextSnapshot {
@@ -1002,6 +1054,12 @@ export async function createCore(options: CreateCoreOptions = {}): Promise<CoreA
       .sort((a, b) => Date.parse(b.lastTouchedAt) - Date.parse(a.lastTouchedAt))[0]?.name ?? null;
   };
 
+  const resolveActivePartnerId = (): string | null => {
+    return database.identity.getActive()?.id ?? null;
+  };
+
+  const resolveMissionSummary = (goal: string): string => summarizeContent(goal);
+
   const resolveActiveBackend = (): BackendName => {
     if (availableBackends.has("codex")) {
       return "codex";
@@ -1184,6 +1242,80 @@ export async function createCore(options: CreateCoreOptions = {}): Promise<CoreA
       },
       async listReferences(sessionId, query) {
         return database.sessions.listReferenceSnippets(sessionId, query);
+      }
+    },
+    missions: {
+      async list(input) {
+        return database.missions.list({
+          ...(input?.status ? { status: input.status } : {}),
+          ...(input?.repoId ? { repoId: input.repoId } : {}),
+          ...(input?.sessionId ? { sessionId: input.sessionId } : {})
+        }).map(toMissionRecord);
+      },
+      async listSummaries(input) {
+        return database.missions.listSummaries({
+          ...(input?.status ? { status: input.status } : {}),
+          ...(input?.repoId ? { repoId: input.repoId } : {}),
+          ...(input?.sessionId ? { sessionId: input.sessionId } : {})
+        }).map(toMissionSummaryRecord);
+      },
+      async create(input) {
+        const repository =
+          (input.repoId ? database.repositories.getById(input.repoId) : null) ??
+          database.repositories.getById(defaultRepo.id) ??
+          defaultRepo;
+
+        let sessionId = input.sessionId ?? null;
+        if (!sessionId) {
+          const repositoryContextSnapshot = database.repositories.getContextSnapshot(repository.id);
+          const preferredBackend =
+            repositoryContextSnapshot.preferredBackend && availableBackends.has(repositoryContextSnapshot.preferredBackend)
+              ? repositoryContextSnapshot.preferredBackend
+              : availableBackends.has(repository.defaultBackend)
+                ? repository.defaultBackend
+                : resolveActiveBackend();
+
+          const createdSession = database.sessions.create({
+            userId: DEFAULT_ADMIN_ID,
+            repoId: repository.id,
+            title: input.title,
+            backend: preferredBackend,
+            mode: "ask",
+            status: "active"
+          });
+          sessionId = createdSession.id;
+        }
+
+        const created = database.missions.create({
+          sessionId,
+          workspaceId: input.workspaceId ?? null,
+          repoId: repository.id,
+          title: input.title,
+          goal: input.goal,
+          summary: resolveMissionSummary(input.goal),
+          status: "active",
+          phase: "align",
+          ownerPartnerId: input.ownerPartnerId ?? resolveActivePartnerId(),
+          createdByUserId: DEFAULT_ADMIN_ID
+        });
+        return toMissionRecord(created);
+      },
+      async get(missionId) {
+        const mission = database.missions.getById(missionId);
+        return mission ? toMissionRecord(mission) : null;
+      },
+      async listWorkstreams(missionId) {
+        return database.missions.listWorkstreams(missionId).map(toMissionWorkstreamRecord);
+      },
+      async listCheckpoints(missionId) {
+        return database.missions.listCheckpoints(missionId).map(toMissionCheckpointRecord);
+      },
+      async resolveCheckpoint(checkpointId) {
+        const item = database.missions.resolveCheckpoint(checkpointId);
+        return item ? toMissionCheckpointRecord(item) : null;
+      },
+      async listHandoffs(missionId) {
+        return database.missions.listHandoffs(missionId).map(toMissionHandoffRecord);
       }
     },
     knowledge: {
@@ -1518,6 +1650,9 @@ ${assistantContent}`);
         };
       },
       async run(request) {
+        const mission =
+          (request.missionId ? database.missions.getById(request.missionId) : null) ??
+          database.missions.getBySessionId(request.sessionId);
         const sessionId = request.sessionId?.trim();
         if (!sessionId) {
           throw new Error("sessionId 必填");
@@ -1544,6 +1679,7 @@ ${assistantContent}`);
           id: runId,
           teamId: request.teamId ?? runId,
           sessionId,
+          ...(mission ? { missionId: mission.id } : {}),
           teamName: request.teamName,
           status: "running",
           memberCount: request.members.length,
@@ -1600,6 +1736,43 @@ ${assistantContent}`);
               };
             });
 
+            const workstreamIdsByMemberId = new Map<string, string>();
+            if (mission) {
+              const createdWorkstreams = members.map((member, index) => {
+                const memberId = member.memberId?.trim() || `member-${index + 1}`;
+                const existing = database.missions
+                  .listWorkstreams(mission.id)
+                  .find((item) => item.assigneePartnerId === member.agent.name && item.title === member.taskTitle);
+                const workstream = database.missions.upsertWorkstream({
+                  id: existing?.id,
+                  missionId: mission.id,
+                  teamRunId: runId,
+                  title: member.taskTitle,
+                  description: member.prompt,
+                  assigneePartnerId: member.agent.name,
+                  status: "running",
+                  orderIndex: index,
+                  dependsOnWorkstreamIds: [],
+                  startedAt: nowIso()
+                });
+                workstreamIdsByMemberId.set(memberId, workstream.id);
+                return { member, memberId, workstream };
+              });
+              createdWorkstreams.forEach(({ member, workstream }) => {
+                const dependsOnWorkstreamIds = (member.dependsOn ?? [])
+                  .map((dependency) => workstreamIdsByMemberId.get(dependency))
+                  .filter((value): value is string => Boolean(value));
+                database.missions.updateWorkstream(workstream.id, {
+                  dependsOnWorkstreamIds
+                });
+              });
+              database.missions.update(mission.id, {
+                phase: "execute",
+                status: "active",
+                sessionId
+              });
+            }
+
             const result = await teamManager.run({
               teamId: runningRecord.teamId,
               teamName: request.teamName,
@@ -1630,6 +1803,38 @@ ${assistantContent}`);
               }))
             };
             teamRuns.set(runId, finishedRecord);
+            if (mission) {
+              for (const item of result.members) {
+                const workstreamId = workstreamIdsByMemberId.get(item.memberId);
+                if (!workstreamId) {
+                  continue;
+                }
+                database.missions.updateWorkstream(workstreamId, {
+                  status: item.status === "done" ? "completed" : "failed",
+                  outputSummary: item.result?.output ? summarizeContent(item.result.output) : item.error ?? null,
+                  endedAt: item.updatedAt
+                });
+                if (item.status === "error") {
+                  database.missions.createCheckpoint({
+                    missionId: mission.id,
+                    workstreamId,
+                    type: "review",
+                    title: `Workstream 失败：${item.agentName}`,
+                    summary: item.error ?? "该同事执行失败，需要检查 backend、prompt 或分工。",
+                    requiresUserAction: true,
+                    createdByPartnerId: item.agentName
+                  });
+                }
+              }
+              database.missions.update(mission.id, {
+                phase: result.status === "done" ? "review" : "execute",
+                status: result.status === "done" ? "awaiting_user" : "blocked",
+                summary:
+                  result.status === "done"
+                    ? `${result.members.filter((item) => item.status === "done").length}/${result.members.length} 个 workstream 已完成，等待确认`
+                    : `${result.members.filter((item) => item.status === "done").length}/${result.members.length} 个 workstream 完成，存在失败成员`
+              });
+            }
             database.runs.updateTeamRun(runId, {
               status: result.status,
               memberCount: result.members.length
@@ -1644,6 +1849,21 @@ ${assistantContent}`);
               summary: error instanceof Error ? error.message : String(error)
             };
             teamRuns.set(runId, failedRecord);
+            if (mission) {
+              database.missions.update(mission.id, {
+                status: "failed",
+                phase: "execute",
+                summary: failedRecord.summary
+              });
+              database.missions.createCheckpoint({
+                missionId: mission.id,
+                type: "conflict",
+                title: `Team Run 失败：${request.teamName}`,
+                summary: failedRecord.summary ?? "Team Run 执行失败",
+                requiresUserAction: true,
+                createdByPartnerId: null
+              });
+            }
             database.runs.updateTeamRun(runId, {
               status: "error"
             });

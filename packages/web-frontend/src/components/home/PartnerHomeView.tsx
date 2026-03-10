@@ -1,4 +1,4 @@
-import type { ContinueWorkCandidate, PartnerSummaryRecord, SessionInfo } from '../../types/domain';
+import type { ContinueWorkCandidate, MissionSummaryRecord, PartnerSummaryRecord, SessionInfo } from '../../types/domain';
 
 interface PartnerHomeQuickAction {
   id: string;
@@ -17,6 +17,7 @@ interface PartnerHomeViewProps {
   partnerName: string;
   loading: boolean;
   recentSessions: SessionInfo[];
+  activeMissions?: MissionSummaryRecord[];
   continueCandidate?: ContinueWorkCandidate | null;
   summaryCard?: PartnerHomeSummaryCard;
   quickActions: PartnerHomeQuickAction[];
@@ -43,6 +44,7 @@ export function PartnerHomeView({
   partnerName,
   loading,
   recentSessions,
+  activeMissions = [],
   continueCandidate = null,
   summaryCard,
   quickActions,
@@ -163,6 +165,27 @@ export function PartnerHomeView({
         </section>
 
       </div>
+
+      <section className='partner-home-section' aria-labelledby='partner-home-missions-title'>
+        <div className='partner-home-section-head'>
+          <h3 id='partner-home-missions-title'>进行中的任务</h3>
+          <span className='partner-home-section-meta'>{activeMissions.length} 条 Mission</span>
+        </div>
+        {activeMissions.length === 0 ? (
+          <p className='small-text'>当前还没有结构化 Mission，先从继续工作或快速操作开始。</p>
+        ) : (
+          <div className='partner-home-action-grid'>
+            {activeMissions.slice(0, 3).map((mission) => (
+              <article key={mission.id} className='partner-home-action-card' data-testid={`partner-home-mission-${mission.id}`}>
+                <span className='partner-home-action-label'>{mission.title}</span>
+                <span className='partner-home-action-description'>
+                  阶段 {mission.phase} · {mission.workstreamCompleted}/{mission.workstreamTotal} 已完成 · 阻塞 {mission.blockedCount} · 待确认 {mission.openCheckpointCount}
+                </span>
+              </article>
+            ))}
+          </div>
+        )}
+      </section>
 
       <section className='partner-home-section' aria-labelledby='partner-home-actions-title'>
         <div className='partner-home-section-head'>

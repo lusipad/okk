@@ -648,6 +648,78 @@ export class HttpWsIOProvider implements IOProvider {
     return payload.item;
   }
 
+  async listMissions(input?: { status?: import('../types/domain').MissionRecord["status"]; repoId?: string; sessionId?: string }) {
+    const params = new URLSearchParams();
+    if (input?.status) {
+      params.set('status', input.status);
+    }
+    if (input?.repoId) {
+      params.set('repoId', input.repoId);
+    }
+    if (input?.sessionId) {
+      params.set('sessionId', input.sessionId);
+    }
+    const suffix = params.size > 0 ? `?${params.toString()}` : '';
+    const payload = await this.http.get<{ items: import('../types/domain').MissionRecord[] }>(`/api/missions${suffix}`);
+    return payload.items;
+  }
+
+  async listMissionSummaries(input?: { status?: import('../types/domain').MissionRecord["status"]; repoId?: string; sessionId?: string }) {
+    const params = new URLSearchParams();
+    params.set('summaries', 'true');
+    if (input?.status) {
+      params.set('status', input.status);
+    }
+    if (input?.repoId) {
+      params.set('repoId', input.repoId);
+    }
+    if (input?.sessionId) {
+      params.set('sessionId', input.sessionId);
+    }
+    const payload = await this.http.get<{ items: import('../types/domain').MissionSummaryRecord[] }>(`/api/missions?${params.toString()}`);
+    return payload.items;
+  }
+
+  async createMission(input: { title: string; goal: string; repoId?: string | null; sessionId?: string | null; workspaceId?: string | null; ownerPartnerId?: string | null }) {
+    const payload = await this.http.post<{ item: import('../types/domain').MissionRecord }>('/api/missions', input);
+    return payload.item;
+  }
+
+  async getMission(missionId: string) {
+    try {
+      const payload = await this.http.get<{ item: import('../types/domain').MissionRecord }>(`/api/missions/${encodeURIComponent(missionId)}`);
+      return payload.item;
+    } catch (error) {
+      if (error instanceof Error && error.message.includes('404')) {
+        return null;
+      }
+      throw error;
+    }
+  }
+
+  async listMissionWorkstreams(missionId: string) {
+    const payload = await this.http.get<{ items: import('../types/domain').MissionWorkstreamRecord[] }>(`/api/missions/${encodeURIComponent(missionId)}/workstreams`);
+    return payload.items;
+  }
+
+  async listMissionCheckpoints(missionId: string) {
+    const payload = await this.http.get<{ items: import('../types/domain').MissionCheckpointRecord[] }>(`/api/missions/${encodeURIComponent(missionId)}/checkpoints`);
+    return payload.items;
+  }
+
+  async resolveMissionCheckpoint(missionId: string, checkpointId: string) {
+    const payload = await this.http.post<{ item: import('../types/domain').MissionCheckpointRecord }>(
+      `/api/missions/${encodeURIComponent(missionId)}/checkpoints/${encodeURIComponent(checkpointId)}/resolve`,
+      {}
+    );
+    return payload.item;
+  }
+
+  async listMissionHandoffs(missionId: string) {
+    const payload = await this.http.get<{ items: import('../types/domain').MissionHandoffRecord[] }>(`/api/missions/${encodeURIComponent(missionId)}/handoffs`);
+    return payload.items;
+  }
+
   async listWorkspaces() {
     const payload = await this.http.get<{ items: import('../types/domain').WorkspaceRecord[] }>('/api/workspaces');
     return payload.items;

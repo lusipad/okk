@@ -6,6 +6,10 @@ import type {
   CollaborationRunStatus,
   CollaborationSourceType,
   KnowledgeSuggestion,
+  MissionCheckpointRecord,
+  MissionHandoffRecord,
+  MissionSummaryRecord,
+  MissionWorkstreamRecord,
   TeamMemberEvent,
   TeamPanelState
 } from '../../types/domain';
@@ -151,6 +155,10 @@ interface RightSidebarProps {
   teamView: TeamPanelState;
   teamRun?: TeamRunRecord | null;
   teamRuns?: TeamRunRecord[];
+  missionSummary?: MissionSummaryRecord | null;
+  missionWorkstreams?: MissionWorkstreamRecord[];
+  missionCheckpoints?: MissionCheckpointRecord[];
+  missionHandoffs?: MissionHandoffRecord[];
   runtimeBackends?: RuntimeBackendHealth[];
   teamRunPending?: boolean;
   teamRunError?: string | null;
@@ -168,6 +176,10 @@ export function RightSidebar({
   teamView,
   teamRun = null,
   teamRuns = [],
+  missionSummary = null,
+  missionWorkstreams = [],
+  missionCheckpoints = [],
+  missionHandoffs = [],
   runtimeBackends = [],
   teamRunPending = false,
   teamRunError = null,
@@ -214,6 +226,7 @@ export function RightSidebar({
   const nodeDragMovedRef = useRef(false);
   const backendReadyCount = runtimeBackends.filter((item) => item.available).length;
   const latestRuns = teamRuns.slice(0, 4);
+  const openMissionCheckpoints = missionCheckpoints.filter((item) => item.status === 'open');
   const graphBaseWidth = 460;
   const graphPreferenceKey = useMemo(
     () => `okk.graph.preferences.${teamView.teamName ?? 'default'}`,
@@ -936,6 +949,61 @@ export function RightSidebar({
                 </div>
               )}
             </article>
+          )}
+
+          {missionSummary && (
+            <>
+              <div className='panel-header panel-header-tight'>
+                <h3>Mission Room</h3>
+                <span className='small-text'>{missionSummary.phase}</span>
+              </div>
+              <article className='team-item'>
+                <div className='team-item-header'>
+                  <span>{missionSummary.title}</span>
+                  <span className={`pill ${missionSummary.status === 'completed' ? 'pill-success' : missionSummary.status === 'blocked' || missionSummary.status === 'failed' ? 'pill-error' : 'pill-running'}`}>
+                    {missionSummary.status}
+                  </span>
+                </div>
+                <p className='small-text'>
+                  {missionSummary.workstreamCompleted}/{missionSummary.workstreamTotal} workstreams · 阻塞 {missionSummary.blockedCount} · 待确认 {missionSummary.openCheckpointCount}
+                </p>
+                {missionWorkstreams.length > 0 && (
+                  <ul className='team-list'>
+                    {missionWorkstreams.slice(0, 4).map((item) => (
+                      <li key={item.id} className='team-item'>
+                        <div className='team-item-header'>
+                          <span>{item.title}</span>
+                          <span className={`pill ${item.status === 'completed' ? 'pill-success' : item.status === 'blocked' || item.status === 'failed' ? 'pill-error' : 'pill-running'}`}>
+                            {item.status}
+                          </span>
+                        </div>
+                        <p className='small-text'>{item.assigneePartnerId}</p>
+                        {item.outputSummary && <p className='small-text'>{item.outputSummary}</p>}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {openMissionCheckpoints.length > 0 && (
+                  <div className='space-top'>
+                    <p className='small-text'>待确认</p>
+                    <ul className='team-list'>
+                      {openMissionCheckpoints.slice(0, 3).map((item) => (
+                        <li key={item.id} className='team-item'>
+                          <div className='team-item-header'>
+                            <span>{item.title}</span>
+                            <span className='pill pill-error'>open</span>
+                          </div>
+                          <p className='small-text'>{item.summary}</p>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {missionHandoffs.length > 0 && (
+                  <p className='small-text'>最近交接 {missionHandoffs.length} 条</p>
+                )}
+              </article>
+            </>
           )}
 
           <div className='panel-header panel-header-tight'>

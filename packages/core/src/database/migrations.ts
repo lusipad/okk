@@ -429,6 +429,94 @@ const ensureMemorySharingSchema = (db: SqliteConnection): void => {
   `);
 };
 
+const ensureMissionOrchestrationSchema = (db: SqliteConnection): void => {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS missions (
+      id TEXT PRIMARY KEY,
+      session_id TEXT,
+      workspace_id TEXT,
+      repo_id TEXT,
+      title TEXT NOT NULL,
+      goal TEXT NOT NULL DEFAULT '',
+      summary TEXT NOT NULL DEFAULT '',
+      mission_status TEXT NOT NULL DEFAULT 'draft',
+      mission_phase TEXT NOT NULL DEFAULT 'align',
+      owner_partner_id TEXT,
+      created_by_user_id TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      FOREIGN KEY (session_id) REFERENCES sessions(id),
+      FOREIGN KEY (repo_id) REFERENCES repositories(id),
+      FOREIGN KEY (workspace_id) REFERENCES workspaces(id),
+      FOREIGN KEY (created_by_user_id) REFERENCES users(id)
+    );
+  `);
+  db.exec("CREATE INDEX IF NOT EXISTS idx_missions_status_updated ON missions(mission_status, updated_at DESC);");
+  db.exec("CREATE INDEX IF NOT EXISTS idx_missions_repo_updated ON missions(repo_id, updated_at DESC);");
+  db.exec("CREATE INDEX IF NOT EXISTS idx_missions_session ON missions(session_id);");
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS mission_workstreams (
+      id TEXT PRIMARY KEY,
+      mission_id TEXT NOT NULL,
+      team_run_id TEXT,
+      title TEXT NOT NULL,
+      description TEXT,
+      assignee_partner_id TEXT NOT NULL,
+      workstream_status TEXT NOT NULL DEFAULT 'queued',
+      order_index INTEGER NOT NULL DEFAULT 0,
+      depends_on_workstream_ids_json TEXT NOT NULL DEFAULT '[]',
+      output_summary TEXT,
+      started_at TEXT,
+      ended_at TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      FOREIGN KEY (mission_id) REFERENCES missions(id),
+      FOREIGN KEY (team_run_id) REFERENCES team_runs(id)
+    );
+  `);
+  db.exec("CREATE INDEX IF NOT EXISTS idx_mission_workstreams_mission_order ON mission_workstreams(mission_id, order_index ASC, created_at ASC);");
+  db.exec("CREATE INDEX IF NOT EXISTS idx_mission_workstreams_status ON mission_workstreams(workstream_status, updated_at DESC);");
+  db.exec("CREATE INDEX IF NOT EXISTS idx_mission_workstreams_team_run ON mission_workstreams(team_run_id);");
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS mission_checkpoints (
+      id TEXT PRIMARY KEY,
+      mission_id TEXT NOT NULL,
+      workstream_id TEXT,
+      checkpoint_type TEXT NOT NULL,
+      title TEXT NOT NULL,
+      summary TEXT NOT NULL,
+      checkpoint_status TEXT NOT NULL DEFAULT 'open',
+      requires_user_action INTEGER NOT NULL DEFAULT 1,
+      created_by_partner_id TEXT,
+      resolved_at TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      FOREIGN KEY (mission_id) REFERENCES missions(id),
+      FOREIGN KEY (workstream_id) REFERENCES mission_workstreams(id)
+    );
+  `);
+  db.exec("CREATE INDEX IF NOT EXISTS idx_mission_checkpoints_mission_status ON mission_checkpoints(mission_id, checkpoint_status, updated_at DESC);");
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS mission_handoffs (
+      id TEXT PRIMARY KEY,
+      mission_id TEXT NOT NULL,
+      from_workstream_id TEXT NOT NULL,
+      to_partner_id TEXT NOT NULL,
+      reason TEXT NOT NULL,
+      payload_summary TEXT,
+      handoff_status TEXT NOT NULL DEFAULT 'pending',
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      FOREIGN KEY (mission_id) REFERENCES missions(id),
+      FOREIGN KEY (from_workstream_id) REFERENCES mission_workstreams(id)
+    );
+  `);
+  db.exec("CREATE INDEX IF NOT EXISTS idx_mission_handoffs_mission_status ON mission_handoffs(mission_id, handoff_status, updated_at DESC);");
+};
+
 const migrations: Migration[] = [
   {
     version: 1,
@@ -501,6 +589,12 @@ const migrations: Migration[] = [
     version: 12,
     run: (db) => {
       ensureMemorySharingSchema(db);
+    }
+  },
+  {
+    version: 13,
+    run: (db) => {
+      ensureMissionOrchestrationSchema(db);
     }
   }
 ];

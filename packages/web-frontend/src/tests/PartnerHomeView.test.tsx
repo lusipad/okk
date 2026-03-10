@@ -55,6 +55,24 @@ describe('PartnerHomeView', () => {
             activeRepoName: 'okk'
           }
         }}
+        activeMissions={[
+          {
+            id: 'mission-1',
+            title: '统一 Figma 页面拆分',
+            goal: '统一页面结构',
+            status: 'active',
+            phase: 'execute',
+            repoId: 'repo-1',
+            sessionId: 'session-1',
+            ownerPartnerId: 'identity-1',
+            partnerCount: 3,
+            workstreamTotal: 5,
+            workstreamCompleted: 3,
+            blockedCount: 1,
+            openCheckpointCount: 2,
+            updatedAt: '2026-03-01T09:10:00.000Z'
+          }
+        ]}
         quickActions={[
           {
             id: 'next-step',
@@ -75,6 +93,7 @@ describe('PartnerHomeView', () => {
     expect(screen.getByText('测试优先')).toBeInTheDocument();
     expect(screen.getByTestId('partner-home-continue-card')).toBeInTheDocument();
     expect(screen.getByText('梳理下一步')).toBeInTheDocument();
+    expect(screen.getByText('统一 Figma 页面拆分')).toBeInTheDocument();
 
     await user.click(screen.getByTestId('partner-home-session-session-1'));
     await user.click(screen.getByTestId('partner-home-continue-button'));

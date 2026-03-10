@@ -34,4 +34,15 @@ export { KnowledgeGovernanceDao, type UpsertKnowledgeGovernanceInput } from './k
 export { KnowledgeImportsDao, type CreateKnowledgeImportBatchInput, type CreateKnowledgeImportItemInput } from './knowledge-imports-dao.js';
 export { SkillWorkflowsDao, type CreateWorkflowInput } from './skill-workflows-dao.js';
 export { MemorySharingDao, type UpsertMemoryShareInput } from './memory-sharing-dao.js';
+export {
+  MissionsDao,
+  type CreateMissionInput,
+  type UpdateMissionInput,
+  type ListMissionsInput,
+  type UpsertMissionWorkstreamInput,
+  type UpdateMissionWorkstreamInput,
+  type CreateMissionCheckpointInput,
+  type UpdateMissionCheckpointInput,
+  type CreateMissionHandoffInput
+} from './missions-dao.js';
 

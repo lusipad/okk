@@ -21,6 +21,11 @@ import type {
   MemoryStatus,
   MemoryType,
   PartnerSummaryRecord,
+  MissionRecord,
+  MissionSummaryRecord,
+  MissionWorkstreamRecord,
+  MissionCheckpointRecord,
+  MissionHandoffRecord,
   SessionInfo,
   SessionReferenceRecord,
   SkillInfo,
@@ -288,6 +293,14 @@ export interface IOProvider {
   updateRepoContext(repoId: string, input: Partial<RepoContextRecord['snapshot']>): Promise<RepoContextRecord>;
   continueRepoContext(repoId: string): Promise<RepoContinueRecord>;
   getPartnerSummary(): Promise<PartnerSummaryRecord>;
+  listMissions(input?: { status?: MissionRecord["status"]; repoId?: string; sessionId?: string }): Promise<MissionRecord[]>;
+  listMissionSummaries(input?: { status?: MissionRecord["status"]; repoId?: string; sessionId?: string }): Promise<MissionSummaryRecord[]>;
+  createMission(input: { title: string; goal: string; repoId?: string | null; sessionId?: string | null; workspaceId?: string | null; ownerPartnerId?: string | null }): Promise<MissionRecord>;
+  getMission(missionId: string): Promise<MissionRecord | null>;
+  listMissionWorkstreams(missionId: string): Promise<MissionWorkstreamRecord[]>;
+  listMissionCheckpoints(missionId: string): Promise<MissionCheckpointRecord[]>;
+  resolveMissionCheckpoint(missionId: string, checkpointId: string): Promise<MissionCheckpointRecord>;
+  listMissionHandoffs(missionId: string): Promise<MissionHandoffRecord[]>;
   listRuntimeBackends(): Promise<RuntimeBackendHealth[]>;
   askQuestion(input: AskQuestionInput): Promise<void>;
   retryQuestion(input: RetryQuestionInput): Promise<void>;

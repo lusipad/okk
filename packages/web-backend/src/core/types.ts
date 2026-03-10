@@ -1,9 +1,25 @@
 import type { TeamEvent } from "../types/contracts.js";
-import type { CoreApi, CreateCoreOptions, MemoryEntry as CoreMemoryEntry, MemoryStatus as CoreMemoryStatus, MemoryType as CoreMemoryType } from "@okk/core";
+import type {
+  CoreApi,
+  CreateCoreOptions,
+  MemoryEntry as CoreMemoryEntry,
+  MemoryStatus as CoreMemoryStatus,
+  MemoryType as CoreMemoryType,
+  Mission as CoreMission,
+  MissionSummary as CoreMissionSummary,
+  MissionWorkstream as CoreMissionWorkstream,
+  MissionCheckpoint as CoreMissionCheckpoint,
+  MissionHandoff as CoreMissionHandoff
+} from "@okk/core";
 
 export type MemoryEntry = CoreMemoryEntry;
 export type MemoryStatus = CoreMemoryStatus;
 export type MemoryType = CoreMemoryType;
+export type MissionRecord = CoreMission;
+export type MissionSummaryRecord = CoreMissionSummary;
+export type MissionWorkstreamRecord = CoreMissionWorkstream;
+export type MissionCheckpointRecord = CoreMissionCheckpoint;
+export type MissionHandoffRecord = CoreMissionHandoff;
 export interface AuthUser {
   id: string;
   username: string;
@@ -150,6 +166,7 @@ export interface TeamRunMemberInput {
 
 export interface TeamRunRequest {
   teamId?: string;
+  missionId?: string;
   sessionId: string;
   teamName: string;
   members: TeamRunMemberInput[];
@@ -223,6 +240,16 @@ export interface OkkCore {
     archive(sessionId: string): Promise<SessionRecord | null>;
     restore(sessionId: string): Promise<SessionRecord | null>;
     listReferences(sessionId: string, query?: string): Promise<SessionReferenceRecord[]>;
+  };
+  missions: {
+    list(input?: { status?: MissionRecord["status"]; repoId?: string; sessionId?: string }): Promise<MissionRecord[]>;
+    listSummaries(input?: { status?: MissionRecord["status"]; repoId?: string; sessionId?: string }): Promise<MissionSummaryRecord[]>;
+    create(input: { title: string; goal: string; repoId?: string | null; sessionId?: string | null; workspaceId?: string | null; ownerPartnerId?: string | null }): Promise<MissionRecord>;
+    get(missionId: string): Promise<MissionRecord | null>;
+    listWorkstreams(missionId: string): Promise<MissionWorkstreamRecord[]>;
+    listCheckpoints(missionId: string): Promise<MissionCheckpointRecord[]>;
+    resolveCheckpoint(checkpointId: string): Promise<MissionCheckpointRecord | null>;
+    listHandoffs(missionId: string): Promise<MissionHandoffRecord[]>;
   };
   knowledge: {
     list(): Promise<KnowledgeRecord[]>;

@@ -7,6 +7,7 @@ import {
   KnowledgeImportsDao,
   KnowledgeDao,
   MemorySharingDao,
+  MissionsDao,
   MessagesDao,
   MemoryDao,
   RepositoriesDao,
@@ -39,6 +40,7 @@ export class SqliteDatabase {
   readonly memorySharing: MemorySharingDao;
   readonly memory: MemoryDao;
   readonly knowledge: KnowledgeDao;
+  readonly missions: MissionsDao;
   readonly runs: RunsDao;
   readonly installedSkills: InstalledSkillsDao;
 
@@ -60,6 +62,7 @@ export class SqliteDatabase {
     this.memorySharing = new MemorySharingDao(this.connection);
     this.memory = new MemoryDao(this.connection);
     this.knowledge = new KnowledgeDao(this.connection);
+    this.missions = new MissionsDao(this.connection);
     this.runs = new RunsDao(this.connection);
     this.installedSkills = new InstalledSkillsDao(this.connection);
   }

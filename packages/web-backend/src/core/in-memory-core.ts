@@ -2,6 +2,11 @@ import { randomUUID } from "node:crypto";
 import type {
   AgentRecord,
   KnowledgeRecord,
+  MissionCheckpointRecord,
+  MissionHandoffRecord,
+  MissionRecord,
+  MissionSummaryRecord,
+  MissionWorkstreamRecord,
   OkkCore,
   QaRequest,
   RepoActivityRecord,
@@ -52,6 +57,10 @@ export function createInMemoryCore(): OkkCore {
   const teamCounters = new Map<string, number>();
   const sessionAbortFlags = new Map<string, { aborted: boolean }>();
   const teamRuns = new Map<string, TeamRunRecord>();
+  const missions: MissionRecord[] = [];
+  const missionWorkstreams = new Map<string, MissionWorkstreamRecord[]>();
+  const missionCheckpoints = new Map<string, MissionCheckpointRecord[]>();
+  const missionHandoffs = new Map<string, MissionHandoffRecord[]>();
 
   const nextTeamEventId = (teamId: string) => {
     const current = teamCounters.get(teamId) ?? 0;
@@ -254,6 +263,82 @@ export function createInMemoryCore(): OkkCore {
       async listReferences() {
         return [];
       },
+    },
+    missions: {
+      async list(input) {
+        return missions.filter((item) => {
+          if (input?.status && item.status !== input.status) return false;
+          if (input?.repoId && item.repoId !== input.repoId) return false;
+          if (input?.sessionId && item.sessionId !== input.sessionId) return false;
+          return true;
+        });
+      },
+      async listSummaries(input) {
+        const items = await this.list(input);
+        return items.map<MissionSummaryRecord>((item) => {
+          const workstreams = missionWorkstreams.get(item.id) ?? [];
+          const checkpoints = missionCheckpoints.get(item.id) ?? [];
+          return {
+            id: item.id,
+            title: item.title,
+            goal: item.goal,
+            status: item.status,
+            phase: item.phase,
+            repoId: item.repoId,
+            sessionId: item.sessionId,
+            ownerPartnerId: item.ownerPartnerId,
+            partnerCount: new Set(workstreams.map((entry) => entry.assigneePartnerId)).size,
+            workstreamTotal: workstreams.length,
+            workstreamCompleted: workstreams.filter((entry) => entry.status === 'completed').length,
+            blockedCount: workstreams.filter((entry) => entry.status === 'blocked' || entry.status === 'failed').length,
+            openCheckpointCount: checkpoints.filter((entry) => entry.status === 'open' && entry.requiresUserAction).length,
+            updatedAt: item.updatedAt
+          };
+        });
+      },
+      async create(input) {
+        const timestamp = now();
+        const mission: MissionRecord = {
+          id: randomUUID(),
+          sessionId: input.sessionId ?? null,
+          workspaceId: input.workspaceId ?? null,
+          repoId: input.repoId ?? null,
+          title: input.title,
+          goal: input.goal,
+          summary: input.goal,
+          status: 'active',
+          phase: 'align',
+          ownerPartnerId: input.ownerPartnerId ?? null,
+          createdByUserId: 'u-admin',
+          createdAt: timestamp,
+          updatedAt: timestamp
+        };
+        missions.unshift(mission);
+        return mission;
+      },
+      async get(missionId) {
+        return missions.find((item) => item.id === missionId) ?? null;
+      },
+      async listWorkstreams(missionId) {
+        return missionWorkstreams.get(missionId) ?? [];
+      },
+      async listCheckpoints(missionId) {
+        return missionCheckpoints.get(missionId) ?? [];
+      },
+      async resolveCheckpoint(checkpointId) {
+        for (const [missionId, items] of missionCheckpoints.entries()) {
+          const index = items.findIndex((item) => item.id === checkpointId);
+          if (index >= 0) {
+            items[index] = { ...items[index], status: 'resolved', resolvedAt: now(), updatedAt: now() };
+            missionCheckpoints.set(missionId, items);
+            return items[index];
+          }
+        }
+        return null;
+      },
+      async listHandoffs(missionId) {
+        return missionHandoffs.get(missionId) ?? [];
+      }
     },
     knowledge: {
       async list() {
