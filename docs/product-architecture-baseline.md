@@ -168,6 +168,94 @@ Partner 的“灵魂内核”，用于定义长期稳定特征。
 - 驱动 Agent 拆解、执行、协作、验证与交付
 - 承载一次任务的 timeline、decision、artifact 和 result
 
+### 4.5.1 Mission 的协作模式
+
+Mission 在体验层至少支持两种协作模式：
+
+- `Direct Thread`：你与一个 Partner 的一对一协作模式，适合单人主导、上下文连续的小中型任务
+- `Mission Room`：你与多个 Partner 的团队协作模式，适合需要拆解、并行推进、审查与交接的复杂任务
+
+两者的差异不在于“聊天窗口数量”，而在于：
+
+- 是否存在多个并行执行单元
+- 是否存在结构化交接
+- 是否需要显式用户确认点
+
+### 4.5.2 Workstream
+
+Mission 下的并行子任务对象，回答“这项任务当前拆成了哪些可推进单元”。
+
+职责：
+
+- 将 Mission 拆分为多个可分配、可追踪、可并行的执行单元
+- 绑定负责人 Partner、状态、依赖与产出
+- 作为团队整体进度的最小统计单位
+
+最小字段建议：
+
+- `id`
+- `mission_id`
+- `title`
+- `assignee_partner_id`
+- `status`
+- `depends_on_workstream_ids`
+- `started_at`
+- `ended_at`
+
+### 4.5.3 Checkpoint
+
+Mission 或 Workstream 上的用户确认点，回答“当前有哪些关键问题必须等用户拍板”。
+
+职责：
+
+- 阻止系统在关键方向上无确认自转
+- 将“等待确认”从聊天语义提升为结构化任务状态
+- 为首页与任务页提供 `awaiting_user` 视角
+
+最小字段建议：
+
+- `id`
+- `mission_id`
+- `workstream_id?`
+- `type`
+- `title`
+- `summary`
+- `status`
+- `requires_user_action`
+
+### 4.5.4 Handoff
+
+Partner 之间的结构化交接对象，回答“谁把什么交给了谁继续处理”。
+
+职责：
+
+- 显式表达设计、审查、实现、治理等跨角色协作
+- 让“合作”体现为任务交接，而不是混杂在普通消息流中的发言
+- 为任务时间线提供可审计的协作事件
+
+最小字段建议：
+
+- `id`
+- `mission_id`
+- `from_workstream_id`
+- `to_partner_id`
+- `reason`
+- `payload_summary`
+- `status`
+
+### 4.5.5 Mission Summary
+
+Mission 在首页与列表页的投影视图，回答“这个任务整体推进到哪里了”。
+
+建议至少包含：
+
+- `partner_count`
+- `workstream_total`
+- `workstream_completed`
+- `blocked_count`
+- `open_checkpoint_count`
+- `phase`
+
 ### 4.6 Team Run
 
 多 Agent 协作运行对象。
@@ -176,6 +264,7 @@ Partner 的“灵魂内核”，用于定义长期稳定特征。
 
 - 负责多 Agent 分工、依赖、时间线、图视图与状态流
 - 用于复杂任务的并行协作，而不是默认路径
+- 更适合作为 Mission Room 的一次运行实例，而不是产品层主对象本身
 
 ### 4.7 Memory
 
@@ -577,6 +666,28 @@ Partner 在授权下可：
 - Timeline
 - Team / Collaboration
 - Runtime / Diagnostics
+
+### 13.1.1 默认入口与协作视图
+
+默认入口不应是空白聊天页，而应是 `Partner Home`。
+
+`Partner Home` 至少回答：
+
+- 我有哪些可继续的任务
+- 哪些 Partner 在线
+- 哪些 Mission 正在推进
+- 哪些结果等待我确认
+
+主任务页不应只是“聊天页”，而应围绕 Mission 提供两种视图：
+
+- `Direct Thread`：单 Partner 协作，适合作为默认轻量主路径
+- `Mission Room`：多 Partner 协作，适合复杂任务的团队执行模式
+
+其中：
+
+- `私聊 / 群聊` 可以作为用户理解产品的隐喻
+- 但最终界面语义应收敛为 `Direct Thread / Mission Room`
+- 不能把产品做成社交 IM 风格的聊天工具
 
 ### 13.2 形象化交互
 

@@ -261,7 +261,12 @@ flowchart TB
 | 领域对象 | 含义 | 当前承载位置 |
 | --- | --- | --- |
 | User | 使用系统的用户 | SQLite / JWT |
+| Partner | 持续存在的赛博同事对象 | Core + Identity/Memory |
 | Repository | 代码仓库上下文 | SQLite |
+| Mission | 当前任务与交付目标 | SQLite + Frontend Store |
+| Workstream | Mission 下的并行子任务单元 | Core 内存 + SQLite（待收敛） |
+| Checkpoint | 等待用户确认的结构化节点 | Core / Frontend Store（待收敛） |
+| Handoff | Partner 间的结构化交接事件 | Core / Timeline（待收敛） |
 | Session | 一次对话工作流上下文 | SQLite + Frontend Store |
 | Message | 会话消息与工具元数据 | SQLite + Frontend Store |
 | Agent | 可选执行角色 | Core |
@@ -273,6 +278,9 @@ flowchart TB
 
 ### 6.2 领域边界
 
+- `Partner` 负责长期身份、协作风格与默认能力边界
+- `Mission` 负责定义用户当前真正要完成的任务
+- `Workstream / Handoff / Checkpoint` 负责多 Partner 协作中的拆解、交接与确认
 - `Session / Message` 负责用户工作上下文
 - `Agent / Team Run` 负责执行组织方式
 - `Skill / MCP` 负责能力来源
@@ -281,11 +289,16 @@ flowchart TB
 
 ### 6.3 领域规则
 
+- 一个 Mission 可以绑定一个 Direct Thread，也可以展开为多个 Workstream
+- 一个 Workstream 必须绑定一个负责人 Partner
+- 一个 Handoff 必须隶属于一个 Mission，并指向明确接收方
+- 一个 Checkpoint 必须能清楚表达“等待谁确认什么”
 - 一条消息必须隶属于一个会话
 - 一次 Team Run 必须隶属于一个会话
 - Skill 与 MCP 的启用是“本轮选择”，不应隐式污染全部会话
 - 知识建议来自对话或执行结果，但保存后独立成知识资产
 - Agent 是定义，Team Run 成员是实例
+- Session 是交互表面，不应替代 Mission 作为主任务对象
 
 ---
 
@@ -373,12 +386,15 @@ flowchart LR
 | 区域 | 内容 | 说明 |
 | --- | --- | --- |
 | 左栏 | 全局导航、搜索、会话列表、新建入口 | 面向“切换与定位” |
-| 中栏 | 聊天主舞台、消息流、输入区 | 面向“执行主任务” |
+| 中栏 | Partner Home / Direct Thread / Mission Room / 输入区 | 面向“进入与执行主任务” |
 | 右栏 | 协作、知识建议、运行诊断、任务图 | 面向“上下文与反馈” |
 | 全局层 | 命令面板、快捷键、主题、通知 | 面向“全局操作” |
 
 ### 8.2 交互原则
 
+- 默认入口应是 `Partner Home`，而不是空白聊天页。
+- `Direct Thread` 表示与单个 Partner 的一对一协作。
+- `Mission Room` 表示围绕一个 Mission 的多 Partner 协作视图。
 - 主流程只在中栏发生，避免噪音打断。
 - 复杂过程放在右栏或展开面板，不挤占主舞台。
 - 任意执行都必须可见：发送中、流式中、工具调用中、失败、重试、停止。
