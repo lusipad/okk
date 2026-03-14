@@ -1,4 +1,4 @@
-export const CURRENT_SCHEMA_VERSION = 14;
+export const CURRENT_SCHEMA_VERSION = 15;
 
 export const createBaseSchemaSql = `
 CREATE TABLE IF NOT EXISTS schema_migrations (

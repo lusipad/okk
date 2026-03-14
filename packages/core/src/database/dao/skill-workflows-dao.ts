@@ -1,4 +1,14 @@
-import type { SkillWorkflowNode, SkillWorkflowRecord, SkillWorkflowRun, SkillWorkflowRunStatus, SkillWorkflowRunStep, SkillWorkflowStatus } from "../../types.js";
+import type {
+  SkillWorkflowMetadata,
+  SkillWorkflowNode,
+  SkillWorkflowRecord,
+  SkillWorkflowRun,
+  SkillWorkflowRunMetadata,
+  SkillWorkflowRunStatus,
+  SkillWorkflowRunStep,
+  SkillWorkflowStatus
+} from "../../types.js";
+import { normalizeSkillWorkflowMetadata, normalizeSkillWorkflowRunMetadata } from "../../workflows/knowledge-publishing.js";
 import type { SqliteConnection } from "../sqlite-adapter.js";
 import { generateId, nowIso } from "../../utils/id.js";
 
@@ -8,6 +18,7 @@ interface WorkflowRow {
   description: string;
   status: SkillWorkflowStatus;
   nodes_json: string;
+  metadata_json: string;
   created_at: string;
   updated_at: string;
 }
@@ -20,6 +31,7 @@ interface WorkflowRunRow {
   input_json: string;
   output_json: string;
   steps_json: string;
+  metadata_json: string;
   started_at: string;
   updated_at: string;
   ended_at: string | null;
@@ -31,6 +43,7 @@ export interface CreateWorkflowInput {
   description?: string;
   status?: SkillWorkflowStatus;
   nodes: SkillWorkflowNode[];
+  metadata?: SkillWorkflowMetadata;
 }
 
 const parseObject = (value: string): Record<string, unknown> => {
@@ -66,6 +79,7 @@ const toWorkflow = (row: WorkflowRow): SkillWorkflowRecord => ({
   description: row.description,
   status: row.status,
   nodes: parseNodes(row.nodes_json),
+  metadata: normalizeSkillWorkflowMetadata(parseObject(row.metadata_json)),
   createdAt: row.created_at,
   updatedAt: row.updated_at
 });
@@ -78,6 +92,7 @@ const toRun = (row: WorkflowRunRow): SkillWorkflowRun => ({
   input: parseObject(row.input_json),
   output: parseObject(row.output_json),
   steps: parseSteps(row.steps_json),
+  metadata: normalizeSkillWorkflowRunMetadata(parseObject(row.metadata_json)),
   startedAt: row.started_at,
   updatedAt: row.updated_at,
   endedAt: row.ended_at
@@ -100,9 +115,18 @@ export class SkillWorkflowsDao {
     const id = input.id ?? generateId();
     const timestamp = nowIso();
     this.db.prepare(
-      `INSERT INTO skill_workflows(id, name, description, status, nodes_json, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`
-    ).run(id, input.name.trim(), input.description?.trim() ?? "", input.status ?? "draft", JSON.stringify(input.nodes), timestamp, timestamp);
+      `INSERT INTO skill_workflows(id, name, description, status, nodes_json, metadata_json, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+    ).run(
+      id,
+      input.name.trim(),
+      input.description?.trim() ?? "",
+      input.status ?? "draft",
+      JSON.stringify(input.nodes),
+      JSON.stringify(normalizeSkillWorkflowMetadata(input.metadata)),
+      timestamp,
+      timestamp
+    );
 
     const created = this.getById(id);
     if (!created) {
@@ -117,14 +141,15 @@ export class SkillWorkflowsDao {
       return null;
     }
     this.db.prepare(
-      `UPDATE skill_workflows
-       SET name = ?, description = ?, status = ?, nodes_json = ?, updated_at = ?
+       `UPDATE skill_workflows
+       SET name = ?, description = ?, status = ?, nodes_json = ?, metadata_json = ?, updated_at = ?
        WHERE id = ?`
     ).run(
       input.name?.trim() || current.name,
       input.description === undefined ? current.description : input.description,
       input.status ?? current.status,
       JSON.stringify(input.nodes ?? current.nodes),
+      JSON.stringify(input.metadata === undefined ? current.metadata : normalizeSkillWorkflowMetadata(input.metadata)),
       nowIso(),
       id
     );
@@ -148,13 +173,14 @@ export class SkillWorkflowsDao {
     input?: Record<string, unknown>;
     output?: Record<string, unknown>;
     steps?: SkillWorkflowRunStep[];
+    metadata?: SkillWorkflowRunMetadata;
   }): SkillWorkflowRun {
     const id = generateId();
     const timestamp = nowIso();
     this.db.prepare(
       `INSERT INTO skill_workflow_runs(
-         id, workflow_id, session_id, status, input_json, output_json, steps_json, started_at, updated_at, ended_at
-       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+         id, workflow_id, session_id, status, input_json, output_json, steps_json, metadata_json, started_at, updated_at, ended_at
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     ).run(
       id,
       input.workflowId,
@@ -163,6 +189,7 @@ export class SkillWorkflowsDao {
       JSON.stringify(input.input ?? {}),
       JSON.stringify(input.output ?? {}),
       JSON.stringify(input.steps ?? []),
+      JSON.stringify(normalizeSkillWorkflowRunMetadata(input.metadata)),
       timestamp,
       timestamp,
       input.status && input.status !== "running" ? timestamp : null
@@ -175,7 +202,7 @@ export class SkillWorkflowsDao {
     return created;
   }
 
-  updateRun(id: string, input: Partial<Pick<SkillWorkflowRun, "status" | "input" | "output" | "steps" | "endedAt">>): SkillWorkflowRun | null {
+  updateRun(id: string, input: Partial<Pick<SkillWorkflowRun, "status" | "input" | "output" | "steps" | "metadata" | "endedAt">>): SkillWorkflowRun | null {
     const current = this.getRunById(id);
     if (!current) {
       return null;
@@ -189,13 +216,14 @@ export class SkillWorkflowsDao {
 
     this.db.prepare(
       `UPDATE skill_workflow_runs
-       SET status = ?, input_json = ?, output_json = ?, steps_json = ?, updated_at = ?, ended_at = ?
+       SET status = ?, input_json = ?, output_json = ?, steps_json = ?, metadata_json = ?, updated_at = ?, ended_at = ?
        WHERE id = ?`
     ).run(
       input.status ?? current.status,
       JSON.stringify(input.input ?? current.input),
       JSON.stringify(input.output ?? current.output),
       JSON.stringify(input.steps ?? current.steps),
+      JSON.stringify(input.metadata === undefined ? current.metadata : normalizeSkillWorkflowRunMetadata(input.metadata, current.metadata.workflowName)),
       nowIso(),
       nextEndedAt,
       id

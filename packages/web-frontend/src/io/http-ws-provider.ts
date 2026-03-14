@@ -45,6 +45,8 @@ import type {
   RetryQuestionInput,
   SaveKnowledgeInput,
   SearchKnowledgeEntriesInput,
+  PublishWorkflowKnowledgeInput,
+  PublishWorkflowKnowledgeResult,
   SkillDetail,
   SkillDiagnosisResult,
   SkillFileInfo,
@@ -903,12 +905,12 @@ export class HttpWsIOProvider implements IOProvider {
     return payload.items;
   }
 
-  async createWorkflow(input: { name: string; description?: string; status?: 'draft' | 'active'; nodes: Array<Record<string, unknown>> }) {
+  async createWorkflow(input: { name: string; description?: string; status?: 'draft' | 'active'; nodes: Array<Record<string, unknown>>; metadata?: import('../types/domain').SkillWorkflowMetadata }) {
     const payload = await this.http.post<{ item: import('../types/domain').SkillWorkflowRecord }>('/api/workflows', input);
     return payload.item;
   }
 
-  async updateWorkflow(workflowId: string, input: Partial<{ name: string; description: string; status: 'draft' | 'active'; nodes: Array<Record<string, unknown>> }>) {
+  async updateWorkflow(workflowId: string, input: Partial<{ name: string; description: string; status: 'draft' | 'active'; nodes: Array<Record<string, unknown>>; metadata: import('../types/domain').SkillWorkflowMetadata }>) {
     const payload = await this.http.patch<{ item: import('../types/domain').SkillWorkflowRecord }>(`/api/workflows/${encodeURIComponent(workflowId)}`, input);
     return payload.item;
   }
@@ -935,6 +937,18 @@ export class HttpWsIOProvider implements IOProvider {
   async getWorkflowRun(runId: string) {
     const payload = await this.http.get<{ item?: import('../types/domain').SkillWorkflowRun | null }>(`/api/workflows/runs/${encodeURIComponent(runId)}`);
     return payload.item ?? null;
+  }
+
+  async getWorkflowKnowledgeDraft(runId: string, mode?: import('../types/domain').WorkflowKnowledgePublishMode) {
+    const suffix = mode ? `?mode=${encodeURIComponent(mode)}` : '';
+    const payload = await this.http.get<{ item: import('../types/domain').WorkflowKnowledgeDraft }>(
+      `/api/workflows/runs/${encodeURIComponent(runId)}/knowledge-draft${suffix}`
+    );
+    return payload.item;
+  }
+
+  async publishWorkflowKnowledge(runId: string, input: PublishWorkflowKnowledgeInput): Promise<PublishWorkflowKnowledgeResult> {
+    return this.http.post<PublishWorkflowKnowledgeResult>(`/api/workflows/runs/${encodeURIComponent(runId)}/publish-knowledge`, input);
   }
 
   async listMemoryShares() {

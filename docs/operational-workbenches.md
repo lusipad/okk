@@ -31,9 +31,12 @@
 
 - 入口：`/workflows`
 - 能力：模板库、工作流 CRUD、执行、失败重试、运行历史
+- 内置沉淀模板：代码审查沉淀、上下文整理沉淀、知识健康检查，模板会附带默认分类、标签和推荐保存模式
 - 节点类型：`prompt`、`skill`、`agent`、`condition`、`knowledge_ref`
 - `knowledge_ref` 节点支持两种输入方式：固定 `entryIds`，或基于 `query`、`repoId`、`category`、`tags`、`status`、`limit` 的筛选解析
 - 运行结果会在步骤详情中保留命中的知识条目、汇总摘要和输出键，便于回放时判断本次工作流实际消费了哪些知识
+- 已完成的工作流运行支持“保存为知识”：前端会先加载默认草稿，允许在摘要/完整结果两种模式间切换，并编辑标题、摘要、正文、分类、标签和 repoId 后再落库
+- 由工作流沉淀出的知识会在 `metadata.workflow` 中保留 `workflowId`、`runId`、`templateId`、`sourceStepIds` 和发布模式，后续可直接追溯来源
 - 运维建议：优先把代码规范、治理规则、常见排障手册沉淀为知识，再通过 `knowledge_ref` 复用到模板工作流；若节点校验失败，先检查 `outputKey` 是否缺失，或是否同时遗漏 `entryIds` 与筛选条件
 
 ## Memory Sharing

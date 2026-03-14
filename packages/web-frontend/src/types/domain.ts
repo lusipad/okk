@@ -543,6 +543,50 @@ export interface KnowledgeImportItem {
   updatedAt: string;
 }
 
+export type WorkflowKnowledgePublishMode = 'summary' | 'full';
+
+export interface WorkflowKnowledgePublishingConfig {
+  enabled: boolean;
+  defaultMode: WorkflowKnowledgePublishMode;
+  titlePrefix: string;
+  category: string;
+  tags: string[];
+  repoId: string | null;
+  sourceStepIds: string[];
+}
+
+export interface SkillWorkflowMetadata {
+  templateId: string | null;
+  knowledgePublishing: WorkflowKnowledgePublishingConfig | null;
+}
+
+export interface SkillWorkflowRunMetadata extends SkillWorkflowMetadata {
+  workflowName: string;
+  availablePublishModes: WorkflowKnowledgePublishMode[];
+  publishedKnowledgeEntryId: string | null;
+  publishedAt: string | null;
+}
+
+export interface WorkflowKnowledgeDraftSource {
+  workflowId: string;
+  workflowName: string;
+  runId: string;
+  templateId: string | null;
+  sourceStepIds: string[];
+  mode: WorkflowKnowledgePublishMode;
+}
+
+export interface WorkflowKnowledgeDraft {
+  title: string;
+  summary: string;
+  content: string;
+  repoId: string | null;
+  category: string;
+  tags: string[];
+  mode: WorkflowKnowledgePublishMode;
+  source: WorkflowKnowledgeDraftSource;
+}
+
 export interface SkillWorkflowNode {
   id: string;
   type: 'prompt' | 'skill' | 'agent' | 'condition' | 'knowledge_ref';
@@ -557,6 +601,7 @@ export interface SkillWorkflowRecord {
   description: string;
   status: 'draft' | 'active';
   nodes: SkillWorkflowNode[];
+  metadata: SkillWorkflowMetadata;
   createdAt: string;
   updatedAt: string;
 }
@@ -581,6 +626,7 @@ export interface SkillWorkflowRun {
   input: Record<string, unknown>;
   output: Record<string, unknown>;
   steps: SkillWorkflowRunStep[];
+  metadata: SkillWorkflowRunMetadata;
   startedAt: string;
   updatedAt: string;
   endedAt: string | null;

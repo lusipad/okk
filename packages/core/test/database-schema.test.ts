@@ -109,6 +109,16 @@ describe("Sqlite schema and migration", () => {
       ]) {
         expect(tableNames.has(tableName)).toBe(true);
       }
+
+      const workflowColumns = db.connection
+        .prepare("PRAGMA table_info(skill_workflows)")
+        .all() as Array<{ name: string }>;
+      expect(workflowColumns.some((column) => column.name === "metadata_json")).toBe(true);
+
+      const runColumns = db.connection
+        .prepare("PRAGMA table_info(skill_workflow_runs)")
+        .all() as Array<{ name: string }>;
+      expect(runColumns.some((column) => column.name === "metadata_json")).toBe(true);
     } finally {
       db.close();
     }

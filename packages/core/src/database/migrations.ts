@@ -368,6 +368,7 @@ const ensureWorkflowSchema = (db: SqliteConnection): void => {
       description TEXT NOT NULL DEFAULT '',
       status TEXT NOT NULL DEFAULT 'draft',
       nodes_json TEXT NOT NULL DEFAULT '[]',
+      metadata_json TEXT NOT NULL DEFAULT '{}',
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
     );
@@ -381,6 +382,7 @@ const ensureWorkflowSchema = (db: SqliteConnection): void => {
       input_json TEXT NOT NULL DEFAULT '{}',
       output_json TEXT NOT NULL DEFAULT '{}',
       steps_json TEXT NOT NULL DEFAULT '[]',
+      metadata_json TEXT NOT NULL DEFAULT '{}',
       started_at TEXT NOT NULL,
       updated_at TEXT NOT NULL,
       ended_at TEXT,
@@ -389,6 +391,20 @@ const ensureWorkflowSchema = (db: SqliteConnection): void => {
     );
   `);
   db.exec("CREATE INDEX IF NOT EXISTS idx_skill_workflow_runs_workflow ON skill_workflow_runs(workflow_id, updated_at DESC);");
+};
+
+const ensureWorkflowMetadataSchema = (db: SqliteConnection): void => {
+  const workflowColumns = db.prepare("PRAGMA table_info(skill_workflows)").all() as Array<{ name: string }>;
+  if (!workflowColumns.some((column) => column.name === "metadata_json")) {
+    db.exec("ALTER TABLE skill_workflows ADD COLUMN metadata_json TEXT NOT NULL DEFAULT '{}';");
+  }
+  db.prepare("UPDATE skill_workflows SET metadata_json = '{}' WHERE metadata_json IS NULL OR metadata_json = '';").run();
+
+  const runColumns = db.prepare("PRAGMA table_info(skill_workflow_runs)").all() as Array<{ name: string }>;
+  if (!runColumns.some((column) => column.name === "metadata_json")) {
+    db.exec("ALTER TABLE skill_workflow_runs ADD COLUMN metadata_json TEXT NOT NULL DEFAULT '{}';");
+  }
+  db.prepare("UPDATE skill_workflow_runs SET metadata_json = '{}' WHERE metadata_json IS NULL OR metadata_json = '';").run();
 };
 
 const ensureMemorySharingSchema = (db: SqliteConnection): void => {
@@ -643,6 +659,12 @@ const migrations: Migration[] = [
     version: 14,
     run: (db) => {
       ensureKnowledgeSharingSchema(db);
+    }
+  },
+  {
+    version: 15,
+    run: (db) => {
+      ensureWorkflowMetadataSchema(db);
     }
   }
 ];

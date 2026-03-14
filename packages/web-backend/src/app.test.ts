@@ -1574,6 +1574,18 @@ test("REST 新增工作区/治理/导入/工作流/共享/Trace 接口可联通"
           next: []
         };
 
+    const templatesResponse = await app.inject({
+      method: "GET",
+      url: "/api/workflows/templates",
+      headers
+    });
+    assert.equal(templatesResponse.statusCode, 200, templatesResponse.body);
+    const templateItems = templatesResponse.json().items as Array<{
+      id: string;
+      metadata?: { knowledgePublishing?: { defaultMode?: string } };
+    }>;
+    assert.ok(templateItems.some((item) => item.id === "template-review" && item.metadata?.knowledgePublishing?.defaultMode === "summary"));
+
     const workflowCreate = await app.inject({
       method: "POST",
       url: "/api/workflows",
@@ -1581,6 +1593,17 @@ test("REST 新增工作区/治理/导入/工作流/共享/Trace 接口可联通"
       payload: {
         name: "review-flow",
         status: "active",
+        metadata: {
+          templateId: "template-review",
+          knowledgePublishing: {
+            enabled: true,
+            defaultMode: "summary",
+            titlePrefix: "代码审查沉淀",
+            category: "code-review",
+            tags: ["review", "workflow"],
+            sourceStepIds: ["prompt-1", workflowExecutionNode.id]
+          }
+        },
         nodes: [
           {
             id: "knowledge-1",
@@ -1602,6 +1625,7 @@ test("REST 新增工作区/治理/导入/工作流/共享/Trace 接口可联通"
     });
     assert.equal(workflowCreate.statusCode, 201, workflowCreate.body);
     const workflowId = workflowCreate.json().item.id as string;
+    assert.equal(workflowCreate.json().item.metadata.templateId, "template-review");
 
     const workflowRun = await app.inject({
       method: "POST",
@@ -1614,6 +1638,57 @@ test("REST 新增工作区/治理/导入/工作流/共享/Trace 接口可联通"
     assert.equal(Array.isArray(workflowRun.json().item.output.knowledgeBundle.entries), true);
     assert.equal(workflowRun.json().item.output.knowledgeBundle.entries.length > 0, true);
     assert.equal(typeof workflowRun.json().item.output.knowledgeBundle.summary, "string");
+    assert.equal(workflowRun.json().item.metadata.workflowName, "review-flow");
+    assert.deepEqual(workflowRun.json().item.metadata.availablePublishModes, ["summary", "full"]);
+    const workflowRunId = workflowRun.json().item.id as string;
+
+    const knowledgeDraft = await app.inject({
+      method: "GET",
+      url: `/api/workflows/runs/${workflowRunId}/knowledge-draft?mode=full`,
+      headers
+    });
+    assert.equal(knowledgeDraft.statusCode, 200, knowledgeDraft.body);
+    assert.equal(knowledgeDraft.json().item.mode, "full");
+    assert.equal(knowledgeDraft.json().item.category, "code-review");
+    assert.ok((knowledgeDraft.json().item.tags as string[]).includes("workflow"));
+    assert.match(String(knowledgeDraft.json().item.content ?? ""), /运行输入/);
+
+    const publishKnowledge = await app.inject({
+      method: "POST",
+      url: `/api/workflows/runs/${workflowRunId}/publish-knowledge`,
+      headers,
+      payload: {
+        mode: "summary",
+        title: "代码审查沉淀 - trace",
+        summary: "审查结论已沉淀",
+        category: "review-note",
+        tags: ["review", "published"]
+      }
+    });
+    assert.equal(publishKnowledge.statusCode, 201, publishKnowledge.body);
+    const publishedEntryId = publishKnowledge.json().item.id as string;
+    assert.equal(publishKnowledge.json().relation.runId, workflowRunId);
+
+    const publishedKnowledge = await app.inject({
+      method: "GET",
+      url: `/api/knowledge/${publishedEntryId}`,
+      headers
+    });
+    assert.equal(publishedKnowledge.statusCode, 200, publishedKnowledge.body);
+    assert.equal(publishedKnowledge.json().item.title, "代码审查沉淀 - trace");
+    assert.equal(publishedKnowledge.json().item.category, "review-note");
+    assert.deepEqual(publishedKnowledge.json().item.tags, ["published", "review"]);
+    assert.equal(publishedKnowledge.json().item.metadata.workflow.runId, workflowRunId);
+    assert.equal(publishedKnowledge.json().item.metadata.workflow.templateId, "template-review");
+
+    const publishKnowledgeAgain = await app.inject({
+      method: "POST",
+      url: `/api/workflows/runs/${workflowRunId}/publish-knowledge`,
+      headers,
+      payload: { mode: "summary" }
+    });
+    assert.equal(publishKnowledgeAgain.statusCode, 200, publishKnowledgeAgain.body);
+    assert.equal(publishKnowledgeAgain.json().item.id, publishedEntryId);
 
     const shareRequest = await app.inject({
       method: "POST",
@@ -1651,6 +1726,110 @@ test("REST 新增工作区/治理/导入/工作流/共享/Trace 接口可联通"
     const traceDiff = await app.inject({ method: "GET", url: `/api/agents/traces/${session.id}/${trace.id}/diff?filePath=${encodeURIComponent("README.md")}`, headers });
     assert.equal(traceDiff.statusCode, 200, traceDiff.body);
     assert.equal(traceDiff.json().item.path, "README.md");
+  } finally {
+    await app.close();
+  }
+});
+
+test("REST /api/workflows 支持模板元数据、知识草稿与发布闭环", async () => {
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "okk-workflow-knowledge-"));
+  const workspaceRoot = path.join(tempDir, "workspace");
+  await fs.mkdir(workspaceRoot, { recursive: true });
+
+  const core = await createCore({ dbPath: ":memory:", workspaceRoot });
+  const app = await createApp({ jwtSecret: "test-secret", logger: false, core });
+  await app.listen({ host: "127.0.0.1", port: 0 });
+
+  try {
+    const token = await loginToken(app);
+    const headers = { Authorization: `Bearer ${token}` };
+
+    const templatesResponse = await app.inject({
+      method: "GET",
+      url: "/api/workflows/templates",
+      headers
+    });
+    assert.equal(templatesResponse.statusCode, 200, templatesResponse.body);
+    const templates = templatesResponse.json().items as Array<{
+      id: string;
+      name: string;
+      metadata: Record<string, unknown>;
+      nodes: Array<Record<string, unknown>>;
+    }>;
+    const reviewTemplate = templates.find((item) => item.id === "template-review");
+    assert.ok(reviewTemplate);
+    const reviewMetadata = reviewTemplate?.metadata as {
+      knowledgePublishing?: { defaultMode?: string };
+    } | undefined;
+    assert.equal(reviewMetadata?.knowledgePublishing?.defaultMode, "summary");
+
+    const workflowCreate = await app.inject({
+      method: "POST",
+      url: "/api/workflows",
+      headers,
+      payload: {
+        name: "代码审查沉淀实例",
+        description: "template based workflow",
+        status: "active",
+        metadata: reviewTemplate?.metadata,
+        nodes: reviewTemplate?.nodes
+      }
+    });
+    assert.equal(workflowCreate.statusCode, 201, workflowCreate.body);
+    assert.equal(workflowCreate.json().item.metadata.templateId, "template-review");
+    const workflowId = workflowCreate.json().item.id as string;
+
+    const workflowRun = await app.inject({
+      method: "POST",
+      url: `/api/workflows/${workflowId}/run`,
+      headers,
+      payload: {
+        input: {
+          topic: "端到端知识沉淀"
+        }
+      }
+    });
+    assert.equal(workflowRun.statusCode, 200, workflowRun.body);
+    assert.equal(workflowRun.json().item.status, "completed");
+    const runId = workflowRun.json().item.id as string;
+    assert.equal(workflowRun.json().item.metadata.workflowName, "代码审查沉淀实例");
+
+    const draftResponse = await app.inject({
+      method: "GET",
+      url: `/api/workflows/runs/${runId}/knowledge-draft?mode=summary`,
+      headers
+    });
+    assert.equal(draftResponse.statusCode, 200, draftResponse.body);
+    assert.equal(draftResponse.json().item.mode, "summary");
+    assert.equal(draftResponse.json().item.source.workflowId, workflowId);
+    assert.equal(typeof draftResponse.json().item.repoId, "string");
+    assert.ok((draftResponse.json().item.tags as string[]).includes("workflow"));
+
+    const publishResponse = await app.inject({
+      method: "POST",
+      url: `/api/workflows/runs/${runId}/publish-knowledge`,
+      headers,
+      payload: {
+        mode: "full",
+        title: "工作流审查沉淀",
+        category: "guide",
+        tags: ["workflow", "published"]
+      }
+    });
+    assert.equal(publishResponse.statusCode, 201, publishResponse.body);
+    const entryId = publishResponse.json().item.id as string;
+    assert.equal(publishResponse.json().item.title, "工作流审查沉淀");
+    assert.equal(publishResponse.json().run.metadata.publishedKnowledgeEntryId, entryId);
+
+    const knowledgeResponse = await app.inject({
+      method: "GET",
+      url: `/api/knowledge/${entryId}`,
+      headers
+    });
+    assert.equal(knowledgeResponse.statusCode, 200, knowledgeResponse.body);
+    assert.equal(knowledgeResponse.json().item.metadata.workflow.workflowId, workflowId);
+    assert.equal(knowledgeResponse.json().item.metadata.workflow.runId, runId);
+    assert.equal(knowledgeResponse.json().item.metadata.workflow.mode, "full");
   } finally {
     await app.close();
   }

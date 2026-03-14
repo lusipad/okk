@@ -36,8 +36,11 @@ import type {
   SessionInfo,
   SessionReferenceRecord,
   SkillInfo,
+  SkillWorkflowMetadata,
   SkillWorkflowRecord,
   SkillWorkflowRun,
+  WorkflowKnowledgeDraft,
+  WorkflowKnowledgePublishMode,
   TeamMemberEvent,
   ToolCall,
   TeamMemberSnapshot,
@@ -301,6 +304,27 @@ export interface WorkflowTemplate {
   name: string;
   description: string;
   nodes: Array<Record<string, unknown>>;
+  metadata: SkillWorkflowMetadata;
+}
+
+export interface PublishWorkflowKnowledgeInput {
+  title?: string;
+  summary?: string;
+  content?: string;
+  repoId?: string | null;
+  category?: string;
+  tags?: string[];
+  mode?: WorkflowKnowledgePublishMode;
+}
+
+export interface PublishWorkflowKnowledgeResult {
+  item: KnowledgeEntry;
+  run?: SkillWorkflowRun | null;
+  relation?: {
+    workflowId: string;
+    runId: string;
+    entryId: string;
+  };
 }
 
 export interface MemorySharingOverview {
@@ -439,13 +463,15 @@ export interface IOProvider {
   replayKnowledgeImportBatch(batchId: string): Promise<{ item: KnowledgeImportBatch; items: KnowledgeImportItem[] }>;
   listWorkflowTemplates(): Promise<WorkflowTemplate[]>;
   listWorkflows(): Promise<SkillWorkflowRecord[]>;
-  createWorkflow(input: { name: string; description?: string; status?: 'draft' | 'active'; nodes: Array<Record<string, unknown>> }): Promise<SkillWorkflowRecord>;
-  updateWorkflow(workflowId: string, input: Partial<{ name: string; description: string; status: 'draft' | 'active'; nodes: Array<Record<string, unknown>> }>): Promise<SkillWorkflowRecord>;
+  createWorkflow(input: { name: string; description?: string; status?: 'draft' | 'active'; nodes: Array<Record<string, unknown>>; metadata?: SkillWorkflowMetadata }): Promise<SkillWorkflowRecord>;
+  updateWorkflow(workflowId: string, input: Partial<{ name: string; description: string; status: 'draft' | 'active'; nodes: Array<Record<string, unknown>>; metadata: SkillWorkflowMetadata }>): Promise<SkillWorkflowRecord>;
   deleteWorkflow(workflowId: string): Promise<void>;
   runWorkflow(workflowId: string, input?: { sessionId?: string; input?: Record<string, unknown> }): Promise<SkillWorkflowRun>;
   retryWorkflowRun(runId: string): Promise<SkillWorkflowRun>;
   listWorkflowRuns(workflowId: string): Promise<SkillWorkflowRun[]>;
   getWorkflowRun(runId: string): Promise<SkillWorkflowRun | null>;
+  getWorkflowKnowledgeDraft(runId: string, mode?: WorkflowKnowledgePublishMode): Promise<WorkflowKnowledgeDraft>;
+  publishWorkflowKnowledge(runId: string, input: PublishWorkflowKnowledgeInput): Promise<PublishWorkflowKnowledgeResult>;
   listMemoryShares(): Promise<MemoryShareRecord[]>;
   getMemorySharingOverview(): Promise<MemorySharingOverview>;
   requestMemoryShare(memoryId: string, visibility: 'private' | 'workspace' | 'team'): Promise<MemoryShareRecord>;

@@ -14,6 +14,8 @@ const {
   mockDeleteWorkflow,
   mockRunWorkflow,
   mockRetryWorkflowRun,
+  mockGetWorkflowKnowledgeDraft,
+  mockPublishWorkflowKnowledge,
   chatState
 } = vi.hoisted(() => ({
   mockNavigate: vi.fn(),
@@ -27,6 +29,8 @@ const {
   mockDeleteWorkflow: vi.fn(),
   mockRunWorkflow: vi.fn(),
   mockRetryWorkflowRun: vi.fn(),
+  mockGetWorkflowKnowledgeDraft: vi.fn(),
+  mockPublishWorkflowKnowledge: vi.fn(),
   chatState: {
     sessions: [
       {
@@ -48,6 +52,8 @@ Object.assign(mockIo, {
   deleteWorkflow: mockDeleteWorkflow,
   runWorkflow: mockRunWorkflow,
   retryWorkflowRun: mockRetryWorkflowRun,
+  getWorkflowKnowledgeDraft: mockGetWorkflowKnowledgeDraft,
+  publishWorkflowKnowledge: mockPublishWorkflowKnowledge,
   createSession: vi.fn().mockResolvedValue({
     id: 'session-new',
     title: '新会话',
@@ -109,6 +115,18 @@ describe('WorkflowsPage', () => {
         id: 'template-knowledge',
         name: '知识输入模板',
         description: 'knowledge_ref -> prompt',
+        metadata: {
+          templateId: 'template-knowledge',
+          knowledgePublishing: {
+            enabled: true,
+            defaultMode: 'summary',
+            titlePrefix: '上下文整理',
+            category: 'context',
+            tags: ['context', 'workflow'],
+            repoId: null,
+            sourceStepIds: ['knowledge-1', 'prompt-1']
+          }
+        },
         nodes: [
           {
             id: 'knowledge-1',
@@ -135,6 +153,18 @@ describe('WorkflowsPage', () => {
             next: []
           }
         ],
+        metadata: {
+          templateId: 'template-knowledge',
+          knowledgePublishing: {
+            enabled: true,
+            defaultMode: 'summary',
+            titlePrefix: '知识沉淀',
+            category: 'workflow',
+            tags: ['workflow', 'knowledge'],
+            repoId: null,
+            sourceStepIds: ['knowledge-1']
+          }
+        },
         createdAt: '2026-03-11T00:00:00.000Z',
         updatedAt: '2026-03-11T00:00:00.000Z'
       }
@@ -166,6 +196,22 @@ describe('WorkflowsPage', () => {
             error: null
           }
         ],
+        metadata: {
+          templateId: 'template-knowledge',
+          knowledgePublishing: {
+            enabled: true,
+            defaultMode: 'summary',
+            titlePrefix: '知识沉淀',
+            category: 'workflow',
+            tags: ['workflow', 'knowledge'],
+            repoId: null,
+            sourceStepIds: ['knowledge-1']
+          },
+          workflowName: '知识工作流',
+          availablePublishModes: ['summary', 'full'],
+          publishedKnowledgeEntryId: null,
+          publishedAt: null
+        },
         startedAt: '2026-03-11T00:00:00.000Z',
         updatedAt: '2026-03-11T00:00:01.000Z',
         endedAt: '2026-03-11T00:00:01.000Z'
@@ -177,6 +223,10 @@ describe('WorkflowsPage', () => {
       description: 'desc',
       status: 'active',
       nodes: [],
+      metadata: {
+        templateId: null,
+        knowledgePublishing: null
+      },
       createdAt: '2026-03-11T00:00:00.000Z',
       updatedAt: '2026-03-11T00:00:00.000Z'
     });
@@ -189,6 +239,22 @@ describe('WorkflowsPage', () => {
       input: {},
       output: {},
       steps: [],
+      metadata: {
+        templateId: 'template-knowledge',
+        knowledgePublishing: {
+          enabled: true,
+          defaultMode: 'summary',
+          titlePrefix: '知识沉淀',
+          category: 'workflow',
+          tags: ['workflow', 'knowledge'],
+          repoId: null,
+          sourceStepIds: ['knowledge-1']
+        },
+        workflowName: '知识工作流',
+        availablePublishModes: ['summary', 'full'],
+        publishedKnowledgeEntryId: null,
+        publishedAt: null
+      },
       startedAt: '2026-03-11T00:00:00.000Z',
       updatedAt: '2026-03-11T00:00:00.000Z',
       endedAt: '2026-03-11T00:00:00.000Z'
@@ -201,9 +267,96 @@ describe('WorkflowsPage', () => {
       input: {},
       output: {},
       steps: [],
+      metadata: {
+        templateId: 'template-knowledge',
+        knowledgePublishing: {
+          enabled: true,
+          defaultMode: 'summary',
+          titlePrefix: '知识沉淀',
+          category: 'workflow',
+          tags: ['workflow', 'knowledge'],
+          repoId: null,
+          sourceStepIds: ['knowledge-1']
+        },
+        workflowName: '知识工作流',
+        availablePublishModes: ['summary', 'full'],
+        publishedKnowledgeEntryId: null,
+        publishedAt: null
+      },
       startedAt: '2026-03-11T00:00:00.000Z',
       updatedAt: '2026-03-11T00:00:00.000Z',
       endedAt: '2026-03-11T00:00:00.000Z'
+    });
+    mockGetWorkflowKnowledgeDraft.mockResolvedValue({
+      title: '知识沉淀草稿',
+      summary: '总结工作流结果',
+      content: '# 知识沉淀草稿\n\n内容',
+      repoId: 'repo-1',
+      category: 'workflow',
+      tags: ['workflow', 'knowledge'],
+      mode: 'summary',
+      source: {
+        workflowId: 'workflow-1',
+        workflowName: '知识工作流',
+        runId: 'run-1',
+        templateId: 'template-knowledge',
+        sourceStepIds: ['knowledge-1'],
+        mode: 'summary'
+      }
+    });
+    mockPublishWorkflowKnowledge.mockResolvedValue({
+      item: {
+        id: 'knowledge-1',
+        title: '知识沉淀草稿',
+        content: '# 知识沉淀草稿\n\n内容',
+        summary: '总结工作流结果',
+        repoId: 'repo-1',
+        category: 'workflow',
+        sourceSessionId: null,
+        qualityScore: 0,
+        viewCount: 0,
+        upvoteCount: 0,
+        version: 1,
+        status: 'draft',
+        tags: ['workflow', 'knowledge'],
+        metadata: {},
+        createdBy: 'u-admin',
+        createdAt: '2026-03-11T00:00:00.000Z',
+        updatedAt: '2026-03-11T00:00:00.000Z'
+      },
+      run: {
+        id: 'run-1',
+        workflowId: 'workflow-1',
+        sessionId: null,
+        status: 'completed',
+        input: {},
+        output: {},
+        steps: [],
+        metadata: {
+          templateId: 'template-knowledge',
+          knowledgePublishing: {
+            enabled: true,
+            defaultMode: 'summary',
+            titlePrefix: '知识沉淀',
+            category: 'workflow',
+            tags: ['workflow', 'knowledge'],
+            repoId: null,
+            sourceStepIds: ['knowledge-1']
+          },
+          workflowName: '知识工作流',
+          availablePublishModes: ['summary', 'full'],
+          publishedKnowledgeEntryId: 'knowledge-1',
+          publishedAt: '2026-03-11T00:00:00.000Z'
+        },
+        startedAt: '2026-03-11T00:00:00.000Z',
+        updatedAt: '2026-03-11T00:00:00.000Z',
+        endedAt: '2026-03-11T00:00:00.000Z'
+      },
+      relation: {
+        workflowId: 'workflow-1',
+        runId: 'run-1',
+        entryId: 'knowledge-1'
+      }
     });
   });
 
@@ -229,5 +382,37 @@ describe('WorkflowsPage', () => {
     expect(await screen.findByTestId('workflow-step-output-knowledge-1')).toHaveTextContent('知识条目 2 条');
     expect(screen.getByTestId('workflow-step-output-knowledge-1')).toHaveTextContent('SQLite 指南');
     expect(screen.getByTestId('workflow-step-output-knowledge-1')).toHaveTextContent('迁移规则');
+  });
+
+  it('支持打开知识沉淀面板并发布知识', async () => {
+    const user = userEvent.setup();
+    render(<WorkflowsPage />);
+
+    await user.click(await screen.findByRole('button', { name: '查看步骤' }));
+    await user.click(screen.getByTestId('workflow-open-knowledge-publish'));
+
+    expect(mockGetWorkflowKnowledgeDraft).toHaveBeenCalledWith('run-1', 'summary');
+    expect(await screen.findByTestId('workflow-knowledge-publish-panel')).toBeInTheDocument();
+    expect(screen.getByDisplayValue('知识沉淀草稿')).toBeInTheDocument();
+
+    await user.clear(screen.getByDisplayValue('知识沉淀草稿'));
+    await user.type(screen.getByPlaceholderText('知识标题'), '工作流沉淀知识');
+    await user.click(screen.getByTestId('workflow-publish-knowledge-submit'));
+
+    await waitFor(() => {
+      expect(mockPublishWorkflowKnowledge).toHaveBeenCalledWith('run-1', {
+        title: '工作流沉淀知识',
+        summary: '总结工作流结果',
+        content: '# 知识沉淀草稿\n\n内容',
+        repoId: 'repo-1',
+        category: 'workflow',
+        tags: ['workflow', 'knowledge'],
+        mode: 'summary'
+      });
+    });
+
+    expect(await screen.findByTestId('workflow-knowledge-publish-success')).toHaveTextContent('知识沉淀草稿');
+    await user.click(screen.getByRole('button', { name: '前往知识条目' }));
+    expect(mockNavigate).toHaveBeenCalledWith('/knowledge/knowledge-1');
   });
 });
