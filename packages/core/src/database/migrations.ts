@@ -429,6 +429,48 @@ const ensureMemorySharingSchema = (db: SqliteConnection): void => {
   `);
 };
 
+const ensureKnowledgeSharingSchema = (db: SqliteConnection): void => {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS knowledge_shares (
+      id TEXT PRIMARY KEY,
+      entry_id TEXT NOT NULL UNIQUE,
+      visibility TEXT NOT NULL DEFAULT 'team',
+      review_status TEXT NOT NULL DEFAULT 'pending_review',
+      requested_by TEXT NOT NULL,
+      reviewed_by TEXT,
+      request_note TEXT,
+      review_note TEXT,
+      published_at TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      FOREIGN KEY (entry_id) REFERENCES knowledge_entries(id),
+      FOREIGN KEY (requested_by) REFERENCES users(id),
+      FOREIGN KEY (reviewed_by) REFERENCES users(id)
+    );
+  `);
+  db.exec(
+    "CREATE INDEX IF NOT EXISTS idx_knowledge_shares_status ON knowledge_shares(review_status, visibility, updated_at DESC);"
+  );
+  db.exec(
+    "CREATE INDEX IF NOT EXISTS idx_knowledge_shares_published ON knowledge_shares(published_at DESC, updated_at DESC);"
+  );
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS knowledge_share_reviews (
+      id TEXT PRIMARY KEY,
+      share_id TEXT NOT NULL,
+      action TEXT NOT NULL,
+      note TEXT,
+      created_by TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      FOREIGN KEY (share_id) REFERENCES knowledge_shares(id),
+      FOREIGN KEY (created_by) REFERENCES users(id)
+    );
+  `);
+  db.exec(
+    "CREATE INDEX IF NOT EXISTS idx_knowledge_share_reviews_share ON knowledge_share_reviews(share_id, created_at DESC);"
+  );
+};
+
 const ensureMissionOrchestrationSchema = (db: SqliteConnection): void => {
   db.exec(`
     CREATE TABLE IF NOT EXISTS missions (
@@ -595,6 +637,12 @@ const migrations: Migration[] = [
     version: 13,
     run: (db) => {
       ensureMissionOrchestrationSchema(db);
+    }
+  },
+  {
+    version: 14,
+    run: (db) => {
+      ensureKnowledgeSharingSchema(db);
     }
   }
 ];

@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type {
   AgentRecord,
+  KnowledgeReferencePayload,
   KnowledgeRecord,
   MissionCheckpointRecord,
   MissionHandoffRecord,
@@ -96,10 +97,25 @@ export function createInMemoryCore(): OkkCore {
   async function* streamAnswer(request: QaRequest) {
     const flag = { aborted: false };
     sessionAbortFlags.set(request.sessionId, flag);
+    const knowledgeReferences: KnowledgeReferencePayload[] = [
+      {
+        id: "knowledge-memory-1",
+        title: "测试知识引用",
+        summary: "内存模式下的知识引用样例",
+        category: "guide",
+        updatedAt: now(),
+        injectionKind: "related"
+      }
+    ];
 
     const text = `[${request.backend}/${request.agentName}] ${request.content}`;
     const midpoint = Math.max(1, Math.floor(text.length / 2));
     const chunks = [text.slice(0, midpoint), text.slice(midpoint)];
+
+    yield {
+      content: "",
+      knowledgeReferences
+    };
 
     for (const chunk of chunks) {
       await delay(20);

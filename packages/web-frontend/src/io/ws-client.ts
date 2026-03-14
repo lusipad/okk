@@ -141,7 +141,10 @@ export function normalizeIncomingEvent(raw: unknown, fallbackSessionId: string):
       sessionId,
       event_id: eventId,
       timestamp,
-      payload: { messageId }
+      payload: {
+        messageId,
+        ...(Array.isArray(payload.knowledgeReferences) ? { knowledgeReferences: payload.knowledgeReferences } : {})
+      }
     };
   }
 

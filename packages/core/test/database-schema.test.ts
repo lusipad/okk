@@ -103,7 +103,9 @@ describe("Sqlite schema and migration", () => {
         "skill_workflows",
         "skill_workflow_runs",
         "memory_shares",
-        "memory_share_reviews"
+        "memory_share_reviews",
+        "knowledge_shares",
+        "knowledge_share_reviews"
       ]) {
         expect(tableNames.has(tableName)).toBe(true);
       }

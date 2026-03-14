@@ -5,11 +5,18 @@ import type {
   CollaborationDiagnostics,
   CollaborationRunStatus,
   CollaborationSourceType,
+  KnowledgeEntry,
+  KnowledgeShareRecord,
+  KnowledgeShareReview,
   KnowledgeGovernanceRecord,
   KnowledgeGovernanceReview,
   KnowledgeImportBatch,
   KnowledgeImportItem,
+  KnowledgeReference,
+  KnowledgeSearchResult,
   KnowledgeSuggestion,
+  KnowledgeStatus,
+  KnowledgeVersion,
   IdentityProfile,
   LoginResult,
   MemoryShareRecord,
@@ -100,6 +107,48 @@ export interface SubscribeSessionInput {
 export interface SaveKnowledgeInput {
   sessionId: string;
   suggestionId: string;
+  title?: string;
+  content?: string;
+  tags?: string[];
+}
+
+export interface ListKnowledgeEntriesInput {
+  repoId?: string;
+  category?: string;
+  status?: KnowledgeStatus;
+  tags?: string[];
+  limit?: number;
+  offset?: number;
+}
+
+export interface SearchKnowledgeEntriesInput extends ListKnowledgeEntriesInput {
+  keyword?: string;
+}
+
+export interface CreateKnowledgeEntryInput {
+  title: string;
+  content: string;
+  summary?: string;
+  repoId?: string;
+  category?: string;
+  sourceSessionId?: string | null;
+  qualityScore?: number;
+  status?: KnowledgeStatus;
+  metadata?: Record<string, unknown>;
+  tags?: string[];
+}
+
+export interface UpdateKnowledgeEntryInput {
+  title?: string;
+  content?: string;
+  summary?: string;
+  category?: string;
+  sourceSessionId?: string | null;
+  qualityScore?: number;
+  status?: KnowledgeStatus;
+  metadata?: Record<string, unknown>;
+  tags?: string[];
+  changeSummary?: string | null;
 }
 
 export interface SkillFileInfo {
@@ -271,6 +320,17 @@ export interface MemorySharingOverview {
   }>;
 }
 
+export interface KnowledgeSharingOverview {
+  summary: {
+    total: number;
+    pendingReview: number;
+    approved: number;
+    published: number;
+    rejected: number;
+    changesRequested: number;
+  };
+}
+
 export interface UpdateMcpServerInput {
   name?: string;
   description?: string;
@@ -313,6 +373,21 @@ export interface IOProvider {
   listAgents(): Promise<AgentInfo[]>;
   saveKnowledgeSuggestion(input: SaveKnowledgeInput): Promise<KnowledgeSuggestion>;
   ignoreKnowledgeSuggestion(input: SaveKnowledgeInput): Promise<void>;
+  listKnowledgeEntries(input?: ListKnowledgeEntriesInput): Promise<KnowledgeEntry[]>;
+  searchKnowledgeEntries(input?: SearchKnowledgeEntriesInput): Promise<KnowledgeSearchResult[]>;
+  getKnowledgeEntry(entryId: string): Promise<KnowledgeEntry | null>;
+  listKnowledgeShares(input?: { status?: string; repoId?: string; category?: string; tags?: string[]; query?: string; authorId?: string }): Promise<KnowledgeShareRecord[]>;
+  getKnowledgeSharingOverview(): Promise<KnowledgeSharingOverview>;
+  listPublishedKnowledgeShares(input?: { repoId?: string; category?: string; tags?: string[]; query?: string; authorId?: string }): Promise<KnowledgeShareRecord[]>;
+  getKnowledgeShareByEntry(entryId: string): Promise<{ item: KnowledgeShareRecord | null; reviews: KnowledgeShareReview[] }>;
+  requestKnowledgeShare(entryId: string, visibility: 'workspace' | 'team', note?: string): Promise<KnowledgeShareRecord>;
+  reviewKnowledgeShare(shareId: string, input: { action: string; note?: string }): Promise<KnowledgeShareRecord>;
+  getKnowledgeShare(shareId: string): Promise<{ item: KnowledgeShareRecord; reviews: KnowledgeShareReview[] }>;
+  createKnowledgeEntry(input: CreateKnowledgeEntryInput): Promise<KnowledgeEntry>;
+  updateKnowledgeEntry(entryId: string, input: UpdateKnowledgeEntryInput): Promise<KnowledgeEntry>;
+  deleteKnowledgeEntry(entryId: string): Promise<void>;
+  getKnowledgeVersions(entryId: string): Promise<KnowledgeVersion[]>;
+  updateKnowledgeStatus(entryId: string, status: KnowledgeStatus): Promise<KnowledgeEntry>;
   listMcpServers(): Promise<McpServerSetting[]>;
   createMcpServer(input: CreateMcpServerInput): Promise<McpServerSetting>;
   updateMcpServer(serverId: string, input: UpdateMcpServerInput): Promise<McpServerSetting>;
@@ -389,6 +464,7 @@ export interface MessageChunkPayload {
 
 export interface MessageDonePayload {
   messageId: string;
+  knowledgeReferences?: KnowledgeReference[];
 }
 
 export interface MessageAbortedPayload {

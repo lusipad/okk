@@ -79,6 +79,14 @@ vi.mock('../pages/KnowledgeImportsPage', () => ({
   KnowledgeImportsPage: () => <div>imports-page</div>
 }));
 
+vi.mock('../pages/KnowledgePage', () => ({
+  KnowledgePage: () => <div>knowledge-page</div>
+}));
+
+vi.mock('../pages/KnowledgeSharingPage', () => ({
+  KnowledgeSharingPage: () => <div>knowledge-sharing-page</div>
+}));
+
 vi.mock('../pages/WorkflowsPage', () => ({
   WorkflowsPage: () => <div>workflows-page</div>
 }));

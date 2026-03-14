@@ -26,7 +26,7 @@ interface NavLinkItem {
   active: boolean;
 }
 
-const PRIMARY_LINK_IDS = new Set(['chat', 'identity', 'memory', 'workspaces']);
+const PRIMARY_LINK_IDS = new Set(['chat', 'knowledge', 'identity', 'memory', 'workspaces']);
 const relativeTimeFormatter = new Intl.RelativeTimeFormat('zh-CN', { numeric: 'auto' });
 
 function formatRelativeTime(value: string): string {
@@ -168,6 +168,7 @@ export function LeftSidebar({
   const navigationLinks = useMemo<NavLinkItem[]>(
     () => [
       { id: 'chat', label: 'Chats', to: '/', active: inChat },
+      { id: 'knowledge', label: 'Knowledge', to: '/knowledge', active: location.pathname === '/knowledge' || location.pathname.startsWith('/knowledge/') },
       { id: 'identity', label: 'Identity', to: '/identity', active: location.pathname === '/identity' },
       { id: 'memory', label: 'Memory', to: '/memory', active: location.pathname === '/memory' },
       { id: 'workspaces', label: 'Workspaces', to: '/workspaces', active: location.pathname === '/workspaces' },

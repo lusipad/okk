@@ -35,6 +35,12 @@ export { KnowledgeImportsDao, type CreateKnowledgeImportBatchInput, type CreateK
 export { SkillWorkflowsDao, type CreateWorkflowInput } from './skill-workflows-dao.js';
 export { MemorySharingDao, type UpsertMemoryShareInput } from './memory-sharing-dao.js';
 export {
+  KnowledgeSharingDao,
+  type CreateKnowledgeShareInput,
+  type UpdateKnowledgeShareInput,
+  type ListKnowledgeSharesInput
+} from './knowledge-sharing-dao.js';
+export {
   MissionsDao,
   type CreateMissionInput,
   type UpdateMissionInput,

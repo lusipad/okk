@@ -8,9 +8,11 @@ import { RightSidebar } from '../components/layout/RightSidebar';
 import { ShellLayout } from '../components/layout/ShellLayout';
 import { ConnectionBanner } from '../components/common/ConnectionBanner';
 import { MessageList } from '../components/chat/MessageList';
+import { KnowledgeReferencesBar } from '../components/chat/KnowledgeReferencesBar';
 import { NextStepSuggestions, deriveNextStepSuggestions, type NextStepSuggestion } from '../components/chat/NextStepSuggestions';
 import { Composer } from '../components/chat/Composer';
 import { PartnerHomeView } from '../components/home/PartnerHomeView';
+import type { SaveKnowledgeSuggestionDraft } from '../components/cards/KnowledgeSuggestionCard';
 import type { AgentTraceEvent, ChatMessage, ContinueWorkCandidate, IdentityProfile, MissionSummaryRecord, PartnerSummaryRecord, RepoContextRecord, TeamPanelState } from '../types/domain';
 
 type LoadedRepoContext = RepoContextRecord & { repoName: string };
@@ -137,6 +139,7 @@ export function ChatPage() {
   const currentRepoId = currentSession?.repoId ?? null;
   const messages = state.messagesBySession[currentSessionId ?? ''] ?? [];
   const suggestions = state.suggestionsBySession[currentSessionId ?? ''] ?? [];
+  const knowledgeReferences = state.knowledgeReferencesBySession[currentSessionId ?? ''] ?? [];
   const teamView = state.teamViewBySession[currentSessionId ?? ''] ?? EMPTY_TEAM_VIEW;
   const runtimeState = state.runtimeStateBySession[currentSessionId ?? ''] ?? null;
   const isStreaming = useMemo(
@@ -757,18 +760,27 @@ export function ChatPage() {
     }
   };
 
-  const saveSuggestion = async (suggestionId: string): Promise<void> => {
+  const saveSuggestion = async (input: SaveKnowledgeSuggestionDraft): Promise<void> => {
     if (!currentSessionId) {
       return;
     }
     try {
-      await io.saveKnowledgeSuggestion({ sessionId: currentSessionId, suggestionId });
+      const saved = await io.saveKnowledgeSuggestion({
+        sessionId: currentSessionId,
+        suggestionId: input.suggestionId,
+        title: input.title,
+        content: input.content,
+        tags: input.tags
+      });
       dispatch({
         type: 'update_suggestion_status',
         sessionId: currentSessionId,
-        suggestionId,
+        suggestionId: input.suggestionId,
         status: 'saved'
       });
+      if (saved.knowledgeEntryId) {
+        navigate(`/knowledge/${encodeURIComponent(saved.knowledgeEntryId)}`);
+      }
     } catch (incoming) {
       setError(toErrorMessage(incoming, '保存建议失败'));
     }
@@ -1008,6 +1020,7 @@ export function ChatPage() {
           ) : (
             <>
               <MessageList messages={messages} streaming={isStreaming} />
+              <KnowledgeReferencesBar references={knowledgeReferences} />
               <NextStepSuggestions
                 suggestions={nextStepSuggestions}
                 onSelect={(suggestion: NextStepSuggestion) =>

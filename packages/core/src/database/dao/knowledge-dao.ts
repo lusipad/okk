@@ -467,6 +467,21 @@ export class KnowledgeDao {
     }));
   }
 
+  incrementViewCounts(entryIds: string[]): void {
+    const uniqueEntryIds = Array.from(new Set(entryIds.map((item) => item.trim()).filter(Boolean)));
+    if (uniqueEntryIds.length === 0) {
+      return;
+    }
+
+    const update = this.db.prepare("UPDATE knowledge_entries SET view_count = view_count + 1, updated_at = updated_at WHERE id = ?");
+    const tx = this.db.transaction(() => {
+      for (const entryId of uniqueEntryIds) {
+        update.run(entryId);
+      }
+    });
+    tx();
+  }
+
   delete(id: string): boolean {
     const deleteTx = this.db.transaction(() => {
       this.db.prepare("DELETE FROM knowledge_tags WHERE entry_id = ?").run(id);

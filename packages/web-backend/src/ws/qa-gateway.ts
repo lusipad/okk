@@ -21,7 +21,7 @@ function sendJson(socket: WebSocket, payload: unknown): void {
   socket.send(JSON.stringify(payload));
 }
 
-type SuggestionView = Omit<KnowledgeSuggestionSnapshot, "content" | "sourceMessageId" | "createdAt">;
+type SuggestionView = Omit<KnowledgeSuggestionSnapshot, "sourceMessageId" | "createdAt">;
 
 const MAX_SUMMARY_LENGTH = 180;
 
@@ -52,8 +52,15 @@ function toSuggestionView(input: KnowledgeSuggestionSnapshot): SuggestionView {
     summary: input.summary,
     category: input.category,
     tags: [...input.tags],
+    content: input.content,
+    knowledgeEntryId: input.knowledgeEntryId ?? null,
     status: input.status
   };
+}
+
+function normalizeSuggestionTags(input: string[] | undefined, fallback: string[]): string[] {
+  const source = input ?? fallback;
+  return Array.from(new Set(source.map((item) => item.trim()).filter(Boolean)));
 }
 
 function buildDiagnostics(message: string, options?: { code?: string; detail?: string; retryable?: boolean }): CollaborationDiagnostics {
@@ -260,6 +267,7 @@ export class QaGateway {
 
     const emittedEvents: BackendEventEnvelope[] = [];
     let assistantContent = "";
+    let knowledgeReferences: unknown[] = [];
     const teamId = `team-${sessionId}`;
     const memberId = `${message.backend}:${message.agent_name}`.toLowerCase();
     const taskId = `${teamId}:${memberId}:${message.client_message_id}`;
@@ -396,6 +404,14 @@ export class QaGateway {
     this.inflight.set(sessionId, state);
 
     try {
+      let knowledgeReferences: Array<{
+        id: string;
+        title: string;
+        summary: string;
+        category: string;
+        updatedAt: string;
+        injectionKind: "background" | "related";
+      }> = [];
       for await (const chunk of this.core.qa.streamAnswer({
         sessionId,
         action: message.action,
@@ -408,6 +424,12 @@ export class QaGateway {
       })) {
         if (state.aborted) {
           break;
+        }
+        if (Array.isArray(chunk.knowledgeReferences)) {
+          knowledgeReferences = chunk.knowledgeReferences;
+        }
+        if (!chunk.content) {
+          continue;
         }
         assistantContent += chunk.content;
         this.appendTrace(sessionId, "text_chunk", "backend", "流式回复片段", { chunk: chunk.content.slice(0, 160) }, { parentTraceId: requestTrace?.id ?? null, spanId: traceSpanId, status: "running" });
@@ -486,6 +508,7 @@ export class QaGateway {
           backend: message.backend,
           agent_name: message.agent_name,
           client_message_id: message.client_message_id,
+          knowledgeReferences
         });
         const suggestion = this.createSuggestion(sessionId, message, assistantContent);
         if (suggestion) {
@@ -670,7 +693,15 @@ export class QaGateway {
     sendJson(socket, ack);
   }
 
-  async saveSuggestion(sessionId: string, suggestionId: string): Promise<SuggestionView> {
+  async saveSuggestion(
+    sessionId: string,
+    suggestionId: string,
+    overrides?: {
+      title?: string;
+      content?: string;
+      tags?: string[];
+    }
+  ): Promise<SuggestionView> {
     const suggestion = this.eventStore.getSuggestion(sessionId, suggestionId);
     if (!suggestion) {
       throw new Error("knowledge suggestion not found");
@@ -681,12 +712,25 @@ export class QaGateway {
     }
 
     if (suggestion.status !== "saved") {
-      await this.core.knowledge.create({
-        title: suggestion.title,
-        content: suggestion.content,
-        tags: suggestion.tags,
+      const nextTitle = overrides?.title?.trim() || suggestion.title;
+      const nextContent = overrides?.content?.trim() || suggestion.content;
+      const nextTags = normalizeSuggestionTags(overrides?.tags, suggestion.tags);
+      const created = await this.core.knowledge.create({
+        title: nextTitle,
+        content: nextContent,
+        tags: nextTags,
         category: suggestion.category,
         status: "draft"
+      });
+
+      this.eventStore.saveSuggestion(sessionId, {
+        ...suggestion,
+        title: nextTitle,
+        summary: summarize(nextContent),
+        content: nextContent,
+        tags: nextTags,
+        knowledgeEntryId: created.id,
+        status: "saved"
       });
     }
 
@@ -731,6 +775,7 @@ export class QaGateway {
       category: "general",
       tags: ["qa", message.agent_name].filter(Boolean),
       content: buildSuggestionContent(normalizedQuestion, answer),
+      knowledgeEntryId: null,
       status: "pending",
       createdAt: new Date().toISOString(),
       sourceMessageId: message.client_message_id

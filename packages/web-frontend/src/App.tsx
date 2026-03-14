@@ -14,6 +14,8 @@ import { MemoryPage } from './pages/MemoryPage';
 import { GovernancePage } from './pages/GovernancePage';
 import { WorkspacesPage } from './pages/WorkspacesPage';
 import { KnowledgeImportsPage } from './pages/KnowledgeImportsPage';
+import { KnowledgePage } from './pages/KnowledgePage';
+import { KnowledgeSharingPage } from './pages/KnowledgeSharingPage';
 import { WorkflowsPage } from './pages/WorkflowsPage';
 import { MemorySharingPage } from './pages/MemorySharingPage';
 
@@ -371,6 +373,38 @@ export function App() {
               element={
                 <Guard authenticated={Boolean(token)}>
                   <GovernancePage />
+                </Guard>
+              }
+            />
+            <Route
+              path='/knowledge'
+              element={
+                <Guard authenticated={Boolean(token)}>
+                  <KnowledgePage />
+                </Guard>
+              }
+            />
+            <Route
+              path='/knowledge/:entryId'
+              element={
+                <Guard authenticated={Boolean(token)}>
+                  <KnowledgePage />
+                </Guard>
+              }
+            />
+            <Route
+              path='/knowledge/sharing'
+              element={
+                <Guard authenticated={Boolean(token)}>
+                  <KnowledgeSharingPage />
+                </Guard>
+              }
+            />
+            <Route
+              path='/knowledge/team'
+              element={
+                <Guard authenticated={Boolean(token)}>
+                  <KnowledgeSharingPage />
                 </Guard>
               }
             />

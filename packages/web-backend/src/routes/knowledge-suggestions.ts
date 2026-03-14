@@ -2,6 +2,9 @@ import type { FastifyPluginAsync } from "fastify";
 
 interface SuggestionActionBody {
   sessionId?: string;
+  title?: string;
+  content?: string;
+  tags?: string[];
 }
 
 function resolveSessionId(input: SuggestionActionBody | undefined): string {
@@ -30,7 +33,11 @@ export const knowledgeSuggestionsRoutes: FastifyPluginAsync = async (app) => {
     async (request, reply) => {
       try {
         const sessionId = resolveSessionId(request.body);
-        const suggestion = await app.qaGateway.saveSuggestion(sessionId, request.params.suggestionId);
+        const suggestion = await app.qaGateway.saveSuggestion(sessionId, request.params.suggestionId, {
+          title: request.body?.title,
+          content: request.body?.content,
+          tags: request.body?.tags
+        });
         return reply.send(suggestion);
       } catch (error) {
         const normalized = toReplyCode(error);
@@ -54,4 +61,3 @@ export const knowledgeSuggestionsRoutes: FastifyPluginAsync = async (app) => {
     }
   );
 };
-

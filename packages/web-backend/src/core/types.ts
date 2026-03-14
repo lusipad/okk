@@ -140,8 +140,18 @@ export interface RuntimeBackendHealth {
   actions?: CollaborationAction[];
 }
 
+export interface KnowledgeReferencePayload {
+  id: string;
+  title: string;
+  summary: string;
+  category: string;
+  updatedAt: string;
+  injectionKind: "background" | "related";
+}
+
 export interface QaStreamChunk {
   content: string;
+  knowledgeReferences?: KnowledgeReferencePayload[];
 }
 
 export interface QaRequest {

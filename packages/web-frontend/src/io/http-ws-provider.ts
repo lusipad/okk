@@ -5,7 +5,10 @@ import type {
   CollaborationDiagnostics,
   CollaborationRunStatus,
   CollaborationSourceType,
+  KnowledgeEntry,
+  KnowledgeSearchResult,
   KnowledgeSuggestion,
+  KnowledgeVersion,
   LoginResult,
   RepoContextRecord,
   RepoContinueRecord,
@@ -22,12 +25,15 @@ import { HttpClient } from './http-client';
 import { SessionWsClient, TeamWsClient } from './ws-client';
 import type {
   AskQuestionInput,
+  CreateKnowledgeEntryInput,
   CreateMcpServerInput,
   GovernanceDetailPayload,
   IOProvider,
   ImportSkillFolderInput,
   InstallSkillFromMarketInput,
   KnowledgeImportPreviewInput,
+  KnowledgeSharingOverview,
+  ListKnowledgeEntriesInput,
   MemorySharingOverview,
   McpResourceInfo,
   McpResourceReadContent,
@@ -38,6 +44,7 @@ import type {
   RuntimeBackendHealth,
   RetryQuestionInput,
   SaveKnowledgeInput,
+  SearchKnowledgeEntriesInput,
   SkillDetail,
   SkillDiagnosisResult,
   SkillFileInfo,
@@ -47,6 +54,7 @@ import type {
   SkillRiskSummary,
   TeamRunRecord,
   TeamRunRequest,
+  UpdateKnowledgeEntryInput,
   WorkflowTemplate,
   WorkspaceStatusPayload,
   SubscribeTeamInput,
@@ -242,6 +250,66 @@ function unwrapItems<T>(payload: T[] | ListPayload<T>): T[] {
     return payload.items;
   }
   return [];
+}
+
+function appendKnowledgeQuery(params: URLSearchParams, input?: ListKnowledgeEntriesInput | SearchKnowledgeEntriesInput): void {
+  if (!input) {
+    return;
+  }
+
+  if (input.repoId) {
+    params.set('repoId', input.repoId);
+  }
+  if (input.category) {
+    params.set('category', input.category);
+  }
+  if (input.status) {
+    params.set('status', input.status);
+  }
+  if (input.limit !== undefined) {
+    params.set('limit', String(input.limit));
+  }
+  if (input.offset !== undefined) {
+    params.set('offset', String(input.offset));
+  }
+  for (const tag of input.tags ?? []) {
+    if (tag.trim().length > 0) {
+      params.append('tags', tag.trim());
+    }
+  }
+  if ('keyword' in input && input.keyword?.trim()) {
+    params.set('q', input.keyword.trim());
+  }
+}
+
+function appendKnowledgeShareQuery(
+  params: URLSearchParams,
+  input?: { status?: string; repoId?: string; category?: string; tags?: string[]; query?: string; authorId?: string }
+): void {
+  if (!input) {
+    return;
+  }
+
+  if (input.status) {
+    params.set('status', input.status);
+  }
+  if (input.repoId) {
+    params.set('repoId', input.repoId);
+  }
+  if (input.category) {
+    params.set('category', input.category);
+  }
+  if (input.query) {
+    params.set('query', input.query);
+  }
+  if (input.authorId) {
+    params.set('authorId', input.authorId);
+  }
+  for (const tag of input.tags ?? []) {
+    if (tag.trim().length > 0) {
+      params.append('tags', tag.trim());
+    }
+  }
 }
 
 function createClientMessageId(prefix: string): string {
@@ -1008,7 +1076,10 @@ export class HttpWsIOProvider implements IOProvider {
 
   async saveKnowledgeSuggestion(input: SaveKnowledgeInput): Promise<KnowledgeSuggestion> {
     return this.http.post<KnowledgeSuggestion>(`/api/knowledge/suggestions/${input.suggestionId}/save`, {
-      sessionId: input.sessionId
+      sessionId: input.sessionId,
+      ...(input.title ? { title: input.title } : {}),
+      ...(input.content ? { content: input.content } : {}),
+      ...(input.tags ? { tags: input.tags } : {})
     });
   }
 
@@ -1016,6 +1087,106 @@ export class HttpWsIOProvider implements IOProvider {
     await this.http.post<void>(`/api/knowledge/suggestions/${input.suggestionId}/ignore`, {
       sessionId: input.sessionId
     });
+  }
+
+  async listKnowledgeEntries(input?: ListKnowledgeEntriesInput): Promise<KnowledgeEntry[]> {
+    const params = new URLSearchParams();
+    appendKnowledgeQuery(params, input);
+    const suffix = params.size > 0 ? `?${params.toString()}` : '';
+    const payload = await this.http.get<{ items: KnowledgeEntry[] }>(`/api/knowledge${suffix}`);
+    return payload.items;
+  }
+
+  async searchKnowledgeEntries(input?: SearchKnowledgeEntriesInput): Promise<KnowledgeSearchResult[]> {
+    const params = new URLSearchParams();
+    appendKnowledgeQuery(params, input);
+    const suffix = params.size > 0 ? `?${params.toString()}` : '';
+    const payload = await this.http.get<{ items: KnowledgeSearchResult[] }>(`/api/knowledge${suffix}`);
+    return payload.items;
+  }
+
+  async getKnowledgeEntry(entryId: string): Promise<KnowledgeEntry | null> {
+    try {
+      const payload = await this.http.get<{ item: KnowledgeEntry }>(`/api/knowledge/${encodeURIComponent(entryId)}`);
+      return payload.item;
+    } catch (error) {
+      if (error instanceof Error && error.message.includes('404')) {
+        return null;
+      }
+      throw error;
+    }
+  }
+
+  async listKnowledgeShares(input?: { status?: string; repoId?: string; category?: string; tags?: string[]; query?: string; authorId?: string }) {
+    const params = new URLSearchParams();
+    appendKnowledgeShareQuery(params, input);
+    const suffix = params.size > 0 ? `?${params.toString()}` : '';
+    const payload = await this.http.get<{ items: import('../types/domain').KnowledgeShareRecord[] }>(`/api/knowledge-sharing${suffix}`);
+    return payload.items;
+  }
+
+  async getKnowledgeSharingOverview(): Promise<KnowledgeSharingOverview> {
+    return this.http.get<KnowledgeSharingOverview>('/api/knowledge-sharing/overview');
+  }
+
+  async listPublishedKnowledgeShares(input?: { repoId?: string; category?: string; tags?: string[]; query?: string; authorId?: string }) {
+    const params = new URLSearchParams();
+    appendKnowledgeShareQuery(params, input);
+    const suffix = params.size > 0 ? `?${params.toString()}` : '';
+    const payload = await this.http.get<{ items: import('../types/domain').KnowledgeShareRecord[] }>(`/api/knowledge-sharing/team${suffix}`);
+    return payload.items;
+  }
+
+  async getKnowledgeShareByEntry(entryId: string) {
+    return this.http.get<{
+      item: import('../types/domain').KnowledgeShareRecord | null;
+      reviews: import('../types/domain').KnowledgeShareReview[];
+    }>(`/api/knowledge-sharing/entry/${encodeURIComponent(entryId)}`);
+  }
+
+  async requestKnowledgeShare(entryId: string, visibility: 'workspace' | 'team', note?: string) {
+    const payload = await this.http.post<{ item: import('../types/domain').KnowledgeShareRecord }>('/api/knowledge-sharing/request', {
+      entryId,
+      visibility,
+      ...(note ? { note } : {})
+    });
+    return payload.item;
+  }
+
+  async reviewKnowledgeShare(shareId: string, input: { action: string; note?: string }) {
+    const payload = await this.http.post<{ item: import('../types/domain').KnowledgeShareRecord }>(
+      `/api/knowledge-sharing/${encodeURIComponent(shareId)}/review`,
+      input
+    );
+    return payload.item;
+  }
+
+  async getKnowledgeShare(shareId: string) {
+    return this.http.get<{
+      item: import('../types/domain').KnowledgeShareRecord;
+      reviews: import('../types/domain').KnowledgeShareReview[];
+    }>(`/api/knowledge-sharing/${encodeURIComponent(shareId)}`);
+  }
+
+  async createKnowledgeEntry(input: CreateKnowledgeEntryInput): Promise<KnowledgeEntry> {
+    return this.http.post<KnowledgeEntry>('/api/knowledge', input);
+  }
+
+  async updateKnowledgeEntry(entryId: string, input: UpdateKnowledgeEntryInput): Promise<KnowledgeEntry> {
+    return this.http.patch<KnowledgeEntry>(`/api/knowledge/${encodeURIComponent(entryId)}`, input);
+  }
+
+  async deleteKnowledgeEntry(entryId: string): Promise<void> {
+    await this.http.delete(`/api/knowledge/${encodeURIComponent(entryId)}`);
+  }
+
+  async getKnowledgeVersions(entryId: string): Promise<KnowledgeVersion[]> {
+    const payload = await this.http.get<{ items: KnowledgeVersion[] }>(`/api/knowledge/${encodeURIComponent(entryId)}/versions`);
+    return payload.items;
+  }
+
+  async updateKnowledgeStatus(entryId: string, status: import('../types/domain').KnowledgeStatus): Promise<KnowledgeEntry> {
+    return this.http.patch<KnowledgeEntry>(`/api/knowledge/${encodeURIComponent(entryId)}/status`, { status });
   }
 
   async listMcpServers(): Promise<McpServerSetting[]> {

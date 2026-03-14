@@ -88,6 +88,7 @@ describe('LeftSidebar', () => {
     expect(screen.getByText('Primary links', { selector: '.sidebar-section-label' })).toBeInTheDocument();
     expect(screen.getByText('More tools', { selector: '.sidebar-section-label' })).toBeInTheDocument();
     expect(screen.getAllByText('Chats').length).toBeGreaterThan(0);
+    expect(screen.getByTestId('nav-knowledge')).toBeInTheDocument();
     expect(screen.getByTestId('nav-workspaces')).toBeInTheDocument();
     expect(screen.getByTestId('nav-identity')).toBeInTheDocument();
     expect(screen.getByTestId('nav-memory')).toBeInTheDocument();
@@ -258,7 +259,7 @@ describe('LeftSidebar', () => {
   });
 
   it('localStorage 读取异常时回退到默认收起状态', () => {
-    vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+    vi.spyOn(localStorage, 'getItem').mockImplementation(() => {
       throw new Error('storage blocked');
     });
 

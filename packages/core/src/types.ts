@@ -218,6 +218,7 @@ export interface Message {
 }
 
 export type KnowledgeStatus = "draft" | "published" | "stale" | "archived";
+export type KnowledgeInjectionKind = "background" | "related";
 
 export interface KnowledgeEntry {
   id: string;
@@ -251,6 +252,56 @@ export interface KnowledgeVersion {
   changeSummary: string | null;
   editedBy: string;
   createdAt: string;
+}
+
+export type KnowledgeShareVisibility = "workspace" | "team";
+export type KnowledgeShareReviewStatus =
+  | "pending_review"
+  | "approved"
+  | "published"
+  | "rejected"
+  | "changes_requested";
+
+export interface KnowledgeShareRecord {
+  id: string;
+  entryId: string;
+  visibility: KnowledgeShareVisibility;
+  reviewStatus: KnowledgeShareReviewStatus;
+  requestedBy: string;
+  reviewedBy: string | null;
+  requestNote: string | null;
+  reviewNote: string | null;
+  publishedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  entryTitle: string;
+  entrySummary: string;
+  entryCategory: string;
+  entryStatus: KnowledgeStatus;
+  entryTags: string[];
+  repoId: string;
+  sourceAuthorId: string;
+  sourceAuthorName: string | null;
+}
+
+export interface KnowledgeShareReview {
+  id: string;
+  shareId: string;
+  action: "submit" | "approve" | "publish" | "reject" | "request_changes" | "rollback";
+  note: string | null;
+  createdBy: string;
+  createdAt: string;
+}
+
+export interface KnowledgeSharingOverview {
+  summary: {
+    total: number;
+    pendingReview: number;
+    approved: number;
+    published: number;
+    rejected: number;
+    changesRequested: number;
+  };
 }
 
 export type MemoryType = "preference" | "project" | "relationship" | "process" | "event";
@@ -451,6 +502,15 @@ export interface AgentTraceEvent {
   createdAt: string;
 }
 
+export interface KnowledgeReference {
+  id: string;
+  title: string;
+  summary: string;
+  category: string;
+  updatedAt: string;
+  injectionKind: KnowledgeInjectionKind;
+}
+
 export type KnowledgeGovernanceStatus =
   | "healthy"
   | "pending_review"
@@ -548,7 +608,7 @@ export interface KnowledgeImportBatch {
 }
 
 export type SkillWorkflowStatus = "draft" | "active";
-export type SkillWorkflowNodeType = "prompt" | "skill" | "agent" | "condition";
+export type SkillWorkflowNodeType = "prompt" | "skill" | "agent" | "condition" | "knowledge_ref";
 export type SkillWorkflowRunStatus = "running" | "completed" | "failed";
 export type SkillWorkflowStepStatus = "pending" | "running" | "completed" | "failed" | "skipped";
 
@@ -679,6 +739,7 @@ export interface RepositoryContext {
   additionalDirectories: string[];
   claudeMd: string | null;
   knowledgeSummary: string;
+  knowledgeReferences: KnowledgeReference[];
   systemPromptAppendix: string;
 }
 

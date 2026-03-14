@@ -1,6 +1,9 @@
 import fs from "node:fs";
 import path from "node:path";
-import type { RepositoryContext } from "../types.js";
+import type {
+  KnowledgeReference,
+  RepositoryContext
+} from "../types.js";
 import type { KnowledgeDao } from "../database/dao/knowledge-dao.js";
 
 export interface RepositoryPathValidationResult {
@@ -14,6 +17,9 @@ export interface BuildRepositoryContextInput {
   repoId: string;
   additionalDirectories?: string[];
   knowledgeLimit?: number;
+  backgroundKnowledgeLimit?: number;
+  relatedKnowledgeLimit?: number;
+  query?: string;
   projectContextAppendix?: string;
 }
 
@@ -78,17 +84,64 @@ export class RepositoryContextService {
       ? await fs.promises.readFile(claudeMdPath, "utf-8")
       : null;
 
-    const knowledgeSummaries = this.knowledgeDao.listPublishedSummariesByRepo(
-      input.repoId,
-      input.knowledgeLimit ?? 10
-    );
-
-    const knowledgeSummary = knowledgeSummaries
-      .map(
-        (entry, index) =>
-          `${index + 1}. [${entry.category}] ${entry.title}: ${entry.summary}`
+    const backgroundKnowledge = this.knowledgeDao
+      .listPublishedSummariesByRepo(
+        input.repoId,
+        input.backgroundKnowledgeLimit ?? input.knowledgeLimit ?? 4
       )
-      .join("\n");
+      .map<KnowledgeReference>((entry) => ({
+        id: entry.id,
+        title: entry.title,
+        summary: entry.summary,
+        category: entry.category,
+        updatedAt: entry.updatedAt,
+        injectionKind: "background"
+      }));
+
+    const relatedKnowledge = input.query?.trim()
+      ? this.knowledgeDao
+          .search({
+            keyword: input.query.trim(),
+            repoId: input.repoId,
+            status: "published",
+            limit: input.relatedKnowledgeLimit ?? 4
+          })
+          .filter((entry) => !backgroundKnowledge.some((item) => item.id === entry.id))
+          .map<KnowledgeReference>((entry) => ({
+            id: entry.id,
+            title: entry.title,
+            summary: entry.snippet || entry.summary,
+            category: entry.category,
+            updatedAt: entry.updatedAt,
+            injectionKind: "related"
+          }))
+      : [];
+
+    const knowledgeReferences = [...backgroundKnowledge, ...relatedKnowledge];
+    const knowledgeSections: string[] = [];
+    if (backgroundKnowledge.length > 0) {
+      knowledgeSections.push(
+        [
+          "## Background Knowledge",
+          ...backgroundKnowledge.map(
+            (entry, index) =>
+              `${index + 1}. [${entry.category}] ${entry.title}: ${entry.summary}`
+          )
+        ].join("\n")
+      );
+    }
+    if (relatedKnowledge.length > 0) {
+      knowledgeSections.push(
+        [
+          "## Related Knowledge",
+          ...relatedKnowledge.map(
+            (entry, index) =>
+              `${index + 1}. [${entry.category}] ${entry.title}: ${entry.summary}`
+          )
+        ].join("\n")
+      );
+    }
+    const knowledgeSummary = knowledgeSections.join("\n\n");
 
     const sections: string[] = [];
     if (claudeMd) {
@@ -103,6 +156,7 @@ export class RepositoryContextService {
       additionalDirectories,
       claudeMd,
       knowledgeSummary,
+      knowledgeReferences,
       systemPromptAppendix: sections.join("\n\n")
     };
   }

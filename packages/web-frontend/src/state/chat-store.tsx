@@ -8,6 +8,7 @@ import type {
   CollaborationRunStatus,
   CollaborationSourceType,
   KnowledgeSuggestion,
+  KnowledgeReference,
   SessionInfo,
   SessionRuntimeState,
   TeamMemberStatus,
@@ -40,6 +41,7 @@ interface ChatState {
   connectionState: WsConnectionState;
   messagesBySession: Record<string, ChatMessage[]>;
   suggestionsBySession: Record<string, KnowledgeSuggestion[]>;
+  knowledgeReferencesBySession: Record<string, KnowledgeReference[]>;
   teamViewBySession: Record<string, TeamPanelState>;
   runtimeStateBySession: Record<string, SessionRuntimeState>;
   lastEventIdBySession: Record<string, number>;
@@ -86,6 +88,7 @@ const initialState: ChatState = {
   connectionState: 'disconnected',
   messagesBySession: {},
   suggestionsBySession: {},
+  knowledgeReferencesBySession: {},
   teamViewBySession: {},
   runtimeStateBySession: {},
   lastEventIdBySession: {},
@@ -492,10 +495,12 @@ function applySessionEvent(state: ChatState, event: SessionEventEnvelope): ChatS
   const sessionMessages = state.messagesBySession[sessionId] ?? [];
   let nextMessages = [...sessionMessages];
   let nextSuggestions = state.suggestionsBySession[sessionId] ?? [];
+  let nextKnowledgeReferences = state.knowledgeReferencesBySession[sessionId] ?? [];
 
   if (event.type === 'message_started') {
     const payload = event.payload as unknown as MessageStartedPayload;
     nextMessages = ensureAssistantMessage(nextMessages, payload.messageId);
+    nextKnowledgeReferences = [];
   } else if (event.type === 'message_chunk') {
     const payload = event.payload as unknown as MessageChunkPayload;
     nextMessages = ensureAssistantMessage(nextMessages, payload.messageId);
@@ -510,12 +515,14 @@ function applySessionEvent(state: ChatState, event: SessionEventEnvelope): ChatS
       ...item,
       status: 'done'
     }));
+    nextKnowledgeReferences = Array.isArray(payload.knowledgeReferences) ? payload.knowledgeReferences : [];
   } else if (event.type === 'message_aborted') {
     const payload = event.payload as unknown as MessageAbortedPayload;
     nextMessages = updateMessageById(nextMessages, payload.messageId, (item) => ({
       ...item,
       status: 'aborted'
     }));
+    nextKnowledgeReferences = [];
   } else if (event.type === 'message_error') {
     const payload = event.payload as unknown as MessageErrorPayload;
     nextMessages = updateMessageById(nextMessages, payload.messageId, (item) => ({
@@ -523,6 +530,7 @@ function applySessionEvent(state: ChatState, event: SessionEventEnvelope): ChatS
       status: 'error',
       error: payload.error
     }));
+    nextKnowledgeReferences = [];
   } else if (event.type === 'tool_call') {
     const payload = event.payload as unknown as ToolCallPayload;
     nextMessages = updateMessageById(nextMessages, payload.messageId, (item) => ({
@@ -545,6 +553,10 @@ function applySessionEvent(state: ChatState, event: SessionEventEnvelope): ChatS
     suggestionsBySession: {
       ...state.suggestionsBySession,
       [sessionId]: nextSuggestions
+    },
+    knowledgeReferencesBySession: {
+      ...state.knowledgeReferencesBySession,
+      [sessionId]: nextKnowledgeReferences
     },
     lastEventIdBySession: {
       ...state.lastEventIdBySession,

@@ -35,6 +35,98 @@ export interface KnowledgeSuggestion {
   category: string;
   tags: string[];
   status: "pending" | "saved" | "ignored";
+  content?: string;
+  knowledgeEntryId?: string | null;
+}
+
+export interface KnowledgeReference {
+  id: string;
+  title: string;
+  summary: string;
+  category: string;
+  updatedAt: string;
+  injectionKind: "background" | "related";
+}
+
+export type KnowledgeStatus = "draft" | "published" | "stale" | "archived";
+
+export interface KnowledgeEntry {
+  id: string;
+  title: string;
+  content: string;
+  summary: string;
+  repoId: string;
+  category: string;
+  sourceSessionId: string | null;
+  qualityScore: number;
+  viewCount: number;
+  upvoteCount: number;
+  version: number;
+  status: KnowledgeStatus;
+  tags: string[];
+  metadata: Record<string, unknown>;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface KnowledgeVersion {
+  id: string;
+  entryId: string;
+  version: number;
+  title: string;
+  content: string;
+  summary: string;
+  category: string;
+  metadata: Record<string, unknown>;
+  changeSummary: string | null;
+  editedBy: string;
+  createdAt: string;
+}
+
+export interface KnowledgeSearchResult extends KnowledgeEntry {
+  snippet: string;
+  highlightedTitle: string;
+  relevance: number;
+}
+
+export type KnowledgeShareVisibility = "workspace" | "team";
+export type KnowledgeShareReviewStatus =
+  | "pending_review"
+  | "approved"
+  | "published"
+  | "rejected"
+  | "changes_requested";
+
+export interface KnowledgeShareRecord {
+  id: string;
+  entryId: string;
+  visibility: KnowledgeShareVisibility;
+  reviewStatus: KnowledgeShareReviewStatus;
+  requestedBy: string;
+  reviewedBy: string | null;
+  requestNote: string | null;
+  reviewNote: string | null;
+  publishedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  entryTitle: string;
+  entrySummary: string;
+  entryCategory: string;
+  entryStatus: KnowledgeStatus;
+  entryTags: string[];
+  repoId: string;
+  sourceAuthorId: string;
+  sourceAuthorName: string | null;
+}
+
+export interface KnowledgeShareReview {
+  id: string;
+  shareId: string;
+  action: 'submit' | 'approve' | 'publish' | 'reject' | 'request_changes' | 'rollback';
+  note: string | null;
+  createdBy: string;
+  createdAt: string;
 }
 
 export type CollaborationSourceType = 'team' | 'agent' | 'skill' | 'mcp' | 'backend' | 'tool';
@@ -453,7 +545,7 @@ export interface KnowledgeImportItem {
 
 export interface SkillWorkflowNode {
   id: string;
-  type: 'prompt' | 'skill' | 'agent' | 'condition';
+  type: 'prompt' | 'skill' | 'agent' | 'condition' | 'knowledge_ref';
   name: string;
   config: Record<string, unknown>;
   next: string[];
@@ -472,7 +564,7 @@ export interface SkillWorkflowRecord {
 export interface SkillWorkflowRunStep {
   nodeId: string;
   nodeName: string;
-  nodeType: 'prompt' | 'skill' | 'agent' | 'condition';
+  nodeType: 'prompt' | 'skill' | 'agent' | 'condition' | 'knowledge_ref';
   status: 'pending' | 'running' | 'completed' | 'failed' | 'skipped';
   input: Record<string, unknown>;
   output: Record<string, unknown>;

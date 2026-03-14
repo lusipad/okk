@@ -7,6 +7,7 @@ export interface KnowledgeSuggestionSnapshot {
   category: string;
   tags: string[];
   content: string;
+  knowledgeEntryId?: string | null;
   status: "pending" | "saved" | "ignored";
   createdAt: string;
   sourceMessageId: string;

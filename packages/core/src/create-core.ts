@@ -20,6 +20,7 @@ import type {
   CollaborationRunStatus,
   CollaborationSourceType,
   IdentityProfile,
+  KnowledgeReference,
   KnowledgeStatus,
   MemoryEntry,
   MemoryType,
@@ -142,6 +143,7 @@ export interface CorePartnerSummaryRecord {
 
 export interface CoreQaStreamChunk {
   content: string;
+  knowledgeReferences?: KnowledgeReference[];
 }
 
 export interface CoreQaRequest {
@@ -324,6 +326,7 @@ interface ResolvedRepositoryContext {
   workingDirectory?: string;
   additionalDirectories?: string[];
   systemPrompt?: string;
+  knowledgeReferences: KnowledgeReference[];
 }
 
 const DEFAULT_ADMIN_ID = "u-admin";
@@ -937,12 +940,13 @@ export async function createCore(options: CreateCoreOptions = {}): Promise<CoreA
     return wrapped;
   };
 
-  const resolveRepositoryContext = async (qaSessionId: string): Promise<ResolvedRepositoryContext> => {
+  const resolveRepositoryContext = async (qaSessionId: string, query = ""): Promise<ResolvedRepositoryContext> => {
     const session = database.sessions.getById(qaSessionId);
     if (!session) {
       return {
         workingDirectory: workspaceRoot,
-        additionalDirectories: []
+        additionalDirectories: [],
+        knowledgeReferences: []
       };
     }
 
@@ -950,7 +954,8 @@ export async function createCore(options: CreateCoreOptions = {}): Promise<CoreA
     if (!repository) {
       return {
         workingDirectory: workspaceRoot,
-        additionalDirectories: []
+        additionalDirectories: [],
+        knowledgeReferences: []
       };
     }
 
@@ -970,13 +975,15 @@ export async function createCore(options: CreateCoreOptions = {}): Promise<CoreA
         repositoryPath: repository.path,
         repoId: repository.id,
         knowledgeLimit: 10,
+        query,
         projectContextAppendix
       });
 
       return {
         workingDirectory: context.workingDirectory,
         additionalDirectories: Array.from(new Set([...context.additionalDirectories, ...workspaceAdditionalDirectories])),
-        systemPrompt: context.systemPromptAppendix || undefined
+        systemPrompt: context.systemPromptAppendix || undefined,
+        knowledgeReferences: context.knowledgeReferences
       };
     } catch (error) {
       logger.warn("core_repository_context_fallback", {
@@ -986,7 +993,8 @@ export async function createCore(options: CreateCoreOptions = {}): Promise<CoreA
       });
       return {
         workingDirectory: repository.path,
-        additionalDirectories: workspaceAdditionalDirectories
+        additionalDirectories: workspaceAdditionalDirectories,
+        knowledgeReferences: []
       };
     }
   };
@@ -1441,7 +1449,7 @@ export async function createCore(options: CreateCoreOptions = {}): Promise<CoreA
           );
         }
 
-        const context = await resolveRepositoryContext(request.sessionId);
+        const context = await resolveRepositoryContext(request.sessionId, request.content);
         const requestedSkillIds = normalizeIdList(request.skillIds);
         const requestedMcpServerIds = normalizeIdList(request.mcpServerIds);
         const installedSkillNames = new Set(
@@ -1486,6 +1494,7 @@ export async function createCore(options: CreateCoreOptions = {}): Promise<CoreA
         const effectivePrompt = request.backend === "codex"
           ? buildCodexPrompt(request.content, effectiveSystemPrompt)
           : request.content;
+        const knowledgeReferenceIds = context.knowledgeReferences.map((item) => item.id);
 
         const persistedSession = database.sessions.getById(request.sessionId);
         if (persistedSession) {
@@ -1510,6 +1519,14 @@ export async function createCore(options: CreateCoreOptions = {}): Promise<CoreA
         let chunkCount = 0;
 
         try {
+          if (knowledgeReferenceIds.length > 0) {
+            database.knowledge.incrementViewCounts(knowledgeReferenceIds);
+            yield {
+              content: "",
+              knowledgeReferences: context.knowledgeReferences
+            };
+          }
+
           const eventStream = backendManager.execute({
             backend: request.backend,
             prompt: effectivePrompt,

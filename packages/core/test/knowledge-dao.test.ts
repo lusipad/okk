@@ -167,4 +167,45 @@ describe("KnowledgeDao", () => {
       db.close();
     }
   });
+
+  it("仅对唯一知识条目递增一次 view_count", () => {
+    const db = createTempDb();
+
+    try {
+      const user = db.users.create({
+        username: "viewer",
+        passwordHash: "hash",
+        displayName: "Viewer"
+      });
+      const repo = db.repositories.create({
+        name: "repo-a",
+        path: "/tmp/repo-a",
+        defaultBackend: "codex"
+      });
+
+      const first = db.knowledge.create({
+        title: "背景知识",
+        content: "background content",
+        summary: "background summary",
+        repoId: repo.id,
+        status: "published",
+        createdBy: user.id
+      });
+      const second = db.knowledge.create({
+        title: "相关知识",
+        content: "related content",
+        summary: "related summary",
+        repoId: repo.id,
+        status: "published",
+        createdBy: user.id
+      });
+
+      db.knowledge.incrementViewCounts([first.id, first.id, second.id]);
+
+      expect(db.knowledge.getById(first.id)?.viewCount).toBe(1);
+      expect(db.knowledge.getById(second.id)?.viewCount).toBe(1);
+    } finally {
+      db.close();
+    }
+  });
 });

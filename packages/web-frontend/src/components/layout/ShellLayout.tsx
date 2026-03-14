@@ -50,6 +50,7 @@ function normalizeCommandQuery(value: unknown): string {
 
 function getDefaultTopbarTitle(pathname: string): string {
   if (pathname === '/') return 'Chat';
+  if (pathname === '/knowledge' || pathname.startsWith('/knowledge/')) return 'Knowledge';
   if (pathname === '/identity') return 'Identity';
   if (pathname === '/memory') return 'Memory';
   if (pathname === '/workspaces') return 'Workspaces';
