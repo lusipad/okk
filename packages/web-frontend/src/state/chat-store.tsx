@@ -574,7 +574,7 @@ function reducer(state: ChatState, action: ChatAction): ChatState {
     const currentSessionId =
       state.currentSessionId && action.sessions.some((item) => item.id === state.currentSessionId)
         ? state.currentSessionId
-        : action.sessions[0]?.id ?? null;
+        : null;
     return {
       ...state,
       sessions: action.sessions,

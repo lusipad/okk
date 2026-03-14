@@ -52,15 +52,17 @@ export function PartnerHomeView({
   onContinueWork,
   onApplyQuickAction
 }: PartnerHomeViewProps) {
+  const continueButtonLabel = continueCandidate?.source === 'session' ? '打开最近会话' : '继续当前工作';
+
   return (
     <section className='partner-home' aria-label='合伙人首页'>
       <div className='partner-home-hero'>
-        <p className='eyebrow'>Partner home</p>
+        <p className='eyebrow'>工作台首页</p>
         <h2>欢迎回来，{partnerName}</h2>
         <p className='partner-home-copy'>
           {loading
             ? '正在整理最近会话、项目上下文与可用能力…'
-            : '我已经准备好基于你最近的上下文继续协作。你可以直接继续工作、切回最近会话，或先用一个快捷动作开始。'}
+            : '先从一个明确入口开始：继续当前任务、回到最近对话，或者直接投递一条新的执行指令。'}
         </p>
       </div>
 
@@ -129,7 +131,7 @@ export function PartnerHomeView({
                   onClick={onContinueWork}
                   disabled={Boolean(continueCandidate.loading)}
                 >
-                  {continueCandidate.loading ? '同步中…' : '继续上次工作'}
+                  {continueCandidate.loading ? '同步中…' : continueButtonLabel}
                 </button>
               )}
             </div>

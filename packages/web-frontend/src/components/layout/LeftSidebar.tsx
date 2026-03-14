@@ -169,26 +169,26 @@ export function LeftSidebar({
 
   const navigationLinks = useMemo<NavLinkItem[]>(
     () => [
-      { id: 'chat', label: 'Chats', to: '/', active: inChat },
+      { id: 'chat', label: '对话', to: '/', active: inChat },
       {
         id: 'knowledge',
-        label: 'Knowledge',
+        label: '知识库',
         to: '/knowledge',
         active:
           (location.pathname === '/knowledge' || location.pathname.startsWith('/knowledge/')) &&
           !inKnowledgeImports &&
           !inKnowledgeSubscriptions
       },
-      { id: 'identity', label: 'Identity', to: '/identity', active: location.pathname === '/identity' },
-      { id: 'memory', label: 'Memory', to: '/memory', active: location.pathname === '/memory' },
-      { id: 'workspaces', label: 'Workspaces', to: '/workspaces', active: location.pathname === '/workspaces' },
-      { id: 'skills', label: 'Skills', to: '/skills', active: location.pathname === '/skills' },
+      { id: 'identity', label: '身份', to: '/identity', active: location.pathname === '/identity' },
+      { id: 'memory', label: '记忆', to: '/memory', active: location.pathname === '/memory' },
+      { id: 'workspaces', label: '工作区', to: '/workspaces', active: location.pathname === '/workspaces' },
+      { id: 'skills', label: '技能', to: '/skills', active: location.pathname === '/skills' },
       { id: 'mcp', label: 'MCP', to: '/settings/mcp', active: location.pathname === '/settings/mcp' },
-      { id: 'governance', label: 'Governance', to: '/governance', active: location.pathname === '/governance' },
-      { id: 'imports', label: 'Imports', to: '/imports', active: inKnowledgeImports },
-      { id: 'knowledge-subscriptions', label: 'Subscriptions', to: '/knowledge/subscriptions', active: inKnowledgeSubscriptions },
-      { id: 'workflows', label: 'Workflows', to: '/workflows', active: location.pathname === '/workflows' },
-      { id: 'memory-sharing', label: 'Sharing', to: '/memory-sharing', active: location.pathname === '/memory-sharing' }
+      { id: 'governance', label: '治理', to: '/governance', active: location.pathname === '/governance' },
+      { id: 'imports', label: '导入', to: '/imports', active: inKnowledgeImports },
+      { id: 'knowledge-subscriptions', label: '订阅', to: '/knowledge/subscriptions', active: inKnowledgeSubscriptions },
+      { id: 'workflows', label: '工作流', to: '/workflows', active: location.pathname === '/workflows' },
+      { id: 'memory-sharing', label: '共享', to: '/memory-sharing', active: location.pathname === '/memory-sharing' }
     ],
     [inChat, inKnowledgeImports, inKnowledgeSubscriptions, location.pathname]
   );
@@ -202,18 +202,19 @@ export function LeftSidebar({
     [navigationLinks]
   );
   const hasContinueSection = Boolean(continueCandidate || onContinueProjectContext);
+  const continueActionLabel = continueCandidate?.source === 'session' ? '打开最近会话' : '继续当前工作';
 
   return (
     <section className='panel left-sidebar-panel'>
-      <p className='eyebrow sidebar-section-label'>New chat</p>
+      <p className='eyebrow sidebar-section-label'>开始协作</p>
       <button type='button' className='primary-button session-create-button sidebar-new-chat' onClick={onCreateSession}>
         <span aria-hidden='true'>+</span>
-        <span>New chat</span>
+        <span>新建对话</span>
       </button>
 
       {hasContinueSection && (
         <div className='sidebar-section'>
-          <p className='sidebar-section-label'>Continue work</p>
+          <p className='sidebar-section-label'>继续工作</p>
           {continueCandidate ? (
             <div className='sidebar-project-context sidebar-continue-card' data-testid='sidebar-project-context'>
               <p className='small-text'>继续入口：{continueCandidate.title}</p>
@@ -228,7 +229,7 @@ export function LeftSidebar({
                     onClick={onContinueProjectContext}
                     disabled={Boolean(continueCandidate.loading)}
                   >
-                    {continueCandidate.loading ? '同步中…' : '继续上次工作'}
+                    {continueCandidate.loading ? '同步中…' : continueActionLabel}
                   </button>
                 )}
                 {continueCandidate.source === 'repo' && onSaveProjectContext && (
@@ -241,6 +242,17 @@ export function LeftSidebar({
                     记住当前偏好
                   </button>
                 )}
+                {continueCandidate.source === 'repo' && onRefreshProjectContext && (
+                  <button
+                    type='button'
+                    className='ghost-button small-button'
+                    data-testid='sidebar-project-refresh'
+                    onClick={onRefreshProjectContext}
+                    disabled={Boolean(continueCandidate.loading)}
+                  >
+                    刷新
+                  </button>
+                )}
               </div>
             </div>
           ) : (
@@ -250,7 +262,7 @@ export function LeftSidebar({
       )}
 
       <div className='sidebar-section'>
-        <p className='sidebar-section-label'>Search</p>
+        <p className='sidebar-section-label'>快速检索</p>
         <button
           type='button'
           className='sidebar-link sidebar-link-button'
@@ -268,14 +280,14 @@ export function LeftSidebar({
           <span className='sidebar-link-icon' aria-hidden='true'>
             /
           </span>
-          <span className='sidebar-link-label'>Open command palette</span>
+          <span className='sidebar-link-label'>打开命令面板</span>
         </button>
         <label className='session-search'>
           <span className='sr-only'>筛选会话</span>
           <input
             data-testid='session-search-input'
             value={sessionQuery}
-            placeholder='Search chats'
+            placeholder='搜索对话'
             onChange={(event) => setSessionQuery(event.target.value)}
           />
         </label>
@@ -291,7 +303,7 @@ export function LeftSidebar({
       </div>
 
       <div className='sidebar-section'>
-        <p className='sidebar-section-label'>Primary links</p>
+        <p className='sidebar-section-label'>主要入口</p>
         <nav className='sidebar-primary-nav' aria-label='主导航'>
           {primaryLinks.map((link) => (
             <Link
@@ -312,7 +324,7 @@ export function LeftSidebar({
 
       <div className='sidebar-section'>
         <div className='sidebar-section-header'>
-          <p className='sidebar-section-label'>More tools</p>
+          <p className='sidebar-section-label'>更多工具</p>
           <button
             type='button'
             className='ghost-button small-button sidebar-more-tools-toggle'
@@ -345,7 +357,7 @@ export function LeftSidebar({
         )}
       </div>
 
-      <p className='eyebrow sidebar-section-label sidebar-chat-title'>Chats</p>
+      <p className='eyebrow sidebar-section-label sidebar-chat-title'>最近对话</p>
       {sessions.length === 0 ? (
         <p className='empty-hint'>还没有和赛博合伙人的历史协作。</p>
       ) : filteredSessions.length === 0 ? (

@@ -13,7 +13,7 @@ import { NextStepSuggestions, deriveNextStepSuggestions, type NextStepSuggestion
 import { Composer } from '../components/chat/Composer';
 import { PartnerHomeView } from '../components/home/PartnerHomeView';
 import type { SaveKnowledgeSuggestionDraft } from '../components/cards/KnowledgeSuggestionCard';
-import type { AgentTraceEvent, ChatMessage, ContinueWorkCandidate, IdentityProfile, MissionSummaryRecord, PartnerSummaryRecord, RepoContextRecord, TeamPanelState } from '../types/domain';
+import type { ChatMessage, ContinueWorkCandidate, IdentityProfile, MissionSummaryRecord, PartnerSummaryRecord, RepoContextRecord, TeamPanelState } from '../types/domain';
 
 type LoadedRepoContext = RepoContextRecord & { repoName: string };
 type LoadedRepoContinue = { repoId?: string; repoName: string; prompt: string; summary: string; snapshot: RepoContextRecord['snapshot']; recentActivities: RepoContextRecord['recentActivities'] };
@@ -116,11 +116,6 @@ export function ChatPage() {
   const [teamRuns, setTeamRuns] = useState<TeamRunRecord[]>([]);
   const [activeRunId, setActiveRunId] = useState<string | null>(null);
   const [composerExternalDraft, setComposerExternalDraft] = useState<ComposerExternalDraft | null>(null);
-  const [agentTraces, setAgentTraces] = useState<AgentTraceEvent[]>([]);
-  const [traceQuery, setTraceQuery] = useState('');
-  const [selectedTraceId, setSelectedTraceId] = useState<string | null>(null);
-  const [selectedTrace, setSelectedTrace] = useState<AgentTraceEvent | null>(null);
-  const [selectedTraceDiff, setSelectedTraceDiff] = useState<string | null>(null);
   const [projectContext, setProjectContext] = useState<LoadedRepoContext | null>(null);
   const [projectContextLoading, setProjectContextLoading] = useState(false);
   const [projectContextError, setProjectContextError] = useState<string | null>(null);
@@ -405,6 +400,35 @@ export function ChatPage() {
     };
   }, [io]);
 
+  useEffect(() => {
+    let cancelled = false;
+    setPartnerSummaryLoading(true);
+    setPartnerSummaryError(null);
+
+    void io
+      .getPartnerSummary()
+      .then((item) => {
+        if (!cancelled) {
+          setPartnerSummary(item);
+        }
+      })
+      .catch((incoming) => {
+        if (!cancelled) {
+          setPartnerSummary(null);
+          setPartnerSummaryError(toErrorMessage(incoming, '加载首页摘要失败，已切换为基础视图。'));
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setPartnerSummaryLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [io]);
+
   const loadTeamRuns = useCallback(
     async (sessionId: string): Promise<void> => {
       try {
@@ -432,51 +456,6 @@ export function ChatPage() {
     void loadTeamRuns(currentSessionId);
   }, [currentSessionId, loadTeamRuns]);
 
-  useEffect(() => {
-    if (!currentSessionId) {
-      setAgentTraces([]);
-      setSelectedTraceId(null);
-      setSelectedTrace(null);
-      setSelectedTraceDiff(null);
-      return;
-    }
-    void io.listAgentTraces(currentSessionId)
-      .then((items) => {
-        setAgentTraces(items);
-        setSelectedTraceId(items[0]?.id ?? null);
-      })
-      .catch(() => undefined);
-  }, [currentSessionId, io]);
-
-  useEffect(() => {
-    if (!currentSessionId || !selectedTraceId) {
-      setSelectedTrace(null);
-      setSelectedTraceDiff(null);
-      return;
-    }
-    void io.getAgentTrace(currentSessionId, selectedTraceId)
-      .then((item) => {
-        setSelectedTrace(item);
-        setSelectedTraceDiff(null);
-      })
-      .catch(() => undefined);
-  }, [currentSessionId, io, selectedTraceId]);
-
-  const filteredTraces = useMemo(() => {
-    const normalized = traceQuery.trim().toLowerCase();
-    if (!normalized) {
-      return agentTraces;
-    }
-    return agentTraces.filter((item) => [item.summary, item.traceType, item.sourceType, item.status].join(' ').toLowerCase().includes(normalized));
-  }, [agentTraces, traceQuery]);
-
-  const loadTraceDiff = useCallback(async (filePath: string): Promise<void> => {
-    if (!currentSessionId || !selectedTraceId) {
-      return;
-    }
-    const diff = await io.getAgentTraceDiff(currentSessionId, selectedTraceId, filePath);
-    setSelectedTraceDiff(diff?.diff ?? '暂无 diff 内容');
-  }, [currentSessionId, io, selectedTraceId]);
   const loadProjectContext = useCallback(async (repoId: string): Promise<void> => {
     setProjectContextLoading(true);
     setProjectContextError(null);
@@ -808,6 +787,14 @@ export function ChatPage() {
     }
   };
 
+  const handleContinueWork = async (): Promise<void> => {
+    if (continueCandidate?.source === 'session' && continueCandidate.sessionId) {
+      dispatch({ type: 'set_current_session', sessionId: continueCandidate.sessionId });
+      return;
+    }
+    await continueProjectContext();
+  };
+
   const saveProjectContext = async (): Promise<void> => {
     if (!currentRepoId) {
       return;
@@ -885,7 +872,7 @@ export function ChatPage() {
     <ShellLayout
       topbarContext={
         {
-          title: 'Chat',
+          title: '对话工作台',
           identityName: partnerSummary?.identity?.name ?? activeIdentity?.name ?? null
         }
       }
@@ -896,7 +883,7 @@ export function ChatPage() {
           continueCandidate={continueCandidate}
           onSelectSession={(sessionId) => dispatch({ type: 'set_current_session', sessionId })}
           onCreateSession={() => void createSession()}
-          onContinueProjectContext={() => void continueProjectContext()}
+          onContinueProjectContext={() => void handleContinueWork()}
           onSaveProjectContext={() => void saveProjectContext()}
           onRefreshProjectContext={() => void (currentRepoId ? loadProjectContext(currentRepoId) : Promise.resolve())}
         />
@@ -907,7 +894,7 @@ export function ChatPage() {
           {messages.length > 0 && (
             <header className='chat-stage-header'>
               <div className='chat-stage-title'>
-                <h2>{state.sessions.find((item) => item.id === currentSessionId)?.title || 'New chat'}</h2>
+                <h2>{state.sessions.find((item) => item.id === currentSessionId)?.title || '新对话'}</h2>
               </div>
               <div className='chat-stage-meta'>
                 <span className='chat-stage-agent'>{selectedAgentName}</span>
@@ -961,45 +948,6 @@ export function ChatPage() {
               </button>
             </div>
           )}
-          {agentTraces.length > 0 && (
-            <div className='panel space-top'>
-              <div className='panel-header'>
-                <p className='small-text'>Trace {agentTraces.length} 条</p>
-                <input value={traceQuery} placeholder='筛选 trace' onChange={(event) => setTraceQuery(event.target.value)} />
-              </div>
-              <ul className='settings-list'>
-                {filteredTraces.slice(0, 6).map((item) => (
-                  <li key={item.id} className='settings-item settings-item-vertical'>
-                    <div>
-                      <strong>{item.summary}</strong>
-                      <p>{item.traceType} · {item.sourceType} · {item.status}</p>
-                    </div>
-                    <button type='button' className='ghost-button' onClick={() => setSelectedTraceId(item.id)}>查看</button>
-                  </li>
-                ))}
-              </ul>
-              {selectedTrace && (
-                <div className='settings-card space-top'>
-                  <h4>{selectedTrace.summary}</h4>
-                  <p className='small-text'>{selectedTrace.traceType} · {selectedTrace.status} · {selectedTrace.createdAt}</p>
-                  <pre className='code-block'><code>{JSON.stringify(selectedTrace.payload, null, 2)}</code></pre>
-                  {selectedTrace.fileChanges.length > 0 && (
-                    <div className='space-top'>
-                      <p className='small-text'>文件变更</p>
-                      <div className='row-actions'>
-                        {selectedTrace.fileChanges.map((change) => (
-                          <button key={change.path} type='button' className='ghost-button small-button' onClick={() => void loadTraceDiff(change.path)}>
-                            {change.changeType}: {change.path}
-                          </button>
-                        ))}
-                      </div>
-                      {selectedTraceDiff && <pre className='code-block'><code>{selectedTraceDiff}</code></pre>}
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
           {messages.length === 0 ? (
             <PartnerHomeView
               partnerName={partnerSummary?.identity?.name ?? activeIdentity?.name ?? '赛博合伙人'}
@@ -1007,9 +955,14 @@ export function ChatPage() {
               recentSessions={recentSessions}
               activeMissions={activeMissions}
               continueCandidate={continueCandidate}
+              summaryCard={{
+                loading: partnerSummaryLoading,
+                error: partnerSummaryError,
+                item: partnerSummary
+              }}
               quickActions={partnerHomeQuickActions}
               onSelectSession={(sessionId) => dispatch({ type: 'set_current_session', sessionId })}
-              onContinueWork={() => void continueProjectContext()}
+              onContinueWork={() => void handleContinueWork()}
               onApplyQuickAction={(prompt) =>
                 setComposerExternalDraft({
                   id: `partner-home-${Date.now()}`,

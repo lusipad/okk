@@ -175,6 +175,16 @@ export function KnowledgePage() {
   const filteredTags = useMemo(() => parseTags(tagFilter), [tagFilter]);
   const currentRepoId = currentSession?.repoId ?? '';
   const selectedListId = editor?.id ?? entryId ?? null;
+  const repoNameById = useMemo(
+    () => new Map(repos.map((repo) => [repo.id, repo.name])),
+    [repos]
+  );
+  const activeRepoLabel = repoFilter ? (repoNameById.get(repoFilter) ?? repoFilter) : '全部仓库';
+  const publishedItemCount = useMemo(
+    () => items.filter((item) => item.status === 'published').length,
+    [items]
+  );
+  const selectedEntryLabel = editor?.title?.trim() || (selectedListId ? '已选条目' : '未选择');
 
   const createSession = async (): Promise<void> => {
     const session = await io.createSession();
@@ -501,7 +511,7 @@ export function KnowledgePage() {
 
   return (
     <ShellLayout
-      topbarContext={{ title: 'Knowledge' }}
+      topbarContext={{ title: '知识工作台' }}
       left={
         <LeftSidebar
           sessions={state.sessions}
@@ -511,13 +521,14 @@ export function KnowledgePage() {
         />
       }
       center={
-        <section className='chat-panel'>
-          <header className='chat-stage-header'>
+        <section className='chat-panel knowledge-page-shell'>
+          <header className='chat-stage-header knowledge-hero'>
             <div className='chat-stage-title'>
-              <h2>Knowledge</h2>
-              <p className='small-text'>搜索、筛选、浏览和编辑知识条目，并查看版本历史。</p>
+              <p className='eyebrow'>知识工作台</p>
+              <h2>把经验沉淀成可复用知识</h2>
+              <p className='small-text'>搜索、筛选、浏览和编辑知识条目，并把共享、导出、版本历史收进一个稳定流程。</p>
             </div>
-            <div className='row-actions'>
+            <div className='row-actions knowledge-hero-actions'>
               <button type='button' className='primary-button' data-testid='knowledge-new-entry' onClick={openNewEntry}>
                 新建知识
               </button>
@@ -535,16 +546,44 @@ export function KnowledgePage() {
               </button>
             </div>
           </header>
+          <div className='knowledge-summary-strip'>
+            <article className='knowledge-summary-card'>
+              <span className='knowledge-summary-label'>当前范围</span>
+              <strong>{activeRepoLabel}</strong>
+            </article>
+            <article className='knowledge-summary-card'>
+              <span className='knowledge-summary-label'>结果数量</span>
+              <strong>{bootstrapLoading ? '加载中…' : `${items.length} 条`}</strong>
+            </article>
+            <article className='knowledge-summary-card'>
+              <span className='knowledge-summary-label'>已发布</span>
+              <strong>{bootstrapLoading ? '加载中…' : `${publishedItemCount} 条`}</strong>
+            </article>
+            <article className='knowledge-summary-card'>
+              <span className='knowledge-summary-label'>导出选择</span>
+              <strong>{selectedEntryIds.length > 0 ? `${selectedEntryIds.length} 条` : '未选择'}</strong>
+            </article>
+          </div>
 
           {bootstrapLoading ? (
             <p>加载中...</p>
           ) : (
-            <div className='knowledge-workbench-grid'>
+            <div className='knowledge-workbench-grid knowledge-workbench-grid-refined'>
               <div className='knowledge-list-column'>
-                {feedback && <p className='small-text'>{feedback}</p>}
-                <div className='settings-card'>
+                {feedback && (
+                  <div className='settings-card knowledge-inline-feedback'>
+                    <p className='small-text'>{feedback}</p>
+                  </div>
+                )}
+                <div className='settings-card knowledge-filter-card'>
                   <div className='panel-header'>
-                    <h3>搜索与筛选</h3>
+                    <div className='knowledge-section-copy'>
+                      <h3>筛选条件</h3>
+                      <p className='small-text'>先收窄范围，再进入详情编辑或做批量导出。</p>
+                    </div>
+                    <span className='small-text'>
+                      {filteredTags.length > 0 ? `标签过滤 ${filteredTags.length} 个` : '支持关键词、状态、仓库、标签'}
+                    </span>
                   </div>
                   <div className='knowledge-filter-grid'>
                     <label className='settings-item settings-item-vertical'>
@@ -588,11 +627,13 @@ export function KnowledgePage() {
                   </div>
                 </div>
 
-                <div className='panel space-top'>
+                <div className='panel space-top knowledge-list-card'>
                   <div className='panel-header'>
-                    <h3>知识列表</h3>
+                    <div className='knowledge-section-copy'>
+                      <h3>知识列表</h3>
+                      <p className='small-text'>{listLoading ? '正在刷新结果…' : `${items.length} 条结果，已发布 ${publishedItemCount} 条`}</p>
+                    </div>
                     <div className='row-actions'>
-                      <span className='small-text'>{listLoading ? '刷新中…' : `${items.length} 条结果`}</span>
                       <button
                         type='button'
                         className='ghost-button'
@@ -615,21 +656,26 @@ export function KnowledgePage() {
                   {error ? (
                     <p className='error-text'>{error}</p>
                   ) : items.length === 0 ? (
-                    <p className='small-text'>当前筛选条件下没有知识条目。</p>
+                    <div className='knowledge-empty-state-inline'>
+                      <p className='small-text'>当前筛选条件下没有知识条目。</p>
+                      <button type='button' className='ghost-button' onClick={openNewEntry}>
+                        直接新建一条知识
+                      </button>
+                    </div>
                   ) : (
                     <ul className='settings-list knowledge-entry-list'>
                       {items.map((item) => {
                         const summary = 'snippet' in item && item.snippet ? item.snippet : item.summary;
                         return (
-                          <li key={item.id} className='settings-item settings-item-vertical'>
-                            <label className='settings-item'>
+                          <li key={item.id} className='settings-item settings-item-vertical knowledge-entry-row'>
+                            <label className='settings-item knowledge-entry-select'>
                               <input
                                 type='checkbox'
                                 data-testid={`knowledge-select-${item.id}`}
                                 checked={selectedEntryIds.includes(item.id)}
                                 onChange={() => toggleEntrySelection(item.id)}
                               />
-                              <span>选择导出</span>
+                              <span>导出</span>
                             </label>
                             <button
                               type='button'
@@ -637,13 +683,14 @@ export function KnowledgePage() {
                               data-testid={`knowledge-entry-${item.id}`}
                               onClick={() => selectEntry(item.id)}
                             >
-                              <div className='panel-header panel-header-tight'>
+                              <div className='panel-header panel-header-tight knowledge-entry-card-head'>
                                 <strong>{item.title}</strong>
                                 <span className='chip'>{item.status}</span>
                               </div>
                               <p>{summary}</p>
                               <div className='chip-row'>
                                 <span className='chip'>{item.category}</span>
+                                <span className='chip'>仓库 {repoNameById.get(item.repoId) ?? item.repoId}</span>
                                 {item.tags.map((tag) => (
                                   <span key={`${item.id}-${tag}`} className='chip'>
                                     #{tag}
@@ -670,15 +717,29 @@ export function KnowledgePage() {
                   </div>
                 ) : emptyDetail ? (
                   <div className='settings-card knowledge-empty-state'>
-                    <h3>选择一条知识开始查看</h3>
-                    <p className='small-text'>你也可以直接新建一条知识，把当前经验沉淀进知识库。</p>
+                    <h3>先选择一条知识，再进入详情编辑</h3>
+                    <p className='small-text'>你也可以直接新建、做标准导入，或去管理订阅源，把知识入口统一收进一个流程里。</p>
+                    <div className='knowledge-empty-actions'>
+                      <button type='button' className='primary-button' onClick={openNewEntry}>
+                        新建知识
+                      </button>
+                      <button type='button' className='ghost-button' onClick={() => navigate('/knowledge/imports')}>
+                        标准导入
+                      </button>
+                      <button type='button' className='ghost-button' onClick={() => navigate('/knowledge/subscriptions')}>
+                        管理订阅源
+                      </button>
+                    </div>
                   </div>
                 ) : editor ? (
                   <>
-                    <div className='settings-card'>
+                    <div className='settings-card knowledge-editor-card'>
                       <div className='panel-header'>
-                        <h3>{editor.id ? '知识详情' : '新建知识'}</h3>
-                        <div className='row-actions'>
+                        <div className='knowledge-section-copy'>
+                          <h3>{editor.id ? '知识详情' : '新建知识'}</h3>
+                          <p className='small-text'>当前条目：{selectedEntryLabel}</p>
+                        </div>
+                        <div className='row-actions knowledge-detail-toolbar'>
                           <button
                             type='button'
                             className='primary-button'
@@ -712,6 +773,26 @@ export function KnowledgePage() {
                           )}
                         </div>
                       </div>
+                      {editor.id && (
+                        <div className='knowledge-summary-strip knowledge-summary-strip-compact'>
+                          <article className='knowledge-summary-card'>
+                            <span className='knowledge-summary-label'>所属仓库</span>
+                            <strong>{(repoNameById.get(editor.repoId) ?? editor.repoId) || '未设置'}</strong>
+                          </article>
+                          <article className='knowledge-summary-card'>
+                            <span className='knowledge-summary-label'>状态</span>
+                            <strong>{editor.status}</strong>
+                          </article>
+                          <article className='knowledge-summary-card'>
+                            <span className='knowledge-summary-label'>版本</span>
+                            <strong>v{versions[versions.length - 1]?.version ?? '—'}</strong>
+                          </article>
+                          <article className='knowledge-summary-card'>
+                            <span className='knowledge-summary-label'>来源会话</span>
+                            <strong>{editor.sourceSessionId ?? '无'}</strong>
+                          </article>
+                        </div>
+                      )}
                       <div className='knowledge-editor'>
                         <label className='settings-item settings-item-vertical'>
                           <span>标题</span>
@@ -790,26 +871,23 @@ export function KnowledgePage() {
                             onChange={(event) => setEditor((current) => (current ? { ...current, content: event.target.value } : current))}
                           />
                         </label>
-                        {editor.id && (
-                          <p className='small-text'>
-                            版本 {versions[versions.length - 1]?.version ?? '—'} · 来源会话 {editor.sourceSessionId ?? '无'} · 质量分{' '}
-                            {editor.qualityScore}
-                          </p>
-                        )}
+                        {editor.id && <p className='small-text'>质量分 {editor.qualityScore}</p>}
                       </div>
                     </div>
 
                     {editor.id && (
-                      <div className='panel space-top'>
+                      <div className='panel space-top knowledge-share-card'>
                         <div className='panel-header'>
-                          <h3>知识共享</h3>
+                          <div className='knowledge-section-copy'>
+                            <h3>知识共享</h3>
+                            <p className='small-text'>
+                              {shareItem
+                                ? `可见性 ${shareItem.visibility} · 作者 ${shareItem.sourceAuthorName ?? shareItem.sourceAuthorId}`
+                                : '当前条目还没有发起共享请求。'}
+                            </p>
+                          </div>
                           {shareItem ? <span className='chip'>{shareItem.reviewStatus}</span> : <span className='chip'>not_shared</span>}
                         </div>
-                        <p className='small-text'>
-                          {shareItem
-                            ? `可见性 ${shareItem.visibility} · 作者 ${shareItem.sourceAuthorName ?? shareItem.sourceAuthorId}`
-                            : '当前条目还没有发起共享请求。'}
-                        </p>
                         {shareItem?.requestNote && <p className='small-text'>申请备注：{shareItem.requestNote}</p>}
                         {shareItem?.reviewNote && <p className='small-text'>审核反馈：{shareItem.reviewNote}</p>}
                         {shareError && <p className='error-text'>{shareError}</p>}
@@ -871,9 +949,12 @@ export function KnowledgePage() {
                     )}
 
                     {editor.id && (
-                      <div className='panel space-top'>
+                      <div className='panel space-top knowledge-version-card'>
                         <div className='panel-header'>
-                          <h3>版本历史</h3>
+                          <div className='knowledge-section-copy'>
+                            <h3>版本历史</h3>
+                            <p className='small-text'>保留每次保存的摘要，方便回看变更脉络。</p>
+                          </div>
                         </div>
                         {versions.length === 0 ? (
                           <p className='small-text'>暂无版本历史。</p>

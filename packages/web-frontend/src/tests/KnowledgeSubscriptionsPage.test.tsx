@@ -228,7 +228,7 @@ describe('KnowledgeSubscriptionsPage', () => {
     const user = userEvent.setup();
     renderPage();
 
-    expect(await screen.findByText('知识订阅')).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: '知识订阅' })).toBeInTheDocument();
     expect(await screen.findByTestId('knowledge-subscription-subscription-1')).toBeInTheDocument();
     await waitFor(() => {
       expect(mockListKnowledgeSubscriptionUpdates).toHaveBeenCalledWith('subscription-1');

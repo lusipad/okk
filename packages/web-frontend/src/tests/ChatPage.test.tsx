@@ -170,12 +170,46 @@ vi.mock('../components/chat/Composer', () => ({
 }));
 
 vi.mock('../components/home/PartnerHomeView', () => ({
-  PartnerHomeView: () => <div>partner-home</div>
+  PartnerHomeView: ({
+    continueCandidate,
+    onContinueWork
+  }: {
+    continueCandidate?: { title?: string | null };
+    onContinueWork?: () => void;
+  }) => (
+    <div>
+      <div>partner-home</div>
+      {continueCandidate?.title ? <div>{continueCandidate.title}</div> : null}
+      <button type='button' onClick={() => onContinueWork?.()}>
+        继续工作
+      </button>
+    </div>
+  )
 }));
 
 describe('ChatPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    chatState.sessions = [
+      {
+        id: 'session-1',
+        title: '当前会话',
+        updatedAt: '2026-03-11T00:00:00.000Z'
+      }
+    ];
+    chatState.currentSessionId = 'session-1';
+    chatState.messagesBySession = {
+      'session-1': [
+        {
+          id: 'assistant-1',
+          role: 'assistant',
+          content: '这里是回答',
+          status: 'done',
+          createdAt: '2026-03-11T00:00:00.000Z',
+          toolCalls: []
+        }
+      ]
+    };
     mockSaveKnowledgeSuggestion.mockResolvedValue({
       id: 'suggestion-1',
       title: '修订标题',
@@ -209,5 +243,39 @@ describe('ChatPage', () => {
     });
 
     expect(mockNavigate).toHaveBeenCalledWith('/knowledge/knowledge-1');
+  });
+
+  it('首页继续工作在无当前仓库时会切回最近会话', async () => {
+    const user = userEvent.setup();
+    (chatState as {
+      sessions: Array<{ id: string; title: string; updatedAt: string }>;
+      currentSessionId: string | null;
+      messagesBySession: Record<string, unknown[]>;
+    }).sessions = [
+      {
+        id: 'session-1',
+        title: '最近会话',
+        updatedAt: '2026-03-11T00:00:00.000Z'
+      },
+      {
+        id: 'session-2',
+        title: '更早会话',
+        updatedAt: '2026-03-10T00:00:00.000Z'
+      }
+    ];
+    (chatState as { currentSessionId: string | null }).currentSessionId = null;
+    (chatState as { messagesBySession: Record<string, unknown[]> }).messagesBySession = {};
+
+    render(<ChatPage />);
+
+    expect(await screen.findByText('partner-home')).toBeInTheDocument();
+    expect(screen.getByText('最近会话')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: '继续工作' }));
+
+    expect(mockDispatch).toHaveBeenCalledWith({
+      type: 'set_current_session',
+      sessionId: 'session-1'
+    });
   });
 });

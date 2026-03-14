@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { KnowledgePage } from '../pages/KnowledgePage';
@@ -263,9 +263,10 @@ describe('KnowledgePage', () => {
 
     expect(await screen.findByDisplayValue('SQLite 指南')).toBeInTheDocument();
     expect(mockGetKnowledgeEntry).toHaveBeenCalledWith('knowledge-1');
-    expect(screen.getByTestId('knowledge-version-list')).toBeInTheDocument();
-    expect(screen.getByText('v1')).toBeInTheDocument();
-    expect(screen.getByText('v2')).toBeInTheDocument();
+    const versionList = screen.getByTestId('knowledge-version-list');
+    expect(versionList).toBeInTheDocument();
+    expect(within(versionList).getByText('v1')).toBeInTheDocument();
+    expect(within(versionList).getByText('v2')).toBeInTheDocument();
   });
 
   it('修改搜索词时触发知识搜索', async () => {

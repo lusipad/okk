@@ -49,18 +49,18 @@ function normalizeCommandQuery(value: unknown): string {
 }
 
 function getDefaultTopbarTitle(pathname: string): string {
-  if (pathname === '/') return 'Chat';
-  if (pathname === '/imports' || pathname === '/knowledge/imports') return 'Imports';
-  if (pathname === '/knowledge' || pathname.startsWith('/knowledge/')) return 'Knowledge';
-  if (pathname === '/identity') return 'Identity';
-  if (pathname === '/memory') return 'Memory';
-  if (pathname === '/workspaces') return 'Workspaces';
+  if (pathname === '/') return '对话工作台';
+  if (pathname === '/imports' || pathname === '/knowledge/imports') return '知识导入';
+  if (pathname === '/knowledge' || pathname.startsWith('/knowledge/')) return '知识工作台';
+  if (pathname === '/identity') return '身份';
+  if (pathname === '/memory') return '记忆';
+  if (pathname === '/workspaces') return '工作区';
   if (pathname === '/settings/mcp') return 'MCP';
-  if (pathname === '/skills') return 'Skills';
-  if (pathname === '/governance') return 'Governance';
-  if (pathname === '/workflows') return 'Workflows';
-  if (pathname === '/memory-sharing') return 'Sharing';
-  return 'Workspace';
+  if (pathname === '/skills') return '技能';
+  if (pathname === '/governance') return '治理';
+  if (pathname === '/workflows') return '工作流';
+  if (pathname === '/memory-sharing') return '共享';
+  return '工作台';
 }
 
 export function ShellLayout({ left, center, right, topbarContext }: ShellLayoutProps) {

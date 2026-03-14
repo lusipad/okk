@@ -59,6 +59,17 @@ export function KnowledgeSubscriptionsPage() {
     () => (updateFilter === 'all' ? updates : updates.filter((item) => item.consumeStatus === updateFilter)),
     [updateFilter, updates]
   );
+  const repoNameById = useMemo(
+    () => new Map(repos.map((repo) => [repo.id, repo.name])),
+    [repos]
+  );
+  const pendingUpdateTotal = useMemo(
+    () => subscriptions.reduce((sum, item) => sum + item.pendingUpdateCount, 0),
+    [subscriptions]
+  );
+  const selectedTargetRepoLabel = selectedSubscription
+    ? (repoNameById.get(selectedSubscription.targetRepoId) ?? selectedSubscription.targetRepoId)
+    : '未选择';
 
   const createSession = async (): Promise<void> => {
     const session = await io.createSession();
@@ -245,7 +256,7 @@ export function KnowledgeSubscriptionsPage() {
 
   return (
     <ShellLayout
-      topbarContext={{ title: 'Knowledge Subscriptions' }}
+      topbarContext={{ title: '知识订阅' }}
       left={
         <LeftSidebar
           sessions={state.sessions}
@@ -255,25 +266,51 @@ export function KnowledgeSubscriptionsPage() {
         />
       }
       center={
-        <section className='chat-panel'>
-          <header className='chat-stage-header'>
+        <section className='chat-panel knowledge-page-shell knowledge-subscriptions-shell'>
+          <header className='chat-stage-header knowledge-hero'>
             <div className='chat-stage-title'>
+              <p className='eyebrow'>知识订阅</p>
               <h2>知识订阅</h2>
-              <p className='small-text'>订阅团队、项目或主题知识源，查看增量更新并一键导入到目标仓库。</p>
+              <p className='small-text'>订阅团队、项目或主题知识源，把增量更新稳定导入到目标仓库。</p>
             </div>
-            <div className='row-actions'>
+            <div className='row-actions knowledge-hero-actions'>
               <button type='button' className='ghost-button' onClick={() => navigate('/knowledge')}>
                 返回知识工作台
               </button>
             </div>
           </header>
+          <div className='knowledge-summary-strip'>
+            <article className='knowledge-summary-card'>
+              <span className='knowledge-summary-label'>订阅数量</span>
+              <strong>{bootstrapLoading ? '加载中…' : `${subscriptions.length} 个`}</strong>
+            </article>
+            <article className='knowledge-summary-card'>
+              <span className='knowledge-summary-label'>待处理更新</span>
+              <strong>{bootstrapLoading ? '加载中…' : `${pendingUpdateTotal} 条`}</strong>
+            </article>
+            <article className='knowledge-summary-card'>
+              <span className='knowledge-summary-label'>当前目标仓库</span>
+              <strong>{selectedTargetRepoLabel}</strong>
+            </article>
+            <article className='knowledge-summary-card'>
+              <span className='knowledge-summary-label'>当前筛选</span>
+              <strong>{updateFilter === 'all' ? '全部更新' : updateFilter}</strong>
+            </article>
+          </div>
 
           {error && <p className='error-text'>{error}</p>}
-          {feedback && <p className='small-text'>{feedback}</p>}
+          {feedback && (
+            <div className='settings-card knowledge-inline-feedback'>
+              <p className='small-text'>{feedback}</p>
+            </div>
+          )}
 
-          <div className='settings-card'>
+          <div className='settings-card knowledge-filter-card'>
             <div className='panel-header'>
-              <h3>新建订阅</h3>
+              <div className='knowledge-section-copy'>
+                <h3>新建订阅</h3>
+                <p className='small-text'>先定义来源，再指定知识要落到哪个仓库。</p>
+              </div>
             </div>
             <div className='knowledge-filter-grid'>
               <label className='settings-item settings-item-vertical'>
@@ -355,31 +392,34 @@ export function KnowledgeSubscriptionsPage() {
             </div>
           </div>
 
-          <div className='knowledge-workbench-grid space-top'>
+          <div className='knowledge-workbench-grid knowledge-workbench-grid-refined space-top'>
             <div className='knowledge-list-column'>
-              <div className='panel'>
+              <div className='panel knowledge-list-card'>
                 <div className='panel-header'>
-                  <h3>订阅列表</h3>
-                  <span className='small-text'>{bootstrapLoading ? '加载中…' : `${subscriptions.length} 个订阅`}</span>
+                  <div className='knowledge-section-copy'>
+                    <h3>订阅列表</h3>
+                    <p className='small-text'>{bootstrapLoading ? '加载中…' : `${subscriptions.length} 个订阅，待处理 ${pendingUpdateTotal} 条更新`}</p>
+                  </div>
                 </div>
                 {subscriptions.length === 0 ? (
                   <p className='small-text'>还没有知识订阅，先创建一个新的来源。</p>
                 ) : (
                   <ul className='settings-list knowledge-entry-list'>
                     {subscriptions.map((item) => (
-                      <li key={item.id} className='settings-item settings-item-vertical'>
+                      <li key={item.id} className='settings-item settings-item-vertical knowledge-entry-row'>
                         <button
                           type='button'
                           className={`knowledge-entry-button ${selectedSubscriptionId === item.id ? 'is-active' : ''}`}
                           data-testid={`knowledge-subscription-${item.id}`}
                           onClick={() => setSelectedSubscriptionId(item.id)}
                         >
-                          <div className='panel-header panel-header-tight'>
+                          <div className='panel-header panel-header-tight knowledge-entry-card-head'>
                             <strong>{item.source.label}</strong>
                             <span className='chip'>{item.status}</span>
                           </div>
-                          <p>{item.source.type} · 目标仓库 {item.targetRepoId}</p>
+                          <p className='knowledge-subscription-line'>{item.source.type}:{item.source.id}</p>
                           <div className='chip-row'>
+                            <span className='chip'>目标 {repoNameById.get(item.targetRepoId) ?? item.targetRepoId}</span>
                             <span className='chip'>待处理 {item.pendingUpdateCount}</span>
                             <span className='chip'>{item.lastSyncStatus}</span>
                           </div>
@@ -394,10 +434,13 @@ export function KnowledgeSubscriptionsPage() {
             <div className='knowledge-detail-column'>
               {selectedSubscription ? (
                 <>
-                  <div className='settings-card'>
+                  <div className='settings-card knowledge-editor-card'>
                     <div className='panel-header'>
-                      <h3>{selectedSubscription.source.label}</h3>
-                      <div className='row-actions'>
+                      <div className='knowledge-section-copy'>
+                        <h3>{selectedSubscription.source.label}</h3>
+                        <p className='small-text'>来源 {selectedSubscription.source.type}:{selectedSubscription.source.id}</p>
+                      </div>
+                      <div className='row-actions knowledge-detail-toolbar'>
                         <button
                           type='button'
                           className='ghost-button'
@@ -418,10 +461,24 @@ export function KnowledgeSubscriptionsPage() {
                         </button>
                       </div>
                     </div>
-                    <p className='small-text'>
-                      来源 {selectedSubscription.source.type}:{selectedSubscription.source.id} · 最近同步{' '}
-                      {selectedSubscription.lastSyncedAt ? new Date(selectedSubscription.lastSyncedAt).toLocaleString('zh-CN') : '未同步'}
-                    </p>
+                    <div className='knowledge-summary-strip knowledge-summary-strip-compact'>
+                      <article className='knowledge-summary-card'>
+                        <span className='knowledge-summary-label'>目标仓库</span>
+                        <strong>{repoNameById.get(selectedSubscription.targetRepoId) ?? selectedSubscription.targetRepoId}</strong>
+                      </article>
+                      <article className='knowledge-summary-card'>
+                        <span className='knowledge-summary-label'>最近同步</span>
+                        <strong>{selectedSubscription.lastSyncedAt ? new Date(selectedSubscription.lastSyncedAt).toLocaleString('zh-CN') : '未同步'}</strong>
+                      </article>
+                      <article className='knowledge-summary-card'>
+                        <span className='knowledge-summary-label'>待处理</span>
+                        <strong>{selectedSubscription.pendingUpdateCount} 条</strong>
+                      </article>
+                      <article className='knowledge-summary-card'>
+                        <span className='knowledge-summary-label'>同步状态</span>
+                        <strong>{selectedSubscription.lastSyncStatus}</strong>
+                      </article>
+                    </div>
                     {selectedSubscription.lastSyncSummary && (
                       <p className='small-text'>{selectedSubscription.lastSyncSummary}</p>
                     )}
@@ -462,9 +519,12 @@ export function KnowledgeSubscriptionsPage() {
                     </div>
                   </div>
 
-                  <div className='panel space-top'>
+                  <div className='panel space-top knowledge-version-card'>
                     <div className='panel-header'>
-                      <h3>最近更新</h3>
+                      <div className='knowledge-section-copy'>
+                        <h3>最近更新</h3>
+                        <p className='small-text'>把最近同步回来的更新分层展示，先筛选，再决定是否导入。</p>
+                      </div>
                       <div className='row-actions'>
                         <label className='settings-item'>
                           <span>状态</span>
@@ -488,8 +548,8 @@ export function KnowledgeSubscriptionsPage() {
                     ) : (
                       <ul className='settings-list knowledge-entry-list'>
                         {visibleUpdates.map((item) => (
-                          <li key={item.id} className='settings-item settings-item-vertical'>
-                            <div className='panel-header panel-header-tight'>
+                          <li key={item.id} className='settings-item settings-item-vertical knowledge-entry-row'>
+                            <div className='panel-header panel-header-tight knowledge-entry-card-head'>
                               <strong>{item.title}</strong>
                               <span className='chip'>{item.consumeStatus}</span>
                             </div>
@@ -534,8 +594,8 @@ export function KnowledgeSubscriptionsPage() {
                 </>
               ) : (
                 <div className='settings-card knowledge-empty-state'>
-                  <h3>选择一个订阅开始查看</h3>
-                  <p className='small-text'>这里会展示订阅来源、同步状态和可导入的最近更新。</p>
+                  <h3>先选择一个订阅，再查看同步详情</h3>
+                  <p className='small-text'>这里会展示订阅来源、同步状态和可导入的最近更新，让导入动作保持在同一条工作流里。</p>
                 </div>
               )}
             </div>

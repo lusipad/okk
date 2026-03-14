@@ -67,7 +67,7 @@ describe('LeftSidebar', () => {
     expect(screen.getByText('修复登录与空白页')).toBeInTheDocument();
   });
 
-  it('展示主导航、默认收起更多工具，并支持 Search 入口', async () => {
+  it('展示主导航、默认收起更多工具，并支持命令面板入口', async () => {
     const user = userEvent.setup();
     const commandListener = vi.fn();
     window.addEventListener('okk:command-palette', commandListener as EventListener);
@@ -83,11 +83,11 @@ describe('LeftSidebar', () => {
       </MemoryRouter>
     );
 
-    expect(screen.getByRole('button', { name: 'New chat' })).toBeInTheDocument();
-    expect(screen.getByText('Search', { selector: '.sidebar-section-label' })).toBeInTheDocument();
-    expect(screen.getByText('Primary links', { selector: '.sidebar-section-label' })).toBeInTheDocument();
-    expect(screen.getByText('More tools', { selector: '.sidebar-section-label' })).toBeInTheDocument();
-    expect(screen.getAllByText('Chats').length).toBeGreaterThan(0);
+    expect(screen.getByRole('button', { name: '新建对话' })).toBeInTheDocument();
+    expect(screen.getByText('快速检索', { selector: '.sidebar-section-label' })).toBeInTheDocument();
+    expect(screen.getByText('主要入口', { selector: '.sidebar-section-label' })).toBeInTheDocument();
+    expect(screen.getByText('更多工具', { selector: '.sidebar-section-label' })).toBeInTheDocument();
+    expect(screen.getAllByText('最近对话').length).toBeGreaterThan(0);
     expect(screen.getByTestId('nav-knowledge')).toBeInTheDocument();
     expect(screen.getByTestId('nav-workspaces')).toBeInTheDocument();
     expect(screen.getByTestId('nav-identity')).toBeInTheDocument();
@@ -129,6 +129,7 @@ describe('LeftSidebar', () => {
     const user = userEvent.setup();
     const onContinue = vi.fn();
     const onSave = vi.fn();
+    const onRefresh = vi.fn();
 
     render(
       <MemoryRouter initialEntries={['/']}>
@@ -145,11 +146,12 @@ describe('LeftSidebar', () => {
           onCreateSession={() => undefined}
           onContinueProjectContext={onContinue}
           onSaveProjectContext={onSave}
+          onRefreshProjectContext={onRefresh}
         />
       </MemoryRouter>
     );
 
-    expect(screen.getByText('Continue work', { selector: '.sidebar-section-label' })).toBeInTheDocument();
+    expect(screen.getByText('继续工作', { selector: '.sidebar-section-label' })).toBeInTheDocument();
     expect(screen.getByTestId('sidebar-project-context')).toBeInTheDocument();
     expect(screen.getByText('继续入口：okk')).toBeInTheDocument();
     expect(screen.getByText('当前仓库：okk')).toBeInTheDocument();
@@ -157,9 +159,11 @@ describe('LeftSidebar', () => {
 
     await user.click(screen.getByTestId('sidebar-project-continue'));
     await user.click(screen.getByTestId('sidebar-project-save'));
+    await user.click(screen.getByTestId('sidebar-project-refresh'));
 
     expect(onContinue).toHaveBeenCalledTimes(1);
     expect(onSave).toHaveBeenCalledTimes(1);
+    expect(onRefresh).toHaveBeenCalledTimes(1);
   });
 
   it('支持归档视图切换与引用动作', async () => {
