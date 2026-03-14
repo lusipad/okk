@@ -6,7 +6,7 @@ import { RightSidebar } from '../components/layout/RightSidebar';
 import type { WorkflowTemplate } from '../io/types';
 import { useIO } from '../io/io-context';
 import { useChatStore } from '../state/chat-store';
-import type { SkillWorkflowRecord, SkillWorkflowRun, TeamPanelState } from '../types/domain';
+import type { SkillWorkflowNode, SkillWorkflowRecord, SkillWorkflowRun, SkillWorkflowRunStep, TeamPanelState } from '../types/domain';
 
 const EMPTY_TEAM_VIEW: TeamPanelState = {
   teamName: null,
@@ -18,6 +18,73 @@ const EMPTY_TEAM_VIEW: TeamPanelState = {
 };
 
 const DEFAULT_RUN_INPUT = '{\n  "topic": "当前仓库回归",\n  "severity": "high"\n}';
+const KNOWLEDGE_NODE_TEMPLATE: SkillWorkflowNode = {
+  id: 'knowledge-1',
+  type: 'knowledge_ref',
+  name: '引用知识',
+  config: {
+    outputKey: 'knowledgeContext',
+    entryIds: ['knowledge-entry-id'],
+    query: 'sqlite migration',
+    limit: 3
+  },
+  next: []
+};
+
+function toPrettyJson(value: unknown): string {
+  return JSON.stringify(value, null, 2);
+}
+
+function parseNodesJson(input: string): { nodes: SkillWorkflowNode[]; error: string | null } {
+  try {
+    const parsed = JSON.parse(input) as SkillWorkflowNode[];
+    if (!Array.isArray(parsed)) {
+      return { nodes: [], error: '节点 JSON 必须是数组。' };
+    }
+    return { nodes: parsed, error: null };
+  } catch (error) {
+    return {
+      nodes: [],
+      error: error instanceof Error ? error.message : '节点 JSON 解析失败'
+    };
+  }
+}
+
+function describeKnowledgeNode(node: SkillWorkflowNode): string {
+  const outputKey = typeof node.config.outputKey === 'string' ? node.config.outputKey : 'knowledgeContext';
+  const entryIds = Array.isArray(node.config.entryIds) ? node.config.entryIds.filter((item): item is string => typeof item === 'string') : [];
+  const query = typeof node.config.query === 'string' ? node.config.query : '';
+  const limit = typeof node.config.limit === 'number' ? node.config.limit : null;
+  const parts = [`outputKey=${outputKey}`];
+  if (entryIds.length > 0) {
+    parts.push(`entryIds=${entryIds.join(', ')}`);
+  }
+  if (query) {
+    parts.push(`query=${query}`);
+  }
+  if (limit !== null) {
+    parts.push(`limit=${limit}`);
+  }
+  return parts.join(' · ');
+}
+
+function renderStepOutput(step: SkillWorkflowRunStep): string {
+  if (step.nodeType !== 'knowledge_ref') {
+    return toPrettyJson(step.output);
+  }
+
+  const entries = Array.isArray(step.output.entries)
+    ? step.output.entries.filter((item): item is { title?: unknown; category?: unknown } => Boolean(item && typeof item === 'object'))
+    : [];
+  const summary = typeof step.output.summary === 'string' ? step.output.summary : '';
+  const header = entries.length > 0 ? `知识条目 ${entries.length} 条` : '知识条目 0 条';
+  const lines = entries.map((entry) => {
+    const title = typeof entry.title === 'string' ? entry.title : '未命名知识';
+    const category = typeof entry.category === 'string' ? entry.category : 'general';
+    return `- [${category}] ${title}`;
+  });
+  return [header, ...lines, summary ? `摘要：${summary}` : ''].filter(Boolean).join('\n');
+}
 
 export function WorkflowsPage() {
   const navigate = useNavigate();
@@ -33,6 +100,15 @@ export function WorkflowsPage() {
   const [nodesJson, setNodesJson] = useState('[]');
   const [runInput, setRunInput] = useState(DEFAULT_RUN_INPUT);
   const [error, setError] = useState<string | null>(null);
+  const parsedNodes = useMemo(() => parseNodesJson(nodesJson), [nodesJson]);
+  const selectedWorkflow = useMemo(
+    () => workflows.find((item) => item.id === selectedWorkflowId) ?? null,
+    [selectedWorkflowId, workflows]
+  );
+  const knowledgeNodes = useMemo(
+    () => parsedNodes.nodes.filter((node) => node.type === 'knowledge_ref'),
+    [parsedNodes.nodes]
+  );
 
   const createSession = async (): Promise<void> => {
     const session = await io.createSession();
@@ -73,8 +149,27 @@ export function WorkflowsPage() {
     setNodesJson(JSON.stringify(template.nodes, null, 2));
   };
 
+  const insertKnowledgeNodeTemplate = () => {
+    const baseNodes = parsedNodes.error ? [] : parsedNodes.nodes;
+    const nextId = `knowledge-${baseNodes.filter((node) => node.type === 'knowledge_ref').length + 1}`;
+    const nextNode = {
+      ...KNOWLEDGE_NODE_TEMPLATE,
+      id: nextId,
+      name: `引用知识 ${baseNodes.filter((node) => node.type === 'knowledge_ref').length + 1}`
+    };
+    setNodesJson(JSON.stringify([...baseNodes, nextNode], null, 2));
+  };
+
   const createWorkflow = async (): Promise<void> => {
-    const nodes = JSON.parse(nodesJson) as Array<Record<string, unknown>>;
+    if (parsedNodes.error) {
+      setError(parsedNodes.error);
+      return;
+    }
+    const nodes = parsedNodes.nodes.map((node) => ({
+      ...node,
+      config: { ...node.config },
+      next: [...node.next]
+    })) as Array<Record<string, unknown>>;
     const item = await io.createWorkflow({ name: name.trim(), description: description.trim(), status: 'active', nodes });
     await load();
     setSelectedWorkflowId(item.id);
@@ -114,8 +209,12 @@ export function WorkflowsPage() {
             <input value={description} placeholder='描述' onChange={(event) => setDescription(event.target.value)} />
             <textarea rows={10} value={nodesJson} onChange={(event) => setNodesJson(event.target.value)} />
             <div className='row-actions'>
+              <button type='button' className='ghost-button' data-testid='workflow-insert-knowledge-node' onClick={insertKnowledgeNodeTemplate}>
+                插入知识节点模板
+              </button>
               <button type='button' className='primary-button' onClick={() => void createWorkflow()}>保存工作流</button>
             </div>
+            {parsedNodes.error ? <p className='error-text'>{parsedNodes.error}</p> : null}
             <div className='settings-list'>
               {templates.map((template) => (
                 <button key={template.id} type='button' className='ghost-button' onClick={() => applyTemplate(template)}>
@@ -123,6 +222,24 @@ export function WorkflowsPage() {
                 </button>
               ))}
             </div>
+          </div>
+
+          <div className='settings-card space-top workflow-editor-assist'>
+            <h3>knowledge_ref 节点说明</h3>
+            <p className='small-text'>保持现有 JSON 编辑模式不变。`config` 推荐字段：`outputKey`、`entryIds`、`query`、`repoId`、`category`、`tags`、`status`、`limit`。</p>
+            {knowledgeNodes.length === 0 ? (
+              <p className='small-text'>当前 JSON 里还没有知识节点，点击“插入知识节点模板”可快速生成示例。</p>
+            ) : (
+              <ul className='settings-list' data-testid='workflow-knowledge-node-preview'>
+                {knowledgeNodes.map((node) => (
+                  <li key={node.id} className='settings-item settings-item-vertical'>
+                    <strong>{node.name}</strong>
+                    <p className='small-text'>{describeKnowledgeNode(node)}</p>
+                    <pre className='workflow-json-preview'>{toPrettyJson(node.config)}</pre>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
 
           <div className='panel space-top'>
@@ -136,6 +253,7 @@ export function WorkflowsPage() {
                     <strong>{workflow.name}</strong>
                     <p>{workflow.description}</p>
                     <span className='chip'>{workflow.status}</span>
+                    {workflow.nodes.some((node) => node.type === 'knowledge_ref') && <span className='chip'>knowledge_ref</span>}
                   </div>
                   <div className='row-actions'>
                     <button type='button' className='ghost-button' onClick={() => setSelectedWorkflowId(workflow.id)}>查看运行</button>
@@ -152,6 +270,11 @@ export function WorkflowsPage() {
                 <h3>执行观察</h3>
                 <button type='button' className='primary-button' onClick={() => void runWorkflow()}>运行工作流</button>
               </div>
+              {selectedWorkflow && selectedWorkflow.nodes.some((node) => node.type === 'knowledge_ref') && (
+                <p className='small-text'>
+                  当前工作流包含 {selectedWorkflow.nodes.filter((node) => node.type === 'knowledge_ref').length} 个知识节点，运行后会在步骤输出中记录命中的知识条目和汇总摘要。
+                </p>
+              )}
               <textarea rows={6} value={runInput} onChange={(event) => setRunInput(event.target.value)} />
               <ul className='settings-list'>
                 {runs.map((run) => (
@@ -176,6 +299,7 @@ export function WorkflowsPage() {
                       <li key={`${selectedRun.id}-${step.nodeId}`} className='settings-item settings-item-vertical'>
                         <strong>{step.nodeName}</strong>
                         <p>{step.nodeType} · {step.status}</p>
+                        <pre className='workflow-step-output' data-testid={`workflow-step-output-${step.nodeId}`}>{renderStepOutput(step)}</pre>
                         {step.error && <p className='error-text'>{step.error}</p>}
                       </li>
                     ))}

@@ -14,12 +14,147 @@ const getDatabase = (app: { core: unknown }): SqliteDatabase | null => {
 };
 
 const normalizeString = (value: unknown): string | null => (typeof value === "string" && value.trim().length > 0 ? value.trim() : null);
+const asStringArray = (value: unknown): string[] =>
+  Array.isArray(value)
+    ? Array.from(new Set(value.map((item) => (typeof item === "string" ? item.trim() : "")).filter(Boolean)))
+    : [];
+const asPositiveInt = (value: unknown): number | undefined => {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return undefined;
+  }
+  const normalized = Math.floor(value);
+  return normalized > 0 ? normalized : undefined;
+};
+const VALID_NODE_TYPES = new Set<SkillWorkflowNode["type"]>(["prompt", "skill", "agent", "condition", "knowledge_ref"]);
+const VALID_KNOWLEDGE_STATUS = new Set(["draft", "published", "stale", "archived"]);
 
 const parseNodes = (value: unknown): SkillWorkflowNode[] => {
   if (!Array.isArray(value)) {
     return [];
   }
-  return value.filter((item): item is SkillWorkflowNode => Boolean(item && typeof item === "object" && typeof (item as SkillWorkflowNode).id === "string" && typeof (item as SkillWorkflowNode).type === "string" && typeof (item as SkillWorkflowNode).name === "string" && Array.isArray((item as SkillWorkflowNode).next)));
+  return value.filter(
+    (item): item is SkillWorkflowNode =>
+      Boolean(
+        item &&
+          typeof item === "object" &&
+          typeof (item as SkillWorkflowNode).id === "string" &&
+          typeof (item as SkillWorkflowNode).type === "string" &&
+          VALID_NODE_TYPES.has((item as SkillWorkflowNode).type) &&
+          typeof (item as SkillWorkflowNode).name === "string" &&
+          Array.isArray((item as SkillWorkflowNode).next)
+      )
+  );
+};
+
+const validateKnowledgeRefNode = (node: SkillWorkflowNode): string | null => {
+  if (node.type !== "knowledge_ref") {
+    return null;
+  }
+
+  const config = node.config ?? {};
+  const outputKey = normalizeString(config.outputKey);
+  if (!outputKey) {
+    return `knowledge_ref 节点 ${node.id} 缺少 outputKey`;
+  }
+
+  const entryIds = asStringArray(config.entryIds);
+  const tags = asStringArray(config.tags);
+  const hasFilters =
+    Boolean(normalizeString(config.repoId)) ||
+    Boolean(normalizeString(config.category)) ||
+    Boolean(normalizeString(config.query)) ||
+    Boolean(normalizeString(config.status)) ||
+    tags.length > 0 ||
+    asPositiveInt(config.limit) !== undefined;
+
+  if (entryIds.length === 0 && !hasFilters) {
+    return `knowledge_ref 节点 ${node.id} 至少需要 entryIds 或任一筛选条件`;
+  }
+
+  const status = normalizeString(config.status);
+  if (status && !VALID_KNOWLEDGE_STATUS.has(status)) {
+    return `knowledge_ref 节点 ${node.id} 使用了非法 status`;
+  }
+
+  return null;
+};
+
+const validateWorkflowNodes = (nodes: SkillWorkflowNode[]): string | null => {
+  for (const node of nodes) {
+    const error = validateKnowledgeRefNode(node);
+    if (error) {
+      return error;
+    }
+  }
+  return null;
+};
+
+interface WorkflowKnowledgeEntry {
+  id: string;
+  title: string;
+  summary: string;
+  category: string;
+  tags: string[];
+  status: string;
+  updatedAt: string;
+}
+
+const toWorkflowKnowledgeEntry = (entry: {
+  id: string;
+  title: string;
+  summary: string;
+  category: string;
+  tags: string[];
+  status: string;
+  updatedAt: string;
+}): WorkflowKnowledgeEntry => ({
+  id: entry.id,
+  title: entry.title,
+  summary: entry.summary,
+  category: entry.category,
+  tags: [...entry.tags],
+  status: entry.status,
+  updatedAt: entry.updatedAt
+});
+
+const buildKnowledgeSummary = (entries: WorkflowKnowledgeEntry[]): string =>
+  entries.map((entry, index) => `${index + 1}. [${entry.category}] ${entry.title}: ${entry.summary}`).join("\n");
+
+const resolveKnowledgeRefOutput = (database: SqliteDatabase, node: SkillWorkflowNode): { outputKey: string; entries: WorkflowKnowledgeEntry[]; summary: string } => {
+  const config = node.config ?? {};
+  const outputKey = normalizeString(config.outputKey) ?? "knowledge";
+  const entryIds = asStringArray(config.entryIds);
+  const tags = asStringArray(config.tags);
+  const status = normalizeString(config.status);
+
+  const entries =
+    entryIds.length > 0
+      ? entryIds
+          .map((entryId) => database.knowledge.getById(entryId))
+          .filter((item): item is NonNullable<ReturnType<SqliteDatabase["knowledge"]["getById"]>> => Boolean(item))
+      : normalizeString(config.query)
+        ? database.knowledge.search({
+            keyword: normalizeString(config.query) ?? undefined,
+            repoId: normalizeString(config.repoId) ?? undefined,
+            category: normalizeString(config.category) ?? undefined,
+            status: status && VALID_KNOWLEDGE_STATUS.has(status) ? (status as "draft" | "published" | "stale" | "archived") : undefined,
+            tags,
+            limit: asPositiveInt(config.limit) ?? 5
+          })
+        : database.knowledge.list({
+            repoId: normalizeString(config.repoId) ?? undefined,
+            category: normalizeString(config.category) ?? undefined,
+            status: status && VALID_KNOWLEDGE_STATUS.has(status) ? (status as "draft" | "published" | "stale" | "archived") : undefined,
+            tags,
+            limit: asPositiveInt(config.limit) ?? 5
+          });
+
+  const serializedEntries = entries.map((entry) => toWorkflowKnowledgeEntry(entry));
+  return {
+    outputKey,
+    entries: serializedEntries,
+    summary: buildKnowledgeSummary(serializedEntries)
+  };
 };
 
 const interpolate = (template: string, context: Record<string, unknown>): string =>
@@ -48,6 +183,16 @@ const buildTemplates = () => [
       { id: "agent-high", type: "agent", name: "高优先处理", config: { agentName: "incident-responder", outputKey: "result" }, next: [] },
       { id: "agent-low", type: "agent", name: "常规处理", config: { agentName: "code-reviewer", outputKey: "result" }, next: [] }
     ]
+  },
+  {
+    id: "template-knowledge",
+    name: "知识输入工作流",
+    description: "Knowledge -> Prompt -> Agent",
+    nodes: [
+      { id: "knowledge-1", type: "knowledge_ref", name: "加载知识", config: { query: "workflow", limit: 3, outputKey: "knowledgeBundle" }, next: ["prompt-1"] },
+      { id: "prompt-1", type: "prompt", name: "生成摘要", config: { template: "请结合 {{knowledgeBundle.summary}} 和 {{topic}} 生成执行简报", outputKey: "brief" }, next: ["agent-1"] },
+      { id: "agent-1", type: "agent", name: "分派 Agent", config: { agentName: "code-reviewer", outputKey: "result" }, next: [] }
+    ]
   }
 ];
 
@@ -63,6 +208,7 @@ async function executeWorkflow(
 ): Promise<{ status: "completed" | "failed"; output: Record<string, unknown>; steps: SkillWorkflowRunStep[] }> {
   const skills = await app.core.skills.list();
   const agents = await app.core.agents.list();
+  const database = getDatabase(app as { core: unknown });
   const nodeMap = new Map(workflow.nodes.map((node) => [node.id, node]));
   const incoming = new Set<string>();
   workflow.nodes.forEach((node) => node.next.forEach((nextId) => incoming.add(nextId)));
@@ -135,6 +281,16 @@ async function executeWorkflow(
           queue.push(nextId);
         }
         step.output = { matched, key, expected };
+      } else if (node.type === "knowledge_ref") {
+        if (!database) {
+          throw new Error("knowledge_ref 节点需要可用的 workflow database");
+        }
+        const knowledgeOutput = resolveKnowledgeRefOutput(database, node);
+        context[knowledgeOutput.outputKey] = knowledgeOutput;
+        context[`${knowledgeOutput.outputKey}.summary`] = knowledgeOutput.summary;
+        context[`${knowledgeOutput.outputKey}.entries`] = knowledgeOutput.entries;
+        step.output = knowledgeOutput;
+        queue.push(...node.next);
       }
 
       step.status = "completed";
@@ -172,11 +328,16 @@ export const workflowsRoutes: FastifyPluginAsync = async (app) => {
     if (!name) {
       return reply.code(400).send({ message: "name 必填" });
     }
+    const nodes = parseNodes(request.body?.nodes);
+    const validationError = validateWorkflowNodes(nodes);
+    if (validationError) {
+      return reply.code(400).send({ message: validationError });
+    }
     const item = database.skillWorkflows.create({
       name,
       description: normalizeString(request.body?.description) ?? "",
       status: normalizeString(request.body?.status) as "draft" | "active" | null ?? "draft",
-      nodes: parseNodes(request.body?.nodes)
+      nodes
     });
     return reply.code(201).send({ item });
   });
@@ -185,6 +346,13 @@ export const workflowsRoutes: FastifyPluginAsync = async (app) => {
     const database = getDatabase(app);
     if (!database) {
       return reply.code(501).send({ message: "workflow not available" });
+    }
+    if (request.body?.nodes !== undefined) {
+      const nodes = parseNodes(request.body?.nodes);
+      const validationError = validateWorkflowNodes(nodes);
+      if (validationError) {
+        return reply.code(400).send({ message: validationError });
+      }
     }
     const item = database.skillWorkflows.update(request.params.workflowId, {
       ...(normalizeString(request.body?.name) ? { name: normalizeString(request.body?.name) as string } : {}),
@@ -232,6 +400,10 @@ export const workflowsRoutes: FastifyPluginAsync = async (app) => {
     const workflow = database.skillWorkflows.getById(request.params.workflowId);
     if (!workflow) {
       return reply.code(404).send({ message: "workflow not found" });
+    }
+    const validationError = validateWorkflowNodes(workflow.nodes);
+    if (validationError) {
+      return reply.code(400).send({ message: validationError });
     }
 
     const run = database.skillWorkflows.createRun({ workflowId: workflow.id, sessionId: request.body?.sessionId ?? null, input: request.body?.input ?? {} });

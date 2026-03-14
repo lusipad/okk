@@ -259,7 +259,7 @@ describe('RightSidebar', () => {
   });
 
   it('localStorage 读取异常时回退到自动默认 tab', () => {
-    const getItemSpy = vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+    const getItemSpy = vi.spyOn(localStorage, 'getItem').mockImplementation(() => {
       throw new Error('storage blocked');
     });
 

@@ -205,9 +205,17 @@ test("知识建议链路支持 save/ignore", async () => {
       }),
     );
 
-    const suggestionEvent = await waitForQaEvent(socket, "knowledge_suggestion");
-    const suggestion = suggestionEvent.payload.suggestion as { id: string; title: string };
+    const [completionEvents, suggestionEvent] = await Promise.all([
+      waitForQaCompletion(socket),
+      waitForQaEvent(socket, "knowledge_suggestion")
+    ]);
+    const completionEvent = completionEvents.find((event) => event.type === "qa.completed");
+    assert.ok(completionEvent);
+    assert.ok(Array.isArray(completionEvent.payload.knowledgeReferences));
+    assert.equal((completionEvent.payload.knowledgeReferences as Array<Record<string, unknown>>).length, 1);
+    const suggestion = suggestionEvent.payload.suggestion as { id: string; title: string; content: string };
     assert.equal(typeof suggestion.id, "string");
+    assert.equal(typeof suggestion.content, "string");
 
     const saveResponse = await app.inject({
       method: "POST",
@@ -215,10 +223,14 @@ test("知识建议链路支持 save/ignore", async () => {
       headers: { Authorization: `Bearer ${token}` },
       payload: {
         sessionId: "session-knowledge",
+        title: "修订后的知识标题",
+        content: "修订后的知识内容",
+        tags: ["refined", "knowledge"]
       },
     });
     assert.equal(saveResponse.statusCode, 200, saveResponse.body);
     assert.equal(saveResponse.json().status, "saved");
+    assert.equal(saveResponse.json().knowledgeEntryId !== null, true);
 
     const knowledgeListAfterSave = await app.inject({
       method: "GET",
@@ -227,7 +239,7 @@ test("知识建议链路支持 save/ignore", async () => {
     });
     assert.equal(knowledgeListAfterSave.statusCode, 200);
     const itemsAfterSave = knowledgeListAfterSave.json().items as Array<{ title: string }>;
-    assert.ok(itemsAfterSave.some((item) => item.title === suggestion.title));
+    assert.ok(itemsAfterSave.some((item) => item.title === "修订后的知识标题"));
 
     socket.send(
       JSON.stringify({
@@ -1533,6 +1545,17 @@ test("REST 新增工作区/治理/导入/工作流/共享/Trace 接口可联通"
     const confirmResponse = await app.inject({ method: "POST", url: `/api/knowledge-imports/${batchId}/confirm`, headers });
     assert.equal(confirmResponse.statusCode, 200, confirmResponse.body);
 
+    core.database.knowledge.create({
+      title: "工作流知识节点",
+      content: "workflow knowledge input for run details",
+      summary: "工作流知识摘要",
+      repoId: repoA?.id ?? repoB.id,
+      category: "workflow",
+      status: "published",
+      tags: ["workflow", "knowledge"],
+      createdBy: adminId as string
+    });
+
     const availableAgents = await core.agents.list();
     const availableSkills = await core.skills.list();
     const workflowExecutionNode = availableAgents[0]
@@ -1559,7 +1582,20 @@ test("REST 新增工作区/治理/导入/工作流/共享/Trace 接口可联通"
         name: "review-flow",
         status: "active",
         nodes: [
-          { id: "prompt-1", type: "prompt", name: "准备", config: { template: "topic={{topic}}", outputKey: "brief" }, next: [workflowExecutionNode.id] },
+          {
+            id: "knowledge-1",
+            type: "knowledge_ref",
+            name: "加载知识",
+            config: { query: "workflow knowledge", limit: 2, outputKey: "knowledgeBundle" },
+            next: ["prompt-1"]
+          },
+          {
+            id: "prompt-1",
+            type: "prompt",
+            name: "准备",
+            config: { template: "topic={{topic}}\nknowledge={{knowledgeBundle.summary}}", outputKey: "brief" },
+            next: [workflowExecutionNode.id]
+          },
           workflowExecutionNode
         ]
       }
@@ -1575,6 +1611,9 @@ test("REST 新增工作区/治理/导入/工作流/共享/Trace 接口可联通"
     });
     assert.equal(workflowRun.statusCode, 200, workflowRun.body);
     assert.equal(workflowRun.json().item.status, "completed");
+    assert.equal(Array.isArray(workflowRun.json().item.output.knowledgeBundle.entries), true);
+    assert.equal(workflowRun.json().item.output.knowledgeBundle.entries.length > 0, true);
+    assert.equal(typeof workflowRun.json().item.output.knowledgeBundle.summary, "string");
 
     const shareRequest = await app.inject({
       method: "POST",

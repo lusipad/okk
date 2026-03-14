@@ -15,6 +15,7 @@ import type {
 } from '../../types/domain';
 import type { RuntimeBackendHealth, TeamRunRecord } from '../../io/types';
 import { KnowledgeSuggestionCard } from '../cards/KnowledgeSuggestionCard';
+import type { SaveKnowledgeSuggestionDraft } from '../cards/KnowledgeSuggestionCard';
 
 interface GraphPoint {
   x: number;
@@ -167,7 +168,7 @@ interface RightSidebarProps {
   onRefreshCapabilities?: () => void;
   onRetryLastMessage?: () => void;
   onOpenRoute?: (route: string) => void;
-  onSaveSuggestion: (suggestionId: string) => void;
+  onSaveSuggestion: (input: SaveKnowledgeSuggestionDraft) => void;
   onIgnoreSuggestion: (suggestionId: string) => void;
 }
 
@@ -719,7 +720,9 @@ export function RightSidebar({
     anchor.click();
     anchor.remove();
     setTimeout(() => {
-      URL.revokeObjectURL(url);
+      if (typeof URL.revokeObjectURL === 'function') {
+        URL.revokeObjectURL(url);
+      }
     }, 1000);
   };
   const focusCriticalPath = (): void => {
