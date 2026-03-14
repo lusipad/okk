@@ -41,6 +41,24 @@ interface KnowledgeEditorState {
 
 const DEFAULT_STATUS: KnowledgeStatus = 'draft';
 
+function downloadTextFile(fileName: string, content: string, mimeType: string): void {
+  if (typeof document === 'undefined' || typeof URL.createObjectURL !== 'function') {
+    throw new Error('当前环境不支持文件下载。');
+  }
+
+  const blob = new Blob([content], { type: mimeType });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = fileName;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  if (typeof URL.revokeObjectURL === 'function') {
+    URL.revokeObjectURL(url);
+  }
+}
+
 function parseTags(value: string): string[] {
   return Array.from(
     new Set(
@@ -138,10 +156,14 @@ export function KnowledgePage() {
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [sharing, setSharing] = useState(false);
+  const [exportingEntry, setExportingEntry] = useState(false);
+  const [exportingBatch, setExportingBatch] = useState(false);
   const [shareVisibility, setShareVisibility] = useState<'workspace' | 'team'>('team');
   const [shareNote, setShareNote] = useState('');
+  const [selectedEntryIds, setSelectedEntryIds] = useState<string[]>([]);
   const [shareState, setShareState] = useState<{ item: KnowledgeShareRecord | null; reviews: KnowledgeShareReview[] } | null>(null);
   const [shareError, setShareError] = useState<string | null>(null);
+  const [feedback, setFeedback] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [detailError, setDetailError] = useState<string | null>(null);
 
@@ -230,6 +252,11 @@ export function KnowledgePage() {
       cancelled = true;
     };
   }, [category, filteredTags, io, query, repoFilter, status]);
+
+  useEffect(() => {
+    const visibleIds = new Set(items.map((item) => item.id));
+    setSelectedEntryIds((current) => current.filter((entryId) => visibleIds.has(entryId)));
+  }, [items]);
 
   useEffect(() => {
     let cancelled = false;
@@ -338,6 +365,7 @@ export function KnowledgePage() {
 
     setSaving(true);
     setDetailError(null);
+    setFeedback(null);
     try {
       const saved = editor.id
         ? await io.updateKnowledgeEntry(editor.id, toUpdateInput(editor))
@@ -350,6 +378,7 @@ export function KnowledgePage() {
       setEditor(toEditorState(saved));
       setVersions(nextVersions);
       setShareState(nextShareState);
+      setFeedback('知识已保存。');
       navigate(`/knowledge/${encodeURIComponent(saved.id)}`);
     } catch (incoming) {
       setDetailError(incoming instanceof Error ? incoming.message : '保存知识失败');
@@ -365,12 +394,14 @@ export function KnowledgePage() {
 
     setDeleting(true);
     setDetailError(null);
+    setFeedback(null);
     try {
       await io.deleteKnowledgeEntry(editor.id);
       await refreshItems();
       setEditor(null);
       setVersions([]);
       setShareState(null);
+      setFeedback('知识已删除。');
       navigate('/knowledge');
     } catch (incoming) {
       setDetailError(incoming instanceof Error ? incoming.message : '删除知识失败');
@@ -386,15 +417,75 @@ export function KnowledgePage() {
 
     setSharing(true);
     setShareError(null);
+    setFeedback(null);
     try {
       await io.requestKnowledgeShare(editor.id, shareVisibility, shareNote.trim() || undefined);
       await refreshShareState(editor.id);
       setVersions(await io.getKnowledgeVersions(editor.id));
       setShareNote('');
+      setFeedback('共享请求已提交。');
     } catch (incoming) {
       setShareError(incoming instanceof Error ? incoming.message : '发起知识共享失败');
     } finally {
       setSharing(false);
+    }
+  };
+
+  const toggleEntrySelection = (knowledgeId: string): void => {
+    setSelectedEntryIds((current) =>
+      current.includes(knowledgeId)
+        ? current.filter((entryId) => entryId !== knowledgeId)
+        : [...current, knowledgeId]
+    );
+  };
+
+  const selectVisibleEntries = (): void => {
+    setSelectedEntryIds(items.map((item) => item.id));
+  };
+
+  const clearSelectedEntries = (): void => {
+    setSelectedEntryIds([]);
+  };
+
+  const exportCurrentEntry = async (): Promise<void> => {
+    if (!editor?.id) {
+      return;
+    }
+
+    setExportingEntry(true);
+    setDetailError(null);
+    setFeedback(null);
+    try {
+      const file = await io.exportKnowledgeEntry(editor.id);
+      downloadTextFile(file.fileName, file.content, 'text/markdown;charset=utf-8');
+      setFeedback(`已导出 ${file.fileName}`);
+    } catch (incoming) {
+      setDetailError(incoming instanceof Error ? incoming.message : '导出知识失败');
+    } finally {
+      setExportingEntry(false);
+    }
+  };
+
+  const exportSelectedEntries = async (): Promise<void> => {
+    if (selectedEntryIds.length === 0) {
+      setError('请先选择要导出的知识条目。');
+      return;
+    }
+
+    setExportingBatch(true);
+    setError(null);
+    setFeedback(null);
+    try {
+      const bundle = await io.exportKnowledgeEntries(selectedEntryIds);
+      downloadTextFile(bundle.manifestFile.fileName, bundle.manifestFile.content, 'application/json;charset=utf-8');
+      for (const file of bundle.files) {
+        downloadTextFile(file.fileName, file.content, 'text/markdown;charset=utf-8');
+      }
+      setFeedback(`已导出 ${bundle.files.length} 个知识文件和清单。`);
+    } catch (incoming) {
+      setError(incoming instanceof Error ? incoming.message : '批量导出失败');
+    } finally {
+      setExportingBatch(false);
     }
   };
 
@@ -430,6 +521,9 @@ export function KnowledgePage() {
               <button type='button' className='primary-button' data-testid='knowledge-new-entry' onClick={openNewEntry}>
                 新建知识
               </button>
+              <button type='button' className='ghost-button' onClick={() => navigate('/knowledge/imports')}>
+                标准导入
+              </button>
               <button type='button' className='ghost-button' onClick={() => navigate('/knowledge/sharing')}>
                 审核队列
               </button>
@@ -444,6 +538,7 @@ export function KnowledgePage() {
           ) : (
             <div className='knowledge-workbench-grid'>
               <div className='knowledge-list-column'>
+                {feedback && <p className='small-text'>{feedback}</p>}
                 <div className='settings-card'>
                   <div className='panel-header'>
                     <h3>搜索与筛选</h3>
@@ -493,7 +588,26 @@ export function KnowledgePage() {
                 <div className='panel space-top'>
                   <div className='panel-header'>
                     <h3>知识列表</h3>
-                    <span className='small-text'>{listLoading ? '刷新中…' : `${items.length} 条结果`}</span>
+                    <div className='row-actions'>
+                      <span className='small-text'>{listLoading ? '刷新中…' : `${items.length} 条结果`}</span>
+                      <button
+                        type='button'
+                        className='ghost-button'
+                        data-testid='knowledge-select-visible-button'
+                        onClick={selectedEntryIds.length === items.length && items.length > 0 ? clearSelectedEntries : selectVisibleEntries}
+                      >
+                        {selectedEntryIds.length === items.length && items.length > 0 ? '取消全选' : '全选当前结果'}
+                      </button>
+                      <button
+                        type='button'
+                        className='ghost-button'
+                        data-testid='knowledge-batch-export-button'
+                        onClick={() => void exportSelectedEntries()}
+                        disabled={selectedEntryIds.length === 0 || exportingBatch}
+                      >
+                        {exportingBatch ? '导出中…' : `批量导出${selectedEntryIds.length > 0 ? ` (${selectedEntryIds.length})` : ''}`}
+                      </button>
+                    </div>
                   </div>
                   {error ? (
                     <p className='error-text'>{error}</p>
@@ -505,6 +619,15 @@ export function KnowledgePage() {
                         const summary = 'snippet' in item && item.snippet ? item.snippet : item.summary;
                         return (
                           <li key={item.id} className='settings-item settings-item-vertical'>
+                            <label className='settings-item'>
+                              <input
+                                type='checkbox'
+                                data-testid={`knowledge-select-${item.id}`}
+                                checked={selectedEntryIds.includes(item.id)}
+                                onChange={() => toggleEntrySelection(item.id)}
+                              />
+                              <span>选择导出</span>
+                            </label>
                             <button
                               type='button'
                               className={`knowledge-entry-button ${selectedListId === item.id ? 'is-active' : ''}`}
@@ -562,6 +685,17 @@ export function KnowledgePage() {
                           >
                             {saving ? '保存中…' : '保存'}
                           </button>
+                          {editor.id && (
+                            <button
+                              type='button'
+                              className='ghost-button'
+                              data-testid='knowledge-export-button'
+                              onClick={() => void exportCurrentEntry()}
+                              disabled={exportingEntry}
+                            >
+                              {exportingEntry ? '导出中…' : '导出 Markdown'}
+                            </button>
+                          )}
                           {editor.id && (
                             <button
                               type='button'

@@ -151,6 +151,16 @@ describe('App desktop auto login', () => {
       expect(mockIoLogin).not.toHaveBeenCalled();
     });
   });
+
+  it('已登录时支持通过知识别名路由打开导入页', async () => {
+    authState.token = 'jwt-token';
+    window.history.pushState({}, '', '/knowledge/imports');
+
+    render(<App />);
+
+    expect(screen.getByText('imports-page')).toBeInTheDocument();
+    expect(screen.queryByText('knowledge-page')).not.toBeInTheDocument();
+  });
 });
 
 

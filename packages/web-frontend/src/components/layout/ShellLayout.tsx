@@ -50,6 +50,7 @@ function normalizeCommandQuery(value: unknown): string {
 
 function getDefaultTopbarTitle(pathname: string): string {
   if (pathname === '/') return 'Chat';
+  if (pathname === '/imports' || pathname === '/knowledge/imports') return 'Imports';
   if (pathname === '/knowledge' || pathname.startsWith('/knowledge/')) return 'Knowledge';
   if (pathname === '/identity') return 'Identity';
   if (pathname === '/memory') return 'Memory';
@@ -57,7 +58,6 @@ function getDefaultTopbarTitle(pathname: string): string {
   if (pathname === '/settings/mcp') return 'MCP';
   if (pathname === '/skills') return 'Skills';
   if (pathname === '/governance') return 'Governance';
-  if (pathname === '/imports') return 'Imports';
   if (pathname === '/workflows') return 'Workflows';
   if (pathname === '/memory-sharing') return 'Sharing';
   return 'Workspace';

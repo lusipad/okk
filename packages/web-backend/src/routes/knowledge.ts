@@ -1,3 +1,8 @@
+import {
+  createKnowledgeExportBundle,
+  serializeKnowledgeEntryToMarkdown,
+  type KnowledgeEntry
+} from "@okk/core";
 import type { FastifyInstance, FastifyPluginAsync } from "fastify";
 
 type KnowledgeStatus = "draft" | "published" | "stale" | "archived";
@@ -10,7 +15,7 @@ interface KnowledgeDaoLike {
     tags?: string[];
     limit?: number;
     offset?: number;
-  }): unknown[];
+  }): KnowledgeEntry[];
   search(input?: {
     keyword?: string;
     repoId?: string;
@@ -19,8 +24,8 @@ interface KnowledgeDaoLike {
     tags?: string[];
     limit?: number;
     offset?: number;
-  }): unknown[];
-  getById(id: string): unknown | null;
+  }): KnowledgeEntry[];
+  getById(id: string): KnowledgeEntry | null;
   getVersionsByEntryId(entryId: string): unknown[];
   create(input: {
     title: string;
@@ -34,7 +39,7 @@ interface KnowledgeDaoLike {
     metadata?: Record<string, unknown>;
     tags?: string[];
     createdBy: string;
-  }): unknown;
+  }): KnowledgeEntry;
   update(
     id: string,
     input: {
@@ -50,8 +55,8 @@ interface KnowledgeDaoLike {
       changeSummary?: string | null;
       editedBy: string;
     }
-  ): unknown | null;
-  updateStatus(id: string, status: KnowledgeStatus, editedBy?: string): unknown | null;
+  ): KnowledgeEntry | null;
+  updateStatus(id: string, status: KnowledgeStatus, editedBy?: string): KnowledgeEntry | null;
   delete(id: string): boolean;
 }
 
@@ -100,6 +105,10 @@ interface UpdateKnowledgeBody {
 
 interface UpdateKnowledgeStatusBody {
   status?: KnowledgeStatus;
+}
+
+interface ExportKnowledgeBatchBody {
+  entryIds?: unknown;
 }
 
 const KNOWN_STATUS = new Set<KnowledgeStatus>(["draft", "published", "stale", "archived"]);
@@ -251,6 +260,65 @@ export const knowledgeRoutes: FastifyPluginAsync = async (app) => {
     }
     return reply.send({ item });
   });
+
+  app.get<{ Params: { id: string } }>(
+    "/:id/export",
+    { preHandler: [app.authenticate] },
+    async (request, reply) => {
+      const database = resolveDatabase(app);
+      if (!database) {
+        return reply.code(501).send({ message: "当前运行模式不支持知识导出接口" });
+      }
+
+      const item = database.knowledge.getById(request.params.id);
+      if (!item) {
+        return reply.code(404).send({ message: "知识条目不存在" });
+      }
+
+      const file = serializeKnowledgeEntryToMarkdown(item);
+      reply.header("Content-Type", "text/markdown; charset=utf-8");
+      reply.header(
+        "Content-Disposition",
+        `attachment; filename="knowledge-entry.md"; filename*=UTF-8''${encodeURIComponent(file.fileName)}`
+      );
+      reply.header("X-OKK-Knowledge-Format-Version", String(file.formatVersion));
+      return reply.send(file.content);
+    }
+  );
+
+  app.post<{ Body: ExportKnowledgeBatchBody }>(
+    "/export",
+    { preHandler: [app.authenticate] },
+    async (request, reply) => {
+      const database = resolveDatabase(app);
+      if (!database) {
+        return reply.code(501).send({ message: "当前运行模式不支持知识导出接口" });
+      }
+
+      const entryIds = Array.isArray(request.body?.entryIds)
+        ? Array.from(
+            new Set(
+              request.body.entryIds
+                .filter((item): item is string => typeof item === "string")
+                .map((item) => item.trim())
+                .filter(Boolean)
+            )
+          )
+        : [];
+      if (entryIds.length === 0) {
+        return reply.code(400).send({ message: "entryIds 不能为空" });
+      }
+
+      const items = entryIds
+        .map((entryId) => database.knowledge.getById(entryId))
+        .filter((item): item is NonNullable<ReturnType<typeof database.knowledge.getById>> => item !== null);
+      if (items.length !== entryIds.length) {
+        return reply.code(404).send({ message: "部分知识条目不存在" });
+      }
+
+      return reply.send(createKnowledgeExportBundle(items));
+    }
+  );
 
   app.get<{ Params: { id: string } }>(
     "/:id/versions",

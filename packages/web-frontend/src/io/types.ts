@@ -297,6 +297,58 @@ export interface KnowledgeImportPreviewInput {
   name?: string;
   sourceTypes?: string[];
   repoIds?: string[];
+  targetRepoId?: string;
+  files?: Array<{
+    name: string;
+    content: string;
+  }>;
+}
+
+export interface KnowledgeImportPreviewIssue {
+  code: string;
+  field?: string;
+  fileName?: string;
+  message: string;
+}
+
+export interface ExportKnowledgeEntryResult {
+  fileName: string;
+  formatVersion: number;
+  content: string;
+}
+
+export interface KnowledgeExportFile {
+  entryId: string;
+  title: string;
+  fileName: string;
+  formatVersion: number;
+  content: string;
+}
+
+export interface KnowledgeExportManifestItem {
+  entryId: string;
+  title: string;
+  fileName: string;
+  category: string;
+  status: KnowledgeStatus;
+  tags: string[];
+  formatVersion: number;
+}
+
+export interface KnowledgeExportBundle {
+  formatVersion: number;
+  manifest: {
+    kind: string;
+    formatVersion: number;
+    exportedAt: string;
+    itemCount: number;
+    items: KnowledgeExportManifestItem[];
+  };
+  manifestFile: {
+    fileName: string;
+    content: string;
+  };
+  files: KnowledgeExportFile[];
 }
 
 export interface WorkflowTemplate {
@@ -410,6 +462,8 @@ export interface IOProvider {
   createKnowledgeEntry(input: CreateKnowledgeEntryInput): Promise<KnowledgeEntry>;
   updateKnowledgeEntry(entryId: string, input: UpdateKnowledgeEntryInput): Promise<KnowledgeEntry>;
   deleteKnowledgeEntry(entryId: string): Promise<void>;
+  exportKnowledgeEntry(entryId: string): Promise<ExportKnowledgeEntryResult>;
+  exportKnowledgeEntries(entryIds: string[]): Promise<KnowledgeExportBundle>;
   getKnowledgeVersions(entryId: string): Promise<KnowledgeVersion[]>;
   updateKnowledgeStatus(entryId: string, status: KnowledgeStatus): Promise<KnowledgeEntry>;
   listMcpServers(): Promise<McpServerSetting[]>;

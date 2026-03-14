@@ -409,6 +409,14 @@ export function App() {
               }
             />
             <Route
+              path='/knowledge/imports'
+              element={
+                <Guard authenticated={Boolean(token)}>
+                  <KnowledgeImportsPage />
+                </Guard>
+              }
+            />
+            <Route
               path='/imports'
               element={
                 <Guard authenticated={Boolean(token)}>

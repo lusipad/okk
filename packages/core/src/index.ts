@@ -7,4 +7,5 @@ export * from "./repository/index.js";
 export * from "./agents/index.js";
 export * from "./team/index.js";
 export * from "./skills/index.js";
+export * from "./knowledge/index.js";
 export * from "./workflows/index.js";

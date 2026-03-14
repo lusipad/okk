@@ -16,6 +16,8 @@ const {
   mockCreateKnowledgeEntry,
   mockUpdateKnowledgeEntry,
   mockDeleteKnowledgeEntry,
+  mockExportKnowledgeEntry,
+  mockExportKnowledgeEntries,
   mockCreateSession,
   mockIo,
   mockDispatch,
@@ -33,6 +35,8 @@ const {
   mockCreateKnowledgeEntry: vi.fn(),
   mockUpdateKnowledgeEntry: vi.fn(),
   mockDeleteKnowledgeEntry: vi.fn(),
+  mockExportKnowledgeEntry: vi.fn(),
+  mockExportKnowledgeEntries: vi.fn(),
   mockCreateSession: vi.fn(),
   mockIo: {} as Record<string, unknown>,
   mockDispatch: vi.fn(),
@@ -72,6 +76,8 @@ Object.assign(mockIo, {
   createKnowledgeEntry: mockCreateKnowledgeEntry,
   updateKnowledgeEntry: mockUpdateKnowledgeEntry,
   deleteKnowledgeEntry: mockDeleteKnowledgeEntry,
+  exportKnowledgeEntry: mockExportKnowledgeEntry,
+  exportKnowledgeEntries: mockExportKnowledgeEntries,
   createSession: mockCreateSession
 });
 
@@ -207,6 +213,44 @@ describe('KnowledgePage', () => {
     mockCreateKnowledgeEntry.mockResolvedValue(entry);
     mockUpdateKnowledgeEntry.mockResolvedValue(entry);
     mockDeleteKnowledgeEntry.mockResolvedValue(undefined);
+    mockExportKnowledgeEntry.mockResolvedValue({
+      fileName: 'SQLite-指南.md',
+      formatVersion: 1,
+      content: '# SQLite'
+    });
+    mockExportKnowledgeEntries.mockResolvedValue({
+      formatVersion: 1,
+      manifest: {
+        kind: 'knowledge_export_manifest',
+        formatVersion: 1,
+        exportedAt: '2026-03-11T00:00:00.000Z',
+        itemCount: 1,
+        items: [
+          {
+            entryId: 'knowledge-1',
+            title: 'SQLite 指南',
+            fileName: 'SQLite-指南.md',
+            category: 'guide',
+            status: 'published',
+            tags: ['sqlite', 'guide'],
+            formatVersion: 1
+          }
+        ]
+      },
+      manifestFile: {
+        fileName: 'knowledge-export-manifest.json',
+        content: '{"itemCount":1}'
+      },
+      files: [
+        {
+          entryId: 'knowledge-1',
+          title: 'SQLite 指南',
+          fileName: 'SQLite-指南.md',
+          formatVersion: 1,
+          content: '# SQLite'
+        }
+      ]
+    });
     mockCreateSession.mockResolvedValue({
       id: 'session-new',
       title: '新会话',
@@ -279,5 +323,56 @@ describe('KnowledgePage', () => {
     await waitFor(() => {
       expect(mockRequestKnowledgeShare).toHaveBeenCalledWith('knowledge-1', 'team', '请审核');
     });
+  });
+
+  it('支持从知识详情导出 Markdown', async () => {
+    const user = userEvent.setup();
+    const originalCreateObjectURL = URL.createObjectURL;
+    const originalRevokeObjectURL = URL.revokeObjectURL;
+    const createObjectURLMock = vi.fn(() => 'blob:knowledge-export');
+    const revokeObjectURLMock = vi.fn();
+    const anchorClickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
+    URL.createObjectURL = createObjectURLMock;
+    URL.revokeObjectURL = revokeObjectURLMock;
+
+    renderPage();
+    await screen.findByDisplayValue('SQLite 指南');
+    await user.click(screen.getByTestId('knowledge-export-button'));
+
+    await waitFor(() => {
+      expect(mockExportKnowledgeEntry).toHaveBeenCalledWith('knowledge-1');
+    });
+    expect(createObjectURLMock).toHaveBeenCalledTimes(1);
+    expect(anchorClickSpy).toHaveBeenCalledTimes(1);
+
+    URL.createObjectURL = originalCreateObjectURL;
+    URL.revokeObjectURL = originalRevokeObjectURL;
+    anchorClickSpy.mockRestore();
+  });
+
+  it('支持从列表批量导出选中的知识', async () => {
+    const user = userEvent.setup();
+    const originalCreateObjectURL = URL.createObjectURL;
+    const originalRevokeObjectURL = URL.revokeObjectURL;
+    const createObjectURLMock = vi.fn(() => 'blob:knowledge-batch-export');
+    const revokeObjectURLMock = vi.fn();
+    const anchorClickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
+    URL.createObjectURL = createObjectURLMock;
+    URL.revokeObjectURL = revokeObjectURLMock;
+
+    renderPage('/knowledge');
+    await screen.findByTestId('knowledge-entry-knowledge-1');
+    await user.click(screen.getByTestId('knowledge-select-knowledge-1'));
+    await user.click(screen.getByTestId('knowledge-batch-export-button'));
+
+    await waitFor(() => {
+      expect(mockExportKnowledgeEntries).toHaveBeenCalledWith(['knowledge-1']);
+    });
+    expect(createObjectURLMock).toHaveBeenCalledTimes(2);
+    expect(anchorClickSpy).toHaveBeenCalledTimes(2);
+
+    URL.createObjectURL = originalCreateObjectURL;
+    URL.revokeObjectURL = originalRevokeObjectURL;
+    anchorClickSpy.mockRestore();
   });
 });

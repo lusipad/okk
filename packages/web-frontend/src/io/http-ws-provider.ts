@@ -28,9 +28,11 @@ import type {
   CreateKnowledgeEntryInput,
   CreateMcpServerInput,
   GovernanceDetailPayload,
+  ExportKnowledgeEntryResult,
   IOProvider,
   ImportSkillFolderInput,
   InstallSkillFromMarketInput,
+  KnowledgeExportBundle,
   KnowledgeImportPreviewInput,
   KnowledgeSharingOverview,
   ListKnowledgeEntriesInput,
@@ -1192,6 +1194,28 @@ export class HttpWsIOProvider implements IOProvider {
 
   async deleteKnowledgeEntry(entryId: string): Promise<void> {
     await this.http.delete(`/api/knowledge/${encodeURIComponent(entryId)}`);
+  }
+
+  async exportKnowledgeEntry(entryId: string): Promise<ExportKnowledgeEntryResult> {
+    const response = await this.http.getText(`/api/knowledge/${encodeURIComponent(entryId)}/export`);
+    const fallbackName = `${entryId}.md`;
+    const disposition = response.headers.get('content-disposition') ?? '';
+    const fileNameMatch =
+      disposition.match(/filename\*=UTF-8''([^;]+)/i) ??
+      disposition.match(/filename=\"?([^\";]+)\"?/i);
+    const resolvedFileName = fileNameMatch?.[1]
+      ? decodeURIComponent(fileNameMatch[1].replace(/\"/g, ''))
+      : fallbackName;
+    const formatVersionRaw = response.headers.get('x-okk-knowledge-format-version');
+    return {
+      fileName: resolvedFileName,
+      formatVersion: formatVersionRaw ? Number.parseInt(formatVersionRaw, 10) || 1 : 1,
+      content: response.body
+    };
+  }
+
+  async exportKnowledgeEntries(entryIds: string[]): Promise<KnowledgeExportBundle> {
+    return this.http.post<KnowledgeExportBundle>('/api/knowledge/export', { entryIds });
   }
 
   async getKnowledgeVersions(entryId: string): Promise<KnowledgeVersion[]> {

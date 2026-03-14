@@ -1,10 +1,16 @@
-import type { SqliteDatabase } from "@okk/core";
+import {
+  KnowledgePortabilityError,
+  parseKnowledgePortabilityMarkdown,
+  type SqliteDatabase
+} from "@okk/core";
 import type { FastifyPluginAsync } from "fastify";
 
 interface PreviewBody {
   name?: unknown;
   sourceTypes?: unknown;
   repoIds?: unknown;
+  targetRepoId?: unknown;
+  files?: unknown;
 }
 
 const getDatabase = (app: { core: unknown }): SqliteDatabase | null => {
@@ -15,10 +21,40 @@ const getDatabase = (app: { core: unknown }): SqliteDatabase | null => {
 const normalizeText = (value: string): string => value.trim().replace(/\s+/g, " ");
 const normalizeString = (value: unknown): string | null => (typeof value === "string" && value.trim().length > 0 ? value.trim() : null);
 const normalizeStringArray = (value: unknown): string[] => Array.isArray(value) ? Array.from(new Set(value.filter((item): item is string => typeof item === "string").map((item) => item.trim()).filter(Boolean))) : [];
+const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === "object" && value !== null;
 const summarize = (content: string, maxLength = 160): string => {
   const normalized = normalizeText(content);
   return normalized.length > maxLength ? `${normalized.slice(0, maxLength - 3)}...` : normalized;
 };
+
+const normalizeFileInputs = (
+  value: unknown
+): Array<{ name: string; content: string }> => {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .map((item) => {
+      if (!isRecord(item)) {
+        return null;
+      }
+
+      const name = normalizeString(item.name);
+      const content = typeof item.content === "string" ? item.content : null;
+      if (!name || !content || content.trim().length === 0) {
+        return null;
+      }
+
+      return { name, content };
+    })
+    .filter((item): item is { name: string; content: string } => item !== null);
+};
+
+const normalizeKnowledgeStatus = (value: unknown): "draft" | "published" | "stale" | "archived" =>
+  value === "draft" || value === "published" || value === "stale" || value === "archived"
+    ? value
+    : "draft";
 
 export const knowledgeImportsRoutes: FastifyPluginAsync = async (app) => {
   app.get("/", { preHandler: [app.authenticate] }, async (_request, reply) => {
@@ -48,6 +84,73 @@ export const knowledgeImportsRoutes: FastifyPluginAsync = async (app) => {
     const database = getDatabase(app);
     if (!database) {
       return reply.code(501).send({ message: "knowledge imports not available" });
+    }
+
+    const standardFiles = normalizeFileInputs(request.body?.files);
+    if (standardFiles.length > 0) {
+      const name = normalizeString(request.body?.name) ?? `标准文件导入 ${new Date().toISOString()}`;
+      const targetRepoId = normalizeString(request.body?.targetRepoId) ?? normalizeStringArray(request.body?.repoIds)[0] ?? null;
+      const parsedFiles: Array<{
+        name: string;
+        parsed: ReturnType<typeof parseKnowledgePortabilityMarkdown>;
+      }> = [];
+      const errors: Array<Record<string, unknown>> = [];
+
+      for (const file of standardFiles) {
+        try {
+          parsedFiles.push({
+            name: file.name,
+            parsed: parseKnowledgePortabilityMarkdown(file.content, { fileName: file.name })
+          });
+        } catch (error) {
+          if (error instanceof KnowledgePortabilityError) {
+            errors.push(...error.issues.map((issue) => ({ ...issue, fileName: issue.fileName ?? file.name })));
+            continue;
+          }
+
+          errors.push({
+            code: "invalid_value",
+            fileName: file.name,
+            message: error instanceof Error ? error.message : "标准知识文件解析失败"
+          });
+        }
+      }
+
+      if (errors.length > 0) {
+        return reply.code(400).send({
+          message: "标准知识文件校验失败",
+          errors
+        });
+      }
+
+      const batch = database.knowledgeImports.createBatch({
+        name,
+        sourceTypes: ["standard_file"],
+        sourceSummary: `标准知识文件 ${parsedFiles.length} 个`
+      });
+
+      const items = database.knowledgeImports.addItems(
+        parsedFiles.map(({ name: fileName, parsed }) => ({
+          batchId: batch.id,
+          title: parsed.title,
+          summary: parsed.summary,
+          content: parsed.content,
+          repoId: targetRepoId,
+          sourceType: "standard_file",
+          sourceRef: fileName,
+          dedupeKey: `${targetRepoId ?? "global"}:${normalizeText(parsed.title).toLowerCase()}:${fileName.toLowerCase()}`,
+          evidence: {
+            formatVersion: parsed.formatVersion,
+            fileName,
+            category: parsed.category,
+            status: parsed.status,
+            tags: parsed.tags,
+            sourceRefs: parsed.sourceRefs
+          }
+        }))
+      );
+
+      return reply.code(201).send({ item: database.knowledgeImports.getBatch(batch.id), items });
     }
 
     const sourceTypes = normalizeStringArray(request.body?.sourceTypes);
@@ -170,16 +273,42 @@ export const knowledgeImportsRoutes: FastifyPluginAsync = async (app) => {
         return { itemId: item.id, status: "skipped" };
       }
 
+      const evidence = isRecord(item.evidence) ? item.evidence : {};
+      const importedTags =
+        item.sourceType === "standard_file"
+          ? normalizeStringArray(evidence.tags)
+          : [item.sourceType, "imported"];
+      const importedCategory =
+        item.sourceType === "standard_file"
+          ? normalizeString(evidence.category) ?? item.sourceType
+          : item.sourceType;
+      const importedStatus =
+        item.sourceType === "standard_file"
+          ? normalizeKnowledgeStatus(evidence.status)
+          : "published";
+
       const created = database.knowledge.create({
         title: item.title,
         content: item.content,
         summary: item.summary,
         repoId,
-        category: item.sourceType,
-        status: "published",
-        tags: [item.sourceType, "imported"],
+        category: importedCategory,
+        status: importedStatus,
+        tags: importedTags,
         createdBy: actorId,
-        metadata: { sourceRef: item.sourceRef, importBatchId: batch.id, evidence: item.evidence }
+        metadata: {
+          sourceRef: item.sourceRef,
+          importBatchId: batch.id,
+          evidence: item.evidence,
+          portability:
+            item.sourceType === "standard_file"
+              ? {
+                  fileName: item.sourceRef,
+                  formatVersion: evidence.formatVersion ?? 1,
+                  sourceRefs: normalizeStringArray(evidence.sourceRefs)
+                }
+              : undefined
+        }
       });
       database.knowledgeImports.updateItemStatus(item.id, "imported", created.id);
       return { itemId: item.id, status: "imported", entryId: created.id };

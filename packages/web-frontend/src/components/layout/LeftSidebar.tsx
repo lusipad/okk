@@ -102,6 +102,7 @@ export function LeftSidebar({
   const [moreToolsExpanded, setMoreToolsExpanded] = useState<boolean>(() => readMoreToolsExpanded());
   const location = useLocation();
   const inChat = location.pathname === '/';
+  const inKnowledgeImports = location.pathname === '/imports' || location.pathname === '/knowledge/imports';
   const normalizedSessionQuery = sessionQuery.trim().toLowerCase();
 
   useEffect(() => {
@@ -168,18 +169,23 @@ export function LeftSidebar({
   const navigationLinks = useMemo<NavLinkItem[]>(
     () => [
       { id: 'chat', label: 'Chats', to: '/', active: inChat },
-      { id: 'knowledge', label: 'Knowledge', to: '/knowledge', active: location.pathname === '/knowledge' || location.pathname.startsWith('/knowledge/') },
+      {
+        id: 'knowledge',
+        label: 'Knowledge',
+        to: '/knowledge',
+        active: (location.pathname === '/knowledge' || location.pathname.startsWith('/knowledge/')) && !inKnowledgeImports
+      },
       { id: 'identity', label: 'Identity', to: '/identity', active: location.pathname === '/identity' },
       { id: 'memory', label: 'Memory', to: '/memory', active: location.pathname === '/memory' },
       { id: 'workspaces', label: 'Workspaces', to: '/workspaces', active: location.pathname === '/workspaces' },
       { id: 'skills', label: 'Skills', to: '/skills', active: location.pathname === '/skills' },
       { id: 'mcp', label: 'MCP', to: '/settings/mcp', active: location.pathname === '/settings/mcp' },
       { id: 'governance', label: 'Governance', to: '/governance', active: location.pathname === '/governance' },
-      { id: 'imports', label: 'Imports', to: '/imports', active: location.pathname === '/imports' },
+      { id: 'imports', label: 'Imports', to: '/imports', active: inKnowledgeImports },
       { id: 'workflows', label: 'Workflows', to: '/workflows', active: location.pathname === '/workflows' },
       { id: 'memory-sharing', label: 'Sharing', to: '/memory-sharing', active: location.pathname === '/memory-sharing' }
     ],
-    [inChat, location.pathname]
+    [inChat, inKnowledgeImports, location.pathname]
   );
 
   const primaryLinks = useMemo(

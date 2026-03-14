@@ -5,6 +5,19 @@ export class UnauthorizedError extends Error {
   }
 }
 
+export class HttpError extends Error {
+  readonly status: number;
+
+  readonly payload: unknown;
+
+  constructor(status: number, message: string, payload: unknown) {
+    super(message);
+    this.name = 'HttpError';
+    this.status = status;
+    this.payload = payload;
+  }
+}
+
 export interface HttpClientOptions {
   baseUrl: string;
   getToken: () => string | null;
@@ -24,6 +37,14 @@ export class HttpClient {
     return this.request<T>(path, { method: 'GET' });
   }
 
+  async getText(path: string): Promise<{ body: string; headers: Headers }> {
+    const response = await this.send(path, { method: 'GET' });
+    return {
+      body: await response.text(),
+      headers: response.headers
+    };
+  }
+
   async post<T>(path: string, body?: unknown): Promise<T> {
     return this.request<T>(path, { method: 'POST', body });
   }
@@ -40,6 +61,19 @@ export class HttpClient {
     path: string,
     options: { method: 'GET' | 'POST' | 'PATCH' | 'DELETE'; body?: unknown }
   ): Promise<T> {
+    const response = await this.send(path, options);
+
+    if (response.status === 204) {
+      return undefined as T;
+    }
+
+    return (await response.json()) as T;
+  }
+
+  private async send(
+    path: string,
+    options: { method: 'GET' | 'POST' | 'PATCH' | 'DELETE'; body?: unknown }
+  ): Promise<Response> {
     const headers = new Headers({
       'Content-Type': 'application/json'
     });
@@ -60,12 +94,13 @@ export class HttpClient {
 
     if (!response.ok) {
       let detail = '';
+      let payload: unknown = undefined;
       try {
-        const payload = (await response.json()) as { message?: unknown; error?: unknown };
-        if (typeof payload.message === 'string' && payload.message.trim().length > 0) {
-          detail = payload.message.trim();
-        } else if (payload.error && typeof payload.error === 'object') {
-          const errorMessage = (payload.error as { message?: unknown }).message;
+        payload = (await response.json()) as { message?: unknown; error?: unknown };
+        if (typeof (payload as { message?: unknown }).message === 'string' && (payload as { message?: string }).message?.trim().length) {
+          detail = (payload as { message: string }).message.trim();
+        } else if ((payload as { error?: unknown }).error && typeof (payload as { error?: unknown }).error === 'object') {
+          const errorMessage = ((payload as { error?: { message?: unknown } }).error as { message?: unknown }).message;
           if (typeof errorMessage === 'string' && errorMessage.trim().length > 0) {
             detail = errorMessage.trim();
           }
@@ -74,13 +109,9 @@ export class HttpClient {
         // ignore non-json error payloads
       }
       const base = `HTTP ${response.status}: ${response.statusText}`;
-      throw new Error(detail ? `${base} - ${detail}` : base);
+      throw new HttpError(response.status, detail ? `${base} - ${detail}` : base, payload);
     }
 
-    if (response.status === 204) {
-      return undefined as T;
-    }
-
-    return (await response.json()) as T;
+    return response;
   }
 }
