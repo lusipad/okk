@@ -26,6 +26,7 @@ import { SessionWsClient, TeamWsClient } from './ws-client';
 import type {
   AskQuestionInput,
   CreateKnowledgeEntryInput,
+  CreateKnowledgeSubscriptionInput,
   CreateMcpServerInput,
   GovernanceDetailPayload,
   ExportKnowledgeEntryResult,
@@ -34,6 +35,7 @@ import type {
   InstallSkillFromMarketInput,
   KnowledgeExportBundle,
   KnowledgeImportPreviewInput,
+  KnowledgeSubscriptionUpdatesPayload,
   KnowledgeSharingOverview,
   ListKnowledgeEntriesInput,
   MemorySharingOverview,
@@ -59,6 +61,7 @@ import type {
   TeamRunRecord,
   TeamRunRequest,
   UpdateKnowledgeEntryInput,
+  UpdateKnowledgeSubscriptionInput,
   WorkflowTemplate,
   WorkspaceStatusPayload,
   SubscribeTeamInput,
@@ -1182,6 +1185,45 @@ export class HttpWsIOProvider implements IOProvider {
       item: import('../types/domain').KnowledgeShareRecord;
       reviews: import('../types/domain').KnowledgeShareReview[];
     }>(`/api/knowledge-sharing/${encodeURIComponent(shareId)}`);
+  }
+
+  async listKnowledgeSubscriptions() {
+    const payload = await this.http.get<{ items: import('../types/domain').KnowledgeSubscriptionRecord[] }>('/api/knowledge-subscriptions');
+    return payload.items;
+  }
+
+  async createKnowledgeSubscription(input: CreateKnowledgeSubscriptionInput) {
+    const payload = await this.http.post<{ item: import('../types/domain').KnowledgeSubscriptionRecord }>('/api/knowledge-subscriptions', input);
+    return payload.item;
+  }
+
+  async updateKnowledgeSubscription(subscriptionId: string, input: UpdateKnowledgeSubscriptionInput) {
+    const payload = await this.http.patch<{ item: import('../types/domain').KnowledgeSubscriptionRecord }>(
+      `/api/knowledge-subscriptions/${encodeURIComponent(subscriptionId)}`,
+      input
+    );
+    return payload.item;
+  }
+
+  async syncKnowledgeSubscription(subscriptionId: string): Promise<KnowledgeSubscriptionUpdatesPayload> {
+    return this.http.post<KnowledgeSubscriptionUpdatesPayload>(
+      `/api/knowledge-subscriptions/${encodeURIComponent(subscriptionId)}/sync`,
+      {}
+    );
+  }
+
+  async listKnowledgeSubscriptionUpdates(subscriptionId: string): Promise<KnowledgeSubscriptionUpdatesPayload> {
+    return this.http.get<KnowledgeSubscriptionUpdatesPayload>(
+      `/api/knowledge-subscriptions/${encodeURIComponent(subscriptionId)}/updates`
+    );
+  }
+
+  async importKnowledgeSubscriptionUpdate(updateId: string) {
+    return this.http.post<{
+      item: import('../types/domain').KnowledgeSubscriptionUpdateRecord | null;
+      entry: KnowledgeEntry;
+      subscription: import('../types/domain').KnowledgeSubscriptionRecord | null;
+    }>(`/api/knowledge-subscriptions/updates/${encodeURIComponent(updateId)}/import`, {});
   }
 
   async createKnowledgeEntry(input: CreateKnowledgeEntryInput): Promise<KnowledgeEntry> {

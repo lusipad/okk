@@ -487,6 +487,67 @@ const ensureKnowledgeSharingSchema = (db: SqliteConnection): void => {
   );
 };
 
+const ensureKnowledgeSubscriptionsSchema = (db: SqliteConnection): void => {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS knowledge_subscriptions (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      source_type TEXT NOT NULL,
+      source_id TEXT NOT NULL,
+      source_label TEXT NOT NULL,
+      source_metadata_json TEXT NOT NULL DEFAULT '{}',
+      target_repo_id TEXT NOT NULL,
+      subscription_status TEXT NOT NULL DEFAULT 'active',
+      last_cursor TEXT,
+      last_synced_at TEXT,
+      last_sync_status TEXT NOT NULL DEFAULT 'idle',
+      last_sync_summary TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      FOREIGN KEY (user_id) REFERENCES users(id),
+      FOREIGN KEY (target_repo_id) REFERENCES repositories(id)
+    );
+  `);
+  db.exec(
+    "CREATE UNIQUE INDEX IF NOT EXISTS idx_knowledge_subscriptions_user_source_target ON knowledge_subscriptions(user_id, source_type, source_id, target_repo_id);"
+  );
+  db.exec(
+    "CREATE INDEX IF NOT EXISTS idx_knowledge_subscriptions_user_status ON knowledge_subscriptions(user_id, subscription_status, updated_at DESC);"
+  );
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS knowledge_subscription_updates (
+      id TEXT PRIMARY KEY,
+      subscription_id TEXT NOT NULL,
+      share_id TEXT NOT NULL,
+      source_entry_id TEXT NOT NULL,
+      title TEXT NOT NULL,
+      summary TEXT NOT NULL,
+      category TEXT NOT NULL DEFAULT 'general',
+      repo_id TEXT NOT NULL,
+      tags_json TEXT NOT NULL DEFAULT '[]',
+      source_author_id TEXT NOT NULL,
+      source_author_name TEXT,
+      source_updated_at TEXT NOT NULL,
+      consume_status TEXT NOT NULL DEFAULT 'pending',
+      imported_entry_id TEXT,
+      consumed_at TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      FOREIGN KEY (subscription_id) REFERENCES knowledge_subscriptions(id),
+      FOREIGN KEY (share_id) REFERENCES knowledge_shares(id),
+      FOREIGN KEY (source_entry_id) REFERENCES knowledge_entries(id),
+      FOREIGN KEY (repo_id) REFERENCES repositories(id),
+      FOREIGN KEY (imported_entry_id) REFERENCES knowledge_entries(id)
+    );
+  `);
+  db.exec(
+    "CREATE UNIQUE INDEX IF NOT EXISTS idx_knowledge_subscription_updates_unique ON knowledge_subscription_updates(subscription_id, share_id, source_updated_at);"
+  );
+  db.exec(
+    "CREATE INDEX IF NOT EXISTS idx_knowledge_subscription_updates_subscription ON knowledge_subscription_updates(subscription_id, consume_status, source_updated_at DESC);"
+  );
+};
+
 const ensureMissionOrchestrationSchema = (db: SqliteConnection): void => {
   db.exec(`
     CREATE TABLE IF NOT EXISTS missions (
@@ -665,6 +726,12 @@ const migrations: Migration[] = [
     version: 15,
     run: (db) => {
       ensureWorkflowMetadataSchema(db);
+    }
+  },
+  {
+    version: 16,
+    run: (db) => {
+      ensureKnowledgeSubscriptionsSchema(db);
     }
   }
 ];

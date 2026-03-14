@@ -41,6 +41,12 @@ export {
   type ListKnowledgeSharesInput
 } from './knowledge-sharing-dao.js';
 export {
+  KnowledgeSubscriptionsDao,
+  type CreateKnowledgeSubscriptionInput,
+  type UpdateKnowledgeSubscriptionInput,
+  type ListKnowledgeSubscriptionUpdatesInput
+} from './knowledge-subscriptions-dao.js';
+export {
   MissionsDao,
   type CreateMissionInput,
   type UpdateMissionInput,

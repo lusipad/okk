@@ -325,6 +325,16 @@ describe('KnowledgePage', () => {
     });
   });
 
+  it('提供知识订阅入口', async () => {
+    const user = userEvent.setup();
+    renderPage('/knowledge');
+
+    await screen.findByTestId('knowledge-entry-knowledge-1');
+    await user.click(screen.getByRole('button', { name: '订阅源' }));
+
+    expect(mockNavigate).toHaveBeenCalledWith('/knowledge/subscriptions');
+  });
+
   it('支持从知识详情导出 Markdown', async () => {
     const user = userEvent.setup();
     const originalCreateObjectURL = URL.createObjectURL;

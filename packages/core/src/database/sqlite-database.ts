@@ -5,6 +5,7 @@ import {
   InstalledSkillsDao,
   KnowledgeGovernanceDao,
   KnowledgeImportsDao,
+  KnowledgeSubscriptionsDao,
   KnowledgeSharingDao,
   KnowledgeDao,
   MemorySharingDao,
@@ -37,6 +38,7 @@ export class SqliteDatabase {
   readonly workspaces: WorkspacesDao;
   readonly knowledgeGovernance: KnowledgeGovernanceDao;
   readonly knowledgeImports: KnowledgeImportsDao;
+  readonly knowledgeSubscriptions: KnowledgeSubscriptionsDao;
   readonly knowledgeSharing: KnowledgeSharingDao;
   readonly skillWorkflows: SkillWorkflowsDao;
   readonly memorySharing: MemorySharingDao;
@@ -60,6 +62,7 @@ export class SqliteDatabase {
     this.workspaces = new WorkspacesDao(this.connection);
     this.knowledgeGovernance = new KnowledgeGovernanceDao(this.connection);
     this.knowledgeImports = new KnowledgeImportsDao(this.connection);
+    this.knowledgeSubscriptions = new KnowledgeSubscriptionsDao(this.connection);
     this.knowledgeSharing = new KnowledgeSharingDao(this.connection);
     this.skillWorkflows = new SkillWorkflowsDao(this.connection);
     this.memorySharing = new MemorySharingDao(this.connection);

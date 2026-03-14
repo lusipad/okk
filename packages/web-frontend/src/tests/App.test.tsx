@@ -87,6 +87,10 @@ vi.mock('../pages/KnowledgeSharingPage', () => ({
   KnowledgeSharingPage: () => <div>knowledge-sharing-page</div>
 }));
 
+vi.mock('../pages/KnowledgeSubscriptionsPage', () => ({
+  KnowledgeSubscriptionsPage: () => <div>knowledge-subscriptions-page</div>
+}));
+
 vi.mock('../pages/WorkflowsPage', () => ({
   WorkflowsPage: () => <div>workflows-page</div>
 }));
@@ -160,6 +164,15 @@ describe('App desktop auto login', () => {
 
     expect(screen.getByText('imports-page')).toBeInTheDocument();
     expect(screen.queryByText('knowledge-page')).not.toBeInTheDocument();
+  });
+
+  it('已登录时可打开知识订阅页面', async () => {
+    authState.token = 'jwt-token';
+    window.history.pushState({}, '', '/knowledge/subscriptions');
+
+    render(<App />);
+
+    expect(screen.getByText('knowledge-subscriptions-page')).toBeInTheDocument();
   });
 });
 

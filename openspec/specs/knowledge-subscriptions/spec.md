@@ -1,0 +1,39 @@
+# knowledge-subscriptions Specification
+
+## Purpose
+定义知识源订阅、更新通知和订阅内容导入能力。
+
+## Requirements
+### Requirement: 知识源订阅管理
+系统 SHALL 允许用户订阅团队、项目或主题级知识源，并记录订阅状态、同步状态和来源描述信息。
+
+#### Scenario: 创建订阅
+- **WHEN** 用户订阅一个团队、项目或主题知识源
+- **THEN** 系统 SHALL 创建订阅记录并保存来源类型与来源标识
+- **AND** 新订阅 SHALL 拥有初始同步状态
+
+#### Scenario: 停用订阅
+- **WHEN** 用户停用一个已有订阅
+- **THEN** 系统 SHALL 将订阅状态更新为停用
+- **AND** 后续更新查询 SHALL 不再返回该订阅的新内容
+
+### Requirement: 订阅更新发现
+系统 SHALL 为每个订阅维护最近同步游标，并返回新增或变更的共享知识更新列表。
+
+#### Scenario: 查询订阅更新
+- **WHEN** 用户查看某个订阅的最近更新
+- **THEN** 系统 SHALL 返回自上次同步以来新增或变更的共享知识
+- **AND** 每条更新 SHALL 包含来源、更新时间和消费状态
+
+#### Scenario: 首次同步订阅
+- **WHEN** 用户首次打开一个新订阅
+- **THEN** 系统 SHALL 返回该来源当前可见的共享知识作为初始更新集
+- **AND** 同步状态 SHALL 记录初始游标
+
+### Requirement: 订阅内容导入
+系统 SHALL 支持从订阅更新列表中将共享知识导入到个人知识库或工作区视图。
+
+#### Scenario: 一键导入订阅知识
+- **WHEN** 用户在订阅更新列表中选择导入某条知识
+- **THEN** 系统 SHALL 触发知识导入流程
+- **AND** 成功后 SHALL 将该更新标记为已消费或已导入

@@ -129,6 +129,55 @@ export interface KnowledgeShareReview {
   createdAt: string;
 }
 
+export type KnowledgeSubscriptionSourceType = 'team' | 'project' | 'topic';
+export type KnowledgeSubscriptionStatus = 'active' | 'paused';
+export type KnowledgeSubscriptionSyncStatus = 'idle' | 'success' | 'error';
+export type KnowledgeSubscriptionConsumeStatus = 'pending' | 'imported' | 'duplicate' | 'skipped';
+
+export interface KnowledgeSubscriptionSource {
+  type: KnowledgeSubscriptionSourceType;
+  id: string;
+  label: string;
+  repoId: string | null;
+  tag: string | null;
+  metadata: Record<string, unknown>;
+}
+
+export interface KnowledgeSubscriptionRecord {
+  id: string;
+  userId: string;
+  source: KnowledgeSubscriptionSource;
+  targetRepoId: string;
+  status: KnowledgeSubscriptionStatus;
+  lastCursor: string | null;
+  lastSyncedAt: string | null;
+  lastSyncStatus: KnowledgeSubscriptionSyncStatus;
+  lastSyncSummary: string | null;
+  pendingUpdateCount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface KnowledgeSubscriptionUpdateRecord {
+  id: string;
+  subscriptionId: string;
+  shareId: string;
+  sourceEntryId: string;
+  title: string;
+  summary: string;
+  category: string;
+  repoId: string;
+  tags: string[];
+  sourceAuthorId: string;
+  sourceAuthorName: string | null;
+  sourceUpdatedAt: string;
+  consumeStatus: KnowledgeSubscriptionConsumeStatus;
+  importedEntryId: string | null;
+  consumedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export type CollaborationSourceType = 'team' | 'agent' | 'skill' | 'mcp' | 'backend' | 'tool';
 
 export type CollaborationRunStatus = 'queued' | 'running' | 'completed' | 'failed' | 'aborted' | 'ready' | 'unavailable';

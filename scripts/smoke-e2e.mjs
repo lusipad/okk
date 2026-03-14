@@ -19,6 +19,57 @@ async function waitForVisible(locator, timeout = 15000) {
   await locator.waitFor({ state: "visible", timeout });
 }
 
+async function ensureMoreToolsExpanded(page) {
+  const toggle = page.getByTestId("sidebar-more-tools-toggle");
+  if (!(await toggle.count())) {
+    return;
+  }
+
+  const expanded = await toggle.getAttribute("aria-expanded");
+  if (expanded !== "true") {
+    await toggle.click();
+  }
+}
+
+async function closeDrawerOverlays(page) {
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const masks = page.locator(".drawer-mask");
+    if (!(await masks.count())) {
+      return;
+    }
+
+    await page.keyboard.press("Escape").catch(() => {});
+    const closeButton = page.getByRole("button", { name: "关闭" }).first();
+    if (await closeButton.count()) {
+      await closeButton.click().catch(() => {});
+    }
+
+    if (await masks.count()) {
+      await masks.first().click({ force: true, position: { x: 12, y: 12 } }).catch(() => {});
+    }
+
+    await page.waitForTimeout(200);
+  }
+
+  if (await page.locator(".drawer-mask").count()) {
+    throw new Error("drawer overlays still open");
+  }
+}
+
+async function fetchJson(url, options = {}) {
+  const response = await fetch(url, options);
+  if (!response.ok) {
+    const detail = await response.text().catch(() => "");
+    throw new Error(`${options.method ?? "GET"} ${url} failed: ${response.status}${detail ? ` ${detail}` : ""}`);
+  }
+
+  if (response.status === 204) {
+    return null;
+  }
+
+  return response.json();
+}
+
 async function pickUiUrl() {
   if (configuredUiUrl) {
     return configuredUiUrl;
@@ -84,6 +135,7 @@ let page;
 let importedSkillId = null;
 let createdMcpId = null;
 let tempSkillDir = null;
+let knowledgeTempDir = null;
 let baseUrl = "http://127.0.0.1:5173";
 
 try {
@@ -179,6 +231,7 @@ try {
     throw new Error("assistant text is empty");
   }
 
+  await ensureMoreToolsExpanded(page);
   await page.getByTestId("nav-mcp").click();
   await waitForVisible(page.getByTestId("mcp-server-list"), 20000);
   const jwtToken = await page.evaluate(() => localStorage.getItem("okk.jwt") ?? "");
@@ -277,6 +330,7 @@ try {
     throw new Error("mcp runtime resource output mismatch");
   }
 
+  await ensureMoreToolsExpanded(page);
   await page.getByTestId("nav-skills").click();
   await waitForVisible(page.getByTestId("skill-list"), 20000);
 
@@ -374,6 +428,131 @@ try {
   await waitForVisible(page.getByTestId("skill-list"), 20000);
   await page.goto(baseUrl, { waitUntil: "domcontentloaded" });
   await waitForVisible(page.getByTestId("composer-input"), 20000);
+  await closeDrawerOverlays(page);
+
+  knowledgeTempDir = await fsp.mkdtemp(path.join(os.tmpdir(), "okk-knowledge-subscription-e2e-"));
+  const sourceRepoPath = path.join(knowledgeTempDir, "source-repo");
+  const targetRepoPath = path.join(knowledgeTempDir, "target-repo");
+  await fsp.mkdir(sourceRepoPath, { recursive: true });
+  await fsp.mkdir(targetRepoPath, { recursive: true });
+
+  const knowledgeTrace = `smoke-subscription-${Date.now()}`;
+  const sourceRepo = await fetchJson(`${apiUrl}/api/repos`, {
+    method: "POST",
+    headers: authHeaders,
+    body: JSON.stringify({
+      name: `${knowledgeTrace}-source`,
+      path: sourceRepoPath
+    })
+  });
+  const targetRepo = await fetchJson(`${apiUrl}/api/repos`, {
+    method: "POST",
+    headers: authHeaders,
+    body: JSON.stringify({
+      name: `${knowledgeTrace}-target`,
+      path: targetRepoPath
+    })
+  });
+
+  const sourceEntry = await fetchJson(`${apiUrl}/api/knowledge`, {
+    method: "POST",
+    headers: authHeaders,
+    body: JSON.stringify({
+      title: `知识订阅闭环 ${knowledgeTrace}`,
+      content: `这是 ${knowledgeTrace} 的订阅 smoke 内容。`,
+      summary: "知识订阅 smoke 摘要",
+      repoId: sourceRepo.id,
+      category: "guide",
+      status: "published",
+      tags: ["smoke", "subscription", knowledgeTrace]
+    })
+  });
+  const shareRequest = await fetchJson(`${apiUrl}/api/knowledge-sharing/request`, {
+    method: "POST",
+    headers: authHeaders,
+    body: JSON.stringify({
+      entryId: sourceEntry.id,
+      visibility: "team",
+      note: "smoke subscription flow"
+    })
+  });
+  await fetchJson(`${apiUrl}/api/knowledge-sharing/${shareRequest.item.id}/review`, {
+    method: "POST",
+    headers: authHeaders,
+    body: JSON.stringify({ action: "approve" })
+  });
+  await fetchJson(`${apiUrl}/api/knowledge-sharing/${shareRequest.item.id}/review`, {
+    method: "POST",
+    headers: authHeaders,
+    body: JSON.stringify({ action: "publish" })
+  });
+
+  await page.goto(`${baseUrl}/knowledge/subscriptions`, { waitUntil: "domcontentloaded", timeout: 30000 });
+  await closeDrawerOverlays(page);
+  await waitForVisible(page.getByRole("heading", { name: "知识订阅" }), 20000);
+  await page.getByTestId("knowledge-subscription-source-type").selectOption("project");
+  await page.getByTestId("knowledge-subscription-source-id").selectOption(sourceRepo.id);
+  await page.getByTestId("knowledge-subscription-source-label").fill(`来源 ${knowledgeTrace}`);
+  await page.getByTestId("knowledge-subscription-target-repo").selectOption(targetRepo.id);
+  await page.getByTestId("knowledge-subscription-create-button").click();
+
+  const knowledgeTitleLocator = page.getByText(sourceEntry.title).first();
+  try {
+    await waitForVisible(knowledgeTitleLocator, 10000);
+  } catch {
+    await page.getByTestId("knowledge-subscription-sync-button").click();
+    await waitForVisible(knowledgeTitleLocator, 15000);
+  }
+
+  await page.getByRole("button", { name: "一键导入" }).click();
+  await waitForVisible(page.getByText(`已处理更新，目标知识：${sourceEntry.title}`), 15000);
+
+  const subscriptionsPayload = await fetchJson(`${apiUrl}/api/knowledge-subscriptions`, {
+    headers: {
+      Authorization: authHeaders.Authorization
+    }
+  });
+  const createdSubscription = Array.isArray(subscriptionsPayload.items)
+    ? subscriptionsPayload.items.find(
+        (item) => item.source?.id === sourceRepo.id && item.targetRepoId === targetRepo.id
+      )
+    : null;
+  if (!createdSubscription) {
+    throw new Error("knowledge subscription not found after create");
+  }
+
+  const updatesPayload = await fetchJson(
+    `${apiUrl}/api/knowledge-subscriptions/${createdSubscription.id}/updates`,
+    {
+      headers: {
+        Authorization: authHeaders.Authorization
+      }
+    }
+  );
+  const importedUpdate = Array.isArray(updatesPayload.items)
+    ? updatesPayload.items.find((item) => item.sourceEntryId === sourceEntry.id)
+    : null;
+  if (!importedUpdate || importedUpdate.consumeStatus !== "imported") {
+    throw new Error("knowledge subscription update was not marked imported");
+  }
+
+  const targetKnowledgePayload = await fetchJson(
+    `${apiUrl}/api/knowledge?repoId=${encodeURIComponent(targetRepo.id)}`,
+    {
+      headers: {
+        Authorization: authHeaders.Authorization
+      }
+    }
+  );
+  const importedEntry = Array.isArray(targetKnowledgePayload.items)
+    ? targetKnowledgePayload.items.find((item) => item.title === sourceEntry.title)
+    : null;
+  if (!importedEntry) {
+    throw new Error("imported knowledge entry not found in target repo");
+  }
+  if (importedEntry.metadata?.subscription?.sourceEntryId !== sourceEntry.id) {
+    throw new Error("imported knowledge entry missing subscription metadata");
+  }
 
   const screenshotPath = path.join(outputDir, "e2e-success.png");
   await page.screenshot({ path: screenshotPath, fullPage: true });
@@ -384,6 +563,7 @@ try {
   console.log("mcp_ok=true");
   console.log("skills_ok=true");
   console.log("collaboration_ok=true");
+  console.log("knowledge_subscription_ok=true");
   console.log(`screenshot=${screenshotPath}`);
 } catch (error) {
   console.error("e2e_ok=false");
@@ -400,6 +580,9 @@ try {
   }
   if (tempSkillDir) {
     await fsp.rm(tempSkillDir, { recursive: true, force: true }).catch(() => {});
+  }
+  if (knowledgeTempDir) {
+    await fsp.rm(knowledgeTempDir, { recursive: true, force: true }).catch(() => {});
   }
   if (importedSkillId) {
     // Best-effort cleanup through API to avoid state accumulation across runs.

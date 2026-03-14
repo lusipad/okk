@@ -16,6 +16,7 @@ import { WorkspacesPage } from './pages/WorkspacesPage';
 import { KnowledgeImportsPage } from './pages/KnowledgeImportsPage';
 import { KnowledgePage } from './pages/KnowledgePage';
 import { KnowledgeSharingPage } from './pages/KnowledgeSharingPage';
+import { KnowledgeSubscriptionsPage } from './pages/KnowledgeSubscriptionsPage';
 import { WorkflowsPage } from './pages/WorkflowsPage';
 import { MemorySharingPage } from './pages/MemorySharingPage';
 
@@ -405,6 +406,14 @@ export function App() {
               element={
                 <Guard authenticated={Boolean(token)}>
                   <KnowledgeSharingPage />
+                </Guard>
+              }
+            />
+            <Route
+              path='/knowledge/subscriptions'
+              element={
+                <Guard authenticated={Boolean(token)}>
+                  <KnowledgeSubscriptionsPage />
                 </Guard>
               }
             />

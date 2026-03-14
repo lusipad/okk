@@ -6,6 +6,8 @@ import type {
   CollaborationRunStatus,
   CollaborationSourceType,
   KnowledgeEntry,
+  KnowledgeSubscriptionRecord,
+  KnowledgeSubscriptionUpdateRecord,
   KnowledgeShareRecord,
   KnowledgeShareReview,
   KnowledgeGovernanceRecord,
@@ -407,6 +409,25 @@ export interface KnowledgeSharingOverview {
   };
 }
 
+export interface CreateKnowledgeSubscriptionInput {
+  sourceType: 'team' | 'project' | 'topic';
+  sourceId?: string;
+  sourceLabel?: string;
+  targetRepoId: string;
+  enabled?: boolean;
+}
+
+export interface UpdateKnowledgeSubscriptionInput {
+  sourceLabel?: string;
+  targetRepoId?: string;
+  enabled?: boolean;
+}
+
+export interface KnowledgeSubscriptionUpdatesPayload {
+  item: KnowledgeSubscriptionRecord;
+  items: KnowledgeSubscriptionUpdateRecord[];
+}
+
 export interface UpdateMcpServerInput {
   name?: string;
   description?: string;
@@ -459,6 +480,12 @@ export interface IOProvider {
   requestKnowledgeShare(entryId: string, visibility: 'workspace' | 'team', note?: string): Promise<KnowledgeShareRecord>;
   reviewKnowledgeShare(shareId: string, input: { action: string; note?: string }): Promise<KnowledgeShareRecord>;
   getKnowledgeShare(shareId: string): Promise<{ item: KnowledgeShareRecord; reviews: KnowledgeShareReview[] }>;
+  listKnowledgeSubscriptions(): Promise<KnowledgeSubscriptionRecord[]>;
+  createKnowledgeSubscription(input: CreateKnowledgeSubscriptionInput): Promise<KnowledgeSubscriptionRecord>;
+  updateKnowledgeSubscription(subscriptionId: string, input: UpdateKnowledgeSubscriptionInput): Promise<KnowledgeSubscriptionRecord>;
+  syncKnowledgeSubscription(subscriptionId: string): Promise<KnowledgeSubscriptionUpdatesPayload>;
+  listKnowledgeSubscriptionUpdates(subscriptionId: string): Promise<KnowledgeSubscriptionUpdatesPayload>;
+  importKnowledgeSubscriptionUpdate(updateId: string): Promise<{ item: KnowledgeSubscriptionUpdateRecord | null; entry: KnowledgeEntry; subscription: KnowledgeSubscriptionRecord | null }>;
   createKnowledgeEntry(input: CreateKnowledgeEntryInput): Promise<KnowledgeEntry>;
   updateKnowledgeEntry(entryId: string, input: UpdateKnowledgeEntryInput): Promise<KnowledgeEntry>;
   deleteKnowledgeEntry(entryId: string): Promise<void>;

@@ -103,6 +103,7 @@ export function LeftSidebar({
   const location = useLocation();
   const inChat = location.pathname === '/';
   const inKnowledgeImports = location.pathname === '/imports' || location.pathname === '/knowledge/imports';
+  const inKnowledgeSubscriptions = location.pathname === '/knowledge/subscriptions';
   const normalizedSessionQuery = sessionQuery.trim().toLowerCase();
 
   useEffect(() => {
@@ -173,7 +174,10 @@ export function LeftSidebar({
         id: 'knowledge',
         label: 'Knowledge',
         to: '/knowledge',
-        active: (location.pathname === '/knowledge' || location.pathname.startsWith('/knowledge/')) && !inKnowledgeImports
+        active:
+          (location.pathname === '/knowledge' || location.pathname.startsWith('/knowledge/')) &&
+          !inKnowledgeImports &&
+          !inKnowledgeSubscriptions
       },
       { id: 'identity', label: 'Identity', to: '/identity', active: location.pathname === '/identity' },
       { id: 'memory', label: 'Memory', to: '/memory', active: location.pathname === '/memory' },
@@ -182,10 +186,11 @@ export function LeftSidebar({
       { id: 'mcp', label: 'MCP', to: '/settings/mcp', active: location.pathname === '/settings/mcp' },
       { id: 'governance', label: 'Governance', to: '/governance', active: location.pathname === '/governance' },
       { id: 'imports', label: 'Imports', to: '/imports', active: inKnowledgeImports },
+      { id: 'knowledge-subscriptions', label: 'Subscriptions', to: '/knowledge/subscriptions', active: inKnowledgeSubscriptions },
       { id: 'workflows', label: 'Workflows', to: '/workflows', active: location.pathname === '/workflows' },
       { id: 'memory-sharing', label: 'Sharing', to: '/memory-sharing', active: location.pathname === '/memory-sharing' }
     ],
-    [inChat, inKnowledgeImports, location.pathname]
+    [inChat, inKnowledgeImports, inKnowledgeSubscriptions, location.pathname]
   );
 
   const primaryLinks = useMemo(

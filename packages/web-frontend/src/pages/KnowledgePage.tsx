@@ -524,6 +524,9 @@ export function KnowledgePage() {
               <button type='button' className='ghost-button' onClick={() => navigate('/knowledge/imports')}>
                 标准导入
               </button>
+              <button type='button' className='ghost-button' onClick={() => navigate('/knowledge/subscriptions')}>
+                订阅源
+              </button>
               <button type='button' className='ghost-button' onClick={() => navigate('/knowledge/sharing')}>
                 审核队列
               </button>

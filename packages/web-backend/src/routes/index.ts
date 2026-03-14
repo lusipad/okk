@@ -4,6 +4,7 @@ import { authRoutes } from "./auth.js";
 import { governanceRoutes } from "./governance.js";
 import { identityRoutes } from "./identity.js";
 import { knowledgeImportsRoutes } from "./knowledge-imports.js";
+import { knowledgeSubscriptionsRoutes } from "./knowledge-subscriptions.js";
 import { knowledgeSharingRoutes } from "./knowledge-sharing.js";
 import { knowledgeRoutes } from "./knowledge.js";
 import { knowledgeSuggestionsRoutes } from "./knowledge-suggestions.js";
@@ -23,6 +24,7 @@ export const apiRoutes: FastifyPluginAsync = async (app) => {
   await app.register(reposRoutes, { prefix: "/repos" });
   await app.register(sessionsRoutes, { prefix: "/sessions" });
   await app.register(knowledgeRoutes, { prefix: "/knowledge" });
+  await app.register(knowledgeSubscriptionsRoutes, { prefix: "/knowledge-subscriptions" });
   await app.register(knowledgeSharingRoutes, { prefix: "/knowledge-sharing" });
   await app.register(knowledgeSuggestionsRoutes, { prefix: "/knowledge/suggestions" });
   await app.register(governanceRoutes, { prefix: "/governance" });
