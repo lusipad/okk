@@ -3,10 +3,12 @@ dist/
 coverage/
 .DS_Store
 *.log
+*.tsbuildinfo
 .vite/
 .turbo/
 release/
 packages/**/node_modules/
+packages/**/package-lock.json
 packages/**/dist/
 packages/**/coverage/
 packages/**/.vite/
@@ -15,6 +17,11 @@ packages/**/.vite/
 *.db-wal
 output/
 .okk/
+.playwright-cli/
+.playwright-mcp/
+.superpowers/
+/login-page.png
+/main-interface.png
 preview.err
 preview.log
 .tmp-debug-backend.mjs
