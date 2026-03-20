@@ -8,6 +8,7 @@
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "build": "tsc -p tsconfig.build.json",
+    "pretest": "npm run build -w @okk/core",
     "test": "node --import tsx --test src/**/*.test.ts"
   },
   "dependencies": {
